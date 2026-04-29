@@ -1,11 +1,8 @@
 /**
  * index.js  –  Backend de referencia para ft_transcendence multiplayer
  *
- * Instala dependencias:
- *   npm install ws express
- *
- * Arrancar:
- *   node index.js
+ * FIX: p.input.rotation usaba || 0 que machacaba rotation=0.0 válido.
+ *      Cambiado a !== undefined para no perder rotación en posición 0.
  */
 
 const express   = require('express');
@@ -17,7 +14,6 @@ const app    = express();
 const server = http.createServer(app);
 const wss    = new WebSocket.Server({ server });
 
-// Servir los ficheros estáticos del juego (game.js, game.wasm, data/, etc.)
 app.use(express.static(path.join(__dirname, 'public')));
 
 /* ─── Estado del servidor ─────────────────────────────────── */
@@ -27,8 +23,8 @@ let nextClientId = 1;
 // players: { clientId: { id, x, y, z, rotation, animation, ws } }
 const players = {};
 
-const TICK_RATE  = 20;          // Hz
-const MOVE_SPEED = 3.0;         // unidades/s
+const TICK_RATE  = 20;
+const MOVE_SPEED = 3.0;
 const TICK_DT    = 1 / TICK_RATE;
 
 /* ─── WebSocket ───────────────────────────────────────────── */
@@ -38,7 +34,7 @@ wss.on('connection', (ws) => {
 
   players[clientId] = {
     id:        clientId,
-    x:         (Math.random() - 0.5) * 6,  // posición aleatoria al entrar
+    x:         (Math.random() - 0.5) * 6,
     y:         0,
     z:         (Math.random() - 0.5) * 6,
     rotation:  0,
@@ -49,10 +45,7 @@ wss.on('connection', (ws) => {
 
   console.log(`[SERVER] Cliente ${clientId} conectado. Total: ${Object.keys(players).length}`);
 
-  // 1. Decirle su id
   ws.send(JSON.stringify({ type: 'init', clientId }));
-
-  // 2. Mandar el estado actual inmediatamente
   broadcastState();
 
   ws.on('message', (raw) => {
@@ -63,10 +56,11 @@ wss.on('connection', (ws) => {
     if (msg.type === 'input') {
       const p = players[clientId];
       if (p) {
-        p.input.dx       = msg.dx       || 0;
-        p.input.dz       = msg.dz       || 0;
-        p.input.rotation = msg.rotation || 0;
-        p.input.action   = msg.action   || 0;
+        p.input.dx       = msg.dx     || 0;
+        p.input.dz       = msg.dz     || 0;
+        /* FIX: || 0 machacaba rotation=0.0 válido (falsy en JS) */
+        p.input.rotation = (msg.rotation !== undefined) ? msg.rotation : 0;
+        p.input.action   = msg.action || 0;
       }
     }
   });
@@ -84,10 +78,8 @@ setInterval(() => {
   for (const [, p] of Object.entries(players)) {
     const { dx, dz, rotation, action } = p.input;
 
-    // Actualizar rotación
     p.rotation = rotation;
 
-    // Mover en la dirección que mira el personaje
     if (dx !== 0 || dz !== 0) {
       p.x += Math.sin(p.rotation) * dz * MOVE_SPEED * TICK_DT;
       p.z += Math.cos(p.rotation) * dz * MOVE_SPEED * TICK_DT;
@@ -96,15 +88,14 @@ setInterval(() => {
       p.animation = 'idle';
     }
 
-    // Acciones puntuales
     if (action === 2) p.animation = 'jump';
     if (action === 3) p.animation = 'kick';
     if (action === 4) p.animation = 'punch';
 
-    // Reset input acumulado
-    p.input.dx = 0;
-    p.input.dz = 0;
+    p.input.dx     = 0;
+    p.input.dz     = 0;
     p.input.action = 0;
+    /* rotation NO se resetea: mantener la última hasta que el cliente mande otra */
   }
 
   broadcastState();
@@ -113,7 +104,6 @@ setInterval(() => {
 /* ─── Broadcast ───────────────────────────────────────────── */
 
 function broadcastState() {
-  // Preparar el payload sin la referencia al ws
   const snapshot = {};
   for (const [id, p] of Object.entries(players)) {
     snapshot[id] = {

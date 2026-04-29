@@ -460,6 +460,17 @@ typedef struct AnimatedCharacter {
     Vector3                 worldPivot;
     bool                    hasWorldTransform;
     bool                    lockRootXZ;
+    /* ── Transition state (was global, now per-character) ── */
+    AnimationFrame          transitionFromFrame;
+    AnimationFrame          transitionToFrame;
+    bool                    isTransitioning;
+    float                   transitionTime;
+    float                   transitionDuration;
+    bool                    hasValidFromFrame;
+    /* ── Per-character frame scratch buffers (were global) ── */
+    AnimationFrame          transformedFrameBuf;
+    AnimationFrame          transitionFrameBuf;
+    AnimationFrame          interpolatedFrameBuf;
 } AnimatedCharacter;
 
 typedef struct {
@@ -569,12 +580,22 @@ static const struct {
     {"", 0.5f, 0.5f}
 };
 
-static AnimationFrame g_transitionFromFrame;
-static AnimationFrame g_transitionToFrame;
-static bool           g_isTransitioning    = false;
-static float          g_transitionTime     = 0.0f;
-static float          g_transitionDuration = 0.85f;
-static bool           g_hasValidFromFrame  = false;
+/* transition state moved into AnimatedCharacter */
+
+/* FIX WASM: malloc(sizeof(AnimationFrame)) ~36 KB por frame corrompe el heap
+   del allocator de emscripten porque su bloque de metadata queda adyacente a
+   una zona sobreescrita. Usamos buffers estaticos globales en lugar de malloc
+   para los frames temporales que se crean cada tick. */
+/* frame scratch buffers moved into AnimatedCharacter */
+
+/* FIX WASM: BonesCreateMissingFrames hacia calloc(totalNeeded * ~36 KB) que
+   con animaciones grandes intentaba alocar cientos de MB → fallo silencioso
+   de calloc + corrupción de heap. Limitamos el buffer temporal a un máximo
+   razonable y lo declaramos estático para no presionar el heap en cada carga. */
+#ifndef BONES_MAX_MISSING_FRAMES
+#  define BONES_MAX_MISSING_FRAMES 2000
+#endif
+static AnimationFrame g_missingFramesBuf[BONES_MAX_MISSING_FRAMES];
 
 static BonesRenderConfig g_renderConfig = {
     .defaultBoneSize    = 0.35f,
@@ -732,7 +753,7 @@ static inline void LockAnimationRootXZ(AnimatedCharacter* character, bool lock);
 static inline float GetCurrentAnimDuration(const AnimatedCharacter* character);
 static inline bool IsSlashActiveForCharacter(const AnimatedCharacter* character);
 static inline Vector3 GetActiveSlashBonePos(const AnimatedCharacter* character, Vector3 fallback);
-static inline void SetAnimationTransitionDuration(float duration);
+static inline void SetAnimationTransitionDuration(AnimatedCharacter* character, float duration);
 static inline bool BonesInterpolateFrames(BonesAnimation* animation, int frameA, int frameB, int framesToAdd);
 static inline bool BonesInsertEmptyFrame(BonesAnimation* animation, int position);
 static inline bool BonesCopyFrame(BonesAnimation* animation, int sourceFrame, int targetFrame);
@@ -981,6 +1002,13 @@ static inline bool BonesCreateMissingFrames(BonesAnimation* animation) {
     }
 
     int totalNeeded = maxFrame - minFrame + 1;
+
+    /* FIX WASM: limitar totalNeeded al tamaño del buffer global estático para
+       evitar calloc(totalNeeded * ~36 KB) que con animaciones grandes pedía
+       cientos de MB al heap de emscripten → fallo silencioso + corrupción. */
+    if (totalNeeded > BONES_MAX_MISSING_FRAMES)
+        totalNeeded = BONES_MAX_MISSING_FRAMES;
+
     if (totalNeeded > animation->maxFrames) {
         AnimationFrame* expanded = (AnimationFrame*)realloc(animation->frames, totalNeeded * sizeof(AnimationFrame));
         if (!expanded) return false;
@@ -990,10 +1018,11 @@ static inline bool BonesCreateMissingFrames(BonesAnimation* animation) {
             memset(&animation->frames[i], 0, sizeof(AnimationFrame));
     }
 
-    AnimationFrame* temp = (AnimationFrame*)calloc(totalNeeded, sizeof(AnimationFrame));
-    if (!temp) return false;
+    /* Usar buffer global estático en lugar de calloc */
+    AnimationFrame* temp = g_missingFramesBuf;
+    memset(temp, 0, totalNeeded * sizeof(AnimationFrame));
 
-    for (int frameNum = minFrame; frameNum <= maxFrame; frameNum++) {
+    for (int frameNum = minFrame; frameNum < minFrame + totalNeeded; frameNum++) {
         int targetIdx   = frameNum - minFrame;
         int existingIdx = -1;
         for (int i = 0; i < animation->frameCount; i++) {
@@ -1013,9 +1042,8 @@ static inline bool BonesCreateMissingFrames(BonesAnimation* animation) {
         }
 
         AnimationFrame* dest = &temp[targetIdx];
-        memset(dest, 0, sizeof(AnimationFrame));
-        dest->frameNumber       = frameNum;
-        dest->valid             = true;
+        dest->frameNumber        = frameNum;
+        dest->valid              = true;
         dest->isOriginalKeyframe = false;
 
         if (prevIdx >= 0 && nextIdx >= 0) {
@@ -1044,7 +1072,7 @@ static inline bool BonesCreateMissingFrames(BonesAnimation* animation) {
 
     memcpy(animation->frames, temp, totalNeeded * sizeof(AnimationFrame));
     animation->frameCount = totalNeeded;
-    free(temp);
+    /* no free(temp) — es el buffer global estático */
     return true;
 }
 
@@ -1586,16 +1614,40 @@ static inline bool BonesRenderer_Init(BonesRenderer* renderer) {
 
 static inline int BonesRenderer_LoadTexture(BonesRenderer* renderer, const char* path) {
     if (!renderer || !path) return 0;
+    /* Slot 0 is reserved as a transparent 1x1 "no texture" placeholder.
+     * Bones with path "" or "none" (invisible bones like eyes/ears) return 0
+     * so callers always get a valid index and never do textures[-1]. */
+    if (path[0] == '\0' || strcmp(path, "none") == 0) {
+        if (renderer->textureCount == 0) {
+            Image blank = GenImageColor(1, 1, CLITERAL(Color){0, 0, 0, 0});
+            renderer->textures[0] = LoadTextureFromImage(blank);
+            UnloadImage(blank);
+            strncpy(renderer->texturePaths[0], "__none__", MAX_FILE_PATH_LENGTH - 1);
+            renderer->textureCount = 1;
+        }
+        return 0;
+    }
 
-    for (int i = 0; i < renderer->textureCount; i++)
+    /* Ensure slot 0 (placeholder) exists before any real texture */
+    if (renderer->textureCount == 0) {
+        Image blank = GenImageColor(1, 1, CLITERAL(Color){0, 0, 0, 0});
+        renderer->textures[0] = LoadTextureFromImage(blank);
+        UnloadImage(blank);
+        strncpy(renderer->texturePaths[0], "__none__", MAX_FILE_PATH_LENGTH - 1);
+        renderer->textureCount = 1;
+    }
+
+    for (int i = 1; i < renderer->textureCount; i++)
         if (strcmp(renderer->texturePaths[i], path) == 0) return i;
 
     if (renderer->textureCount >= MAX_TEXTURES) return 0;
 
     Image img = LoadImage(path);
     if (img.data == NULL) {
-        img = GenImageColor(1024, 1024, CLITERAL(Color){60, 120, 220, 255});
-        ImageDrawText(&img, path, 8, 8, 128, WHITE);
+        /* Path not found - return placeholder instead of blue 1024x1024 debug tile.
+         * This prevents invisible bones from polluting the texture atlas and
+         * shifting indices of all real textures that come after. */
+        return 0;
     }
     ImageAlphaPremultiply(&img);
     renderer->textures[renderer->textureCount] = LoadTextureFromImage(img);
@@ -3859,17 +3911,17 @@ static inline void CaptureCurrentFrame(AnimatedCharacter* character) {
         character->currentFrame < 0 ||
         character->currentFrame >= character->animation.frameCount)
     {
-        g_hasValidFromFrame = false;
+        character->hasValidFromFrame = false;
         return;
     }
-    CopyAnimationFrame(&g_transitionFromFrame, &character->animation.frames[character->currentFrame]);
-    g_hasValidFromFrame = true;
+    CopyAnimationFrame(&character->transitionFromFrame, &character->animation.frames[character->currentFrame]);
+    character->hasValidFromFrame = true;
 }
 
-static inline void StartAnimationTransition(void) {
-    if (!g_hasValidFromFrame) return;
-    g_isTransitioning = true;
-    g_transitionTime  = 0.0f;
+static inline void StartAnimationTransition(AnimatedCharacter* character) {
+    if (!character || !character->hasValidFromFrame) return;
+    character->isTransitioning = true;
+    character->transitionTime  = 0.0f;
 }
 
 static void InterpolateTransitionFrames(const AnimationFrame* fromFrame, const AnimationFrame* toFrame,
@@ -3966,7 +4018,7 @@ static inline bool LoadAnimation(AnimatedCharacter* character,
     character->hasWorldTransform = false;
 
     if (BonesLoadFromJSON(&character->animation, animationPath) != BONES_SUCCESS) {
-        g_hasValidFromFrame = false;
+        character->hasValidFromFrame = false;
         return false;
     }
 
@@ -3974,7 +4026,7 @@ static inline bool LoadAnimation(AnimatedCharacter* character,
     character->maxFrames    = BonesGetFrameCount(&character->animation);
     character->currentFrame = 0;
     BonesSetFrame(&character->animation, 0);
-    StartAnimationTransition();
+    StartAnimationTransition(character);
 
     character->animController = AnimController_Create(&character->animation, character->textureSets);
     if (!character->animController) return false;
@@ -4011,8 +4063,9 @@ static inline bool LoadAnimation(AnimatedCharacter* character,
     return true;
 }
 
-static inline void SetAnimationTransitionDuration(float duration) {
-    if (duration > 0.0f && duration < 1.0f) g_transitionDuration = duration;
+static inline void SetAnimationTransitionDuration(AnimatedCharacter* character, float duration) {
+    if (!character) return;
+    if (duration > 0.0f && duration < 1.0f) character->transitionDuration = duration;
 }
 
 static inline void ResetCharacterAutoCenter(AnimatedCharacter* character) {
@@ -4107,6 +4160,10 @@ static inline AnimatedCharacter* CreateAnimatedCharacter(const char* textureConf
     character->autoPlay              = true;
     character->autoPlaySpeed         = 0.1f;
     character->lastProcessedFrame    = -1;
+    character->isTransitioning      = false;
+    character->transitionTime       = 0.0f;
+    character->transitionDuration   = 0.85f;
+    character->hasValidFromFrame    = false;
 
     character->renderConfig                    = BonesGetDefaultRenderConfig();
     character->renderConfig.drawDebugSpheres   = true;
@@ -4154,26 +4211,28 @@ static inline void UpdateAnimatedCharacter(AnimatedCharacter* character, float d
         }
     }
 
-    static AnimationFrame transitionFrame;
+    /* FIX WASM: static local → global explícito para evitar stack overflow en WASM */
+    AnimationFrame* transitionFramePtr = &character->transitionFrameBuf;
     bool usingTransition = false;
 
-    if (g_isTransitioning) {
-        g_transitionTime += deltaTime;
-        float t = g_transitionTime / g_transitionDuration;
+    if (character->isTransitioning) {
+        character->transitionTime += deltaTime;
+        float t = character->transitionTime / character->transitionDuration;
         if (t >= 1.0f) {
-            g_isTransitioning = false;
+            character->isTransitioning = false;
         } else if (character->animation.isLoaded &&
                    character->currentFrame >= 0 &&
                    character->currentFrame < character->animation.frameCount) {
-            CopyAnimationFrame(&g_transitionToFrame, &character->animation.frames[character->currentFrame]);
-            InterpolateTransitionFrames(&g_transitionFromFrame, &g_transitionToFrame, &transitionFrame, t);
+            CopyAnimationFrame(&character->transitionToFrame, &character->animation.frames[character->currentFrame]);
+            InterpolateTransitionFrames(&character->transitionFromFrame, &character->transitionToFrame, transitionFramePtr, t);
             usingTransition = true;
         } else {
-            g_isTransitioning = false;
+            character->isTransitioning = false;
         }
     }
 
-    static AnimationFrame interpolatedFrame;
+    /* FIX WASM: static local → global explícito */
+    AnimationFrame* interpolatedFramePtr = &character->interpolatedFrameBuf;
     bool usingInterpolation = false;
 
     if (!usingTransition && character->animation.isLoaded && character->autoPlay &&
@@ -4192,13 +4251,13 @@ static inline void UpdateAnimatedCharacter(AnimatedCharacter* character, float d
             AnimationFrame* nextF = &character->animation.frames[character->currentFrame + 1];
 
             if (t > 0.05f && t < 0.95f && curF->valid && nextF->valid) {
-                memset(&interpolatedFrame, 0, sizeof(AnimationFrame));
-                interpolatedFrame.frameNumber = curF->frameNumber;
-                interpolatedFrame.valid       = true;
-                interpolatedFrame.personCount = curF->personCount;
+                memset(interpolatedFramePtr, 0, sizeof(AnimationFrame));
+                interpolatedFramePtr->frameNumber = curF->frameNumber;
+                interpolatedFramePtr->valid       = true;
+                interpolatedFramePtr->personCount = curF->personCount;
 
-                for (int p = 0; p < interpolatedFrame.personCount; p++) {
-                    Person*       dp  = &interpolatedFrame.persons[p];
+                for (int p = 0; p < interpolatedFramePtr->personCount; p++) {
+                    Person*       dp  = &interpolatedFramePtr->persons[p];
                     Person*       pA  = &curF->persons[p];
                     Person*       pB  = (p < nextF->personCount) ? &nextF->persons[p] : pA;
 
@@ -4218,8 +4277,8 @@ static inline void UpdateAnimatedCharacter(AnimatedCharacter* character, float d
     }
 
     const AnimationFrame* frameToUse = NULL;
-    if (usingTransition)      frameToUse = &transitionFrame;
-    else if (usingInterpolation) frameToUse = &interpolatedFrame;
+    if (usingTransition)         frameToUse = transitionFramePtr;
+    else if (usingInterpolation) frameToUse = interpolatedFramePtr;
     else if (character->animation.isLoaded && BonesIsValidFrame(&character->animation, character->currentFrame))
         frameToUse = &character->animation.frames[character->currentFrame];
 
@@ -4281,11 +4340,13 @@ static inline void UpdateAnimatedCharacter(AnimatedCharacter* character, float d
         character->renderHeadsCount  = 0;
         character->renderTorsosCount = 0;
 
-        AnimationFrame backup; bool needsRestore = false;
+        /* FIX WASM: AnimationFrame en stack local ~36 KB → global estático */
+        static AnimationFrame s_frameBackup;
+        bool needsRestore = false;
         if (usingTransition || usingInterpolation) {
-            backup = character->animation.frames[character->currentFrame];
+            s_frameBackup = character->animation.frames[character->currentFrame];
             character->animation.frames[character->currentFrame] =
-                usingTransition ? transitionFrame : interpolatedFrame;
+                usingTransition ? *transitionFramePtr : *interpolatedFramePtr;
             needsRestore = true;
         }
 
@@ -4305,7 +4366,7 @@ static inline void UpdateAnimatedCharacter(AnimatedCharacter* character, float d
                 character->boneConfigs, character->boneConfigCount, character->textureSets);
 
         if (needsRestore)
-            character->animation.frames[character->currentFrame] = backup;
+            character->animation.frames[character->currentFrame] = s_frameBackup;
 
         character->lastProcessedFrame = character->currentFrame;
         character->forceUpdate        = false;
@@ -4382,16 +4443,15 @@ static inline void DrawAnimatedCharacterTransformed(AnimatedCharacter* character
     if (tc > 0 && character->animation.isLoaded &&
         character->currentFrame >= 0 && character->currentFrame < character->animation.frameCount)
     {
-        transformedFrame = malloc(sizeof(AnimationFrame));
-        if (transformedFrame) {
-            *transformedFrame = character->animation.frames[character->currentFrame];
-            for (int p = 0; p < transformedFrame->personCount; p++) {
-                Person* person = &transformedFrame->persons[p];
-                for (int b = 0; b < person->boneCount; b++) {
-                    Bone* bone = &person->bones[b];
-                    if (bone->position.valid)
-                        bone->position.position = RotatePointAroundPivot(bone->position.position, pivot, worldPosition, rot);
-                }
+        /* FIX WASM: sustituir malloc(~36 KB) por buffer global estático */
+        transformedFrame = &character->transformedFrameBuf;
+        *transformedFrame = character->animation.frames[character->currentFrame];
+        for (int p = 0; p < transformedFrame->personCount; p++) {
+            Person* person = &transformedFrame->persons[p];
+            for (int b = 0; b < person->boneCount; b++) {
+                Bone* bone = &person->bones[b];
+                if (bone->position.valid)
+                    bone->position.position = RotatePointAroundPivot(bone->position.position, pivot, worldPosition, rot);
             }
         }
     }
@@ -4487,7 +4547,8 @@ static inline void DrawAnimatedCharacterTransformed(AnimatedCharacter* character
     DrawModel3DWithDepthOrder(&character->model3dAttachments, rf, pid,
         character->worldPosition, character->worldPivot, rot, true, camera, transformedCenter, false);
 
-    free(bonesCopy); free(headsCopy); free(torsosCopy); free(transformedFrame);
+    free(bonesCopy); free(headsCopy); free(torsosCopy);
+    /* transformedFrame ya no es heap (buffer global), no se libera */
     character->renderer->camera = origCam;
 
     bool hasLiveTrail = false;
