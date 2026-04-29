@@ -1,4 +1,8 @@
-.PHONY: up down build logs clean re setup shell-%
+.PHONY: up down build logs clean re setup shell-% wasm
+
+wasm:
+	docker compose build frontend
+	docker compose up -d
 
 up:
 	docker compose up -d
@@ -9,8 +13,7 @@ dev:
 down:
 	docker compose down
 
-re: down
-	docker compose up --build -d
+re: down wasm
 
 build:
 	docker compose build

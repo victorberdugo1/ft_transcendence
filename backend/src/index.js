@@ -1,236 +1,143 @@
 /**
- * backend/src/index.js
+ * index.js  –  Backend de referencia para ft_transcendence multiplayer
  *
- * Servidor del juego ft_transcendence.
+ * Instala dependencias:
+ *   npm install ws express
  *
- * RESPONSABILIDADES:
- *   1. Game loop autoritativo (el servidor decide el estado)
- *   2. WebSocket: manda el estado a todos los clientes conectados
- *   3. REST API: base para autenticación, usuarios, etc.
- *   4. Conexión a PostgreSQL
- *
- * FLUJO:
- *   Cliente Raylib (WASM) ──input──▶ WebSocket ──▶ [aquí] actualiza estado
- *   [aquí] game loop ──state──▶ WebSocket ──▶ Cliente Raylib (renderiza)
+ * Arrancar:
+ *   node index.js
  */
 
-require('dotenv').config();
+const express   = require('express');
+const http      = require('http');
+const WebSocket = require('ws');
+const path      = require('path');
 
-const express    = require('express');
-const http       = require('http');
-const WebSocket  = require('ws');
-const { Pool }   = require('pg');
-
-/* ─── App ─────────────────────────────────────────────────── */
 const app    = express();
 const server = http.createServer(app);
-app.use(express.json());
+const wss    = new WebSocket.Server({ server });
 
-/* ─── Base de datos ───────────────────────────────────────── */
-const db = new Pool({
-    host:     process.env.DB_HOST     || 'db',
-    port:     parseInt(process.env.DB_PORT) || 5432,
-    user:     process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
-});
+// Servir los ficheros estáticos del juego (game.js, game.wasm, data/, etc.)
+app.use(express.static(path.join(__dirname, 'public')));
 
-db.connect()
-    .then(() => console.log('✅ PostgreSQL conectado'))
-    .catch(err => console.error('❌ PostgreSQL error:', err.message));
+/* ─── Estado del servidor ─────────────────────────────────── */
+
+let nextClientId = 1;
+
+// players: { clientId: { id, x, y, z, rotation, animation, ws } }
+const players = {};
+
+const TICK_RATE  = 20;          // Hz
+const MOVE_SPEED = 3.0;         // unidades/s
+const TICK_DT    = 1 / TICK_RATE;
 
 /* ─── WebSocket ───────────────────────────────────────────── */
-/*
- * IMPORTANTE: nginx hace proxy de /ws a este servidor.
- * El servidor WS escucha en la misma ruta que el HTTP.
- */
-const wss = new WebSocket.Server({ server, path: '/ws' });
 
-const clients = new Set();
+wss.on('connection', (ws) => {
+  const clientId = nextClientId++;
 
-wss.on('connection', (ws, req) => {
-    console.log(`[WS] Cliente conectado. Total: ${clients.size + 1}`);
-    clients.add(ws);
+  players[clientId] = {
+    id:        clientId,
+    x:         (Math.random() - 0.5) * 6,  // posición aleatoria al entrar
+    y:         0,
+    z:         (Math.random() - 0.5) * 6,
+    rotation:  0,
+    animation: 'idle',
+    ws,
+    input: { dx: 0, dz: 0, rotation: 0, action: 0 },
+  };
 
-    /* Mandar el estado actual inmediatamente al conectarse */
-    ws.send(JSON.stringify(gameState));
+  console.log(`[SERVER] Cliente ${clientId} conectado. Total: ${Object.keys(players).length}`);
 
-    ws.on('message', (raw) => {
-        try {
-            const msg = JSON.parse(raw);
-            handleInput(msg);
-        } catch (e) {
-            console.warn('[WS] Mensaje inválido:', raw);
-        }
-    });
+  // 1. Decirle su id
+  ws.send(JSON.stringify({ type: 'init', clientId }));
 
-    ws.on('close', () => {
-        clients.delete(ws);
-        console.log(`[WS] Cliente desconectado. Total: ${clients.size}`);
-    });
+  // 2. Mandar el estado actual inmediatamente
+  broadcastState();
 
-    ws.on('error', (err) => {
-        console.error('[WS] Error:', err.message);
-        clients.delete(ws);
-    });
+  ws.on('message', (raw) => {
+    let msg;
+    try { msg = JSON.parse(raw); }
+    catch { return; }
+
+    if (msg.type === 'input') {
+      const p = players[clientId];
+      if (p) {
+        p.input.dx       = msg.dx       || 0;
+        p.input.dz       = msg.dz       || 0;
+        p.input.rotation = msg.rotation || 0;
+        p.input.action   = msg.action   || 0;
+      }
+    }
+  });
+
+  ws.on('close', () => {
+    console.log(`[SERVER] Cliente ${clientId} desconectado`);
+    delete players[clientId];
+    broadcastState();
+  });
 });
 
-/** Manda el estado actual a TODOS los clientes conectados */
-function broadcast(data) {
-    const msg = JSON.stringify(data);
-    for (const client of clients) {
-        if (client.readyState === WebSocket.OPEN) {
-            client.send(msg);
-        }
-    }
-}
-
-/* ────────────────────────────────────────────────────────────
- *  ESTADO DEL JUEGO  [SWAP FÁCIL]
- *
- *  Cambia estos campos para tu juego.
- *  El código C (main.c) lee exactamente estos nombres con
- *  ws_get_float("ball_x"), ws_get_int("score1"), etc.
- * ────────────────────────────────────────────────────────────*/
-const SCREEN_W = parseInt(process.env.SCREEN_WIDTH)  || 800;
-const SCREEN_H = parseInt(process.env.SCREEN_HEIGHT) || 600;
-const PADDLE_H = 80;
-const BALL_R   = 10;
-
-let gameState = {
-    ball_x:  SCREEN_W / 2,
-    ball_y:  SCREEN_H / 2,
-    ball_vx: 4,           // velocidad (solo backend, no se manda)
-    ball_vy: 3,
-    p1_y:    SCREEN_H / 2 - PADDLE_H / 2,
-    p2_y:    SCREEN_H / 2 - PADDLE_H / 2,
-    score1:  0,
-    score2:  0,
-};
-
-/* ────────────────────────────────────────────────────────────
- *  MANEJO DE INPUT  [SWAP FÁCIL]
- * ────────────────────────────────────────────────────────────*/
-const PADDLE_SPEED = 6;
-
-function handleInput(msg) {
-    if (msg.type !== 'input') return;
-
-    const speed = msg.direction * PADDLE_SPEED;
-
-    if (msg.player === 1) {
-        gameState.p1_y = clamp(gameState.p1_y + speed, 0, SCREEN_H - PADDLE_H);
-    } else if (msg.player === 2) {
-        gameState.p2_y = clamp(gameState.p2_y + speed, 0, SCREEN_H - PADDLE_H);
-    }
-}
-
-/* ────────────────────────────────────────────────────────────
- *  GAME LOOP AUTORITATIVO  [SWAP FÁCIL]
- *
- *  El servidor calcula la física y manda el estado a los clientes.
- *  Los clientes (Raylib WASM) solo visualizan.
- * ────────────────────────────────────────────────────────────*/
-const TICK_RATE = parseInt(process.env.GAME_TICK_RATE) || 60;
+/* ─── Game tick ───────────────────────────────────────────── */
 
 setInterval(() => {
-    updateGameState();
-    broadcast(getPublicState());
+  for (const [, p] of Object.entries(players)) {
+    const { dx, dz, rotation, action } = p.input;
+
+    // Actualizar rotación
+    p.rotation = rotation;
+
+    // Mover en la dirección que mira el personaje
+    if (dx !== 0 || dz !== 0) {
+      p.x += Math.sin(p.rotation) * dz * MOVE_SPEED * TICK_DT;
+      p.z += Math.cos(p.rotation) * dz * MOVE_SPEED * TICK_DT;
+      p.animation = 'walk';
+    } else if (action === 0) {
+      p.animation = 'idle';
+    }
+
+    // Acciones puntuales
+    if (action === 2) p.animation = 'jump';
+    if (action === 3) p.animation = 'kick';
+    if (action === 4) p.animation = 'punch';
+
+    // Reset input acumulado
+    p.input.dx = 0;
+    p.input.dz = 0;
+    p.input.action = 0;
+  }
+
+  broadcastState();
 }, 1000 / TICK_RATE);
 
-function updateGameState() {
-    /* Mover la pelota */
-    gameState.ball_x += gameState.ball_vx;
-    gameState.ball_y += gameState.ball_vy;
+/* ─── Broadcast ───────────────────────────────────────────── */
 
-    /* Rebotar en paredes arriba/abajo */
-    if (gameState.ball_y - BALL_R <= 0 || gameState.ball_y + BALL_R >= SCREEN_H) {
-        gameState.ball_vy *= -1;
-        gameState.ball_y = clamp(gameState.ball_y, BALL_R, SCREEN_H - BALL_R);
-    }
-
-    /* Colisión con paleta izquierda (P1) */
-    if (gameState.ball_x - BALL_R <= 35 &&
-        gameState.ball_y >= gameState.p1_y &&
-        gameState.ball_y <= gameState.p1_y + PADDLE_H)
-    {
-        gameState.ball_vx = Math.abs(gameState.ball_vx); // rebota a la derecha
-    }
-
-    /* Colisión con paleta derecha (P2) */
-    if (gameState.ball_x + BALL_R >= SCREEN_W - 35 &&
-        gameState.ball_y >= gameState.p2_y &&
-        gameState.ball_y <= gameState.p2_y + PADDLE_H)
-    {
-        gameState.ball_vx = -Math.abs(gameState.ball_vx); // rebota a la izquierda
-    }
-
-    /* Punto para P2 (pelota sale por la izquierda) */
-    if (gameState.ball_x < 0) {
-        gameState.score2++;
-        resetBall();
-    }
-
-    /* Punto para P1 (pelota sale por la derecha) */
-    if (gameState.ball_x > SCREEN_W) {
-        gameState.score1++;
-        resetBall();
-    }
-}
-
-function resetBall() {
-    gameState.ball_x  = SCREEN_W / 2;
-    gameState.ball_y  = SCREEN_H / 2;
-    gameState.ball_vx = (Math.random() > 0.5 ? 1 : -1) * 4;
-    gameState.ball_vy = (Math.random() > 0.5 ? 1 : -1) * 3;
-}
-
-/** Solo manda los campos que el cliente necesita (sin velocidades internas) */
-function getPublicState() {
-    return {
-        ball_x:  gameState.ball_x,
-        ball_y:  gameState.ball_y,
-        p1_y:    gameState.p1_y,
-        p2_y:    gameState.p2_y,
-        score1:  gameState.score1,
-        score2:  gameState.score2,
+function broadcastState() {
+  // Preparar el payload sin la referencia al ws
+  const snapshot = {};
+  for (const [id, p] of Object.entries(players)) {
+    snapshot[id] = {
+      id:        p.id,
+      x:         p.x,
+      y:         p.y,
+      z:         p.z,
+      rotation:  p.rotation,
+      animation: p.animation,
     };
+  }
+
+  const msg = JSON.stringify({ type: 'state', players: snapshot });
+
+  for (const [, p] of Object.entries(players)) {
+    if (p.ws.readyState === WebSocket.OPEN) {
+      p.ws.send(msg);
+    }
+  }
 }
 
-/* ─── REST API ────────────────────────────────────────────── */
-/*
- * Base para los módulos del subject.
- * Añade rutas aquí o en ficheros separados (routes/).
- */
+/* ─── Arrancar ────────────────────────────────────────────── */
 
-app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', clients: clients.size });
-});
-
-app.get('/api/state', (req, res) => {
-    res.json(getPublicState());
-});
-
-/* Placeholder: autenticación (módulo User Management) */
-app.post('/api/auth/register', async (req, res) => {
-    // TODO: implementar registro con bcrypt + JWT
-    res.status(501).json({ error: 'Not implemented yet' });
-});
-
-app.post('/api/auth/login', async (req, res) => {
-    // TODO: implementar login
-    res.status(501).json({ error: 'Not implemented yet' });
-});
-
-/* ─── Arrancar servidor ───────────────────────────────────── */
-const PORT = parseInt(process.env.PORT) || 3000;
+const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-    console.log(`✅ Servidor escuchando en :${PORT}`);
-    console.log(`   WebSocket: ws://localhost:${PORT}/ws`);
-    console.log(`   API:       http://localhost:${PORT}/api`);
+  console.log(`[SERVER] Escuchando en http://localhost:${PORT}`);
 });
-
-/* ─── Utilidades ──────────────────────────────────────────── */
-function clamp(value, min, max) {
-    return Math.min(Math.max(value, min), max);
-}

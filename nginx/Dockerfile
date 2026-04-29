@@ -1,7 +1,5 @@
 FROM nginx:alpine
 
-# Generar certificado self-signed para HTTPS (obligatorio según el subject)
-# En producción, sustituir por certbot/Let's Encrypt
 RUN apk add --no-cache openssl && \
     mkdir -p /etc/nginx/certs && \
     openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
@@ -11,4 +9,5 @@ RUN apk add --no-cache openssl && \
 
 COPY nginx.conf /etc/nginx/nginx.conf
 
+EXPOSE 80
 EXPOSE 443
