@@ -1,26 +1,18 @@
 /**
- * index.js  –  Backend de referencia para ft_transcendence multiplayer
- *
- * FIX: p.input.rotation usaba || 0 que machacaba rotation=0.0 válido.
- *      Cambiado a !== undefined para no perder rotación en posición 0.
+ * index.js  –  Backend para ft_transcendence multiplayer
  */
 
-const express   = require('express');
 const http      = require('http');
 const WebSocket = require('ws');
-const path      = require('path');
 
-const app    = express();
-const server = http.createServer(app);
+const server = http.createServer();
 const wss    = new WebSocket.Server({ server });
-
-app.use(express.static(path.join(__dirname, 'public')));
 
 /* ─── Estado del servidor ─────────────────────────────────── */
 
 let nextClientId = 1;
 
-// players: { clientId: { id, x, y, z, rotation, animation, ws } }
+// players: { clientId: { id, x, y, z, rotation, animation, ws, input } }
 const players = {};
 
 const TICK_RATE  = 20;
@@ -56,9 +48,8 @@ wss.on('connection', (ws) => {
     if (msg.type === 'input') {
       const p = players[clientId];
       if (p) {
-        p.input.dx       = msg.dx     || 0;
-        p.input.dz       = msg.dz     || 0;
-        /* FIX: || 0 machacaba rotation=0.0 válido (falsy en JS) */
+        p.input.dx       = msg.dx || 0;
+        p.input.dz       = msg.dz || 0;
         p.input.rotation = (msg.rotation !== undefined) ? msg.rotation : 0;
         p.input.action   = msg.action || 0;
       }
