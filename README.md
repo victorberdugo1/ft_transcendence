@@ -15,11 +15,8 @@ nginx :443 (HTTPS)
                   PostgreSQL
 ```
 
-### ¿Por qué Raylib + WebAssembly?
+El backend es la fuente de verdad. El frontend (Raylib compilado a WebAssembly) solo visualiza y manda inputs.
 
-Raylib es una librería C de gráficos. Con **Emscripten** se compila a WebAssembly (`.wasm`) y corre directamente en el navegador.
-
-**Flujo del juego:**
 ```
 Backend (Node.js)          Frontend (Raylib WASM)
   game loop                   canvas en el navegador
@@ -27,36 +24,49 @@ Backend (Node.js)          Frontend (Raylib WASM)
   manda estado      ◀──WS──   manda input del teclado
 ```
 
-El backend es la fuente de verdad. Raylib solo visualiza.
+---
 
-## Primera vez
+## Puesta en marcha
 
 ```bash
-make setup          # Crea .env desde .env.example
+make setup      # Crea .env desde .env.example (no sobreescribe si ya existe)
 # Edita .env con tus contraseñas
-make build          # Build (primera vez: ~15 min por Raylib)
-make up             # Levantar todo
-# Abre https://localhost en Chrome (aceptar cert self-signed)
+make wasm       # Primera vez: ~15 min (compila Raylib → WASM y levanta)
 ```
 
-## Comandos útiles
+Abre https://localhost en Chrome y acepta el certificado self-signed.
 
-```bash
-make dev            # Levantar con logs en pantalla
-make logs-backend   # Logs solo del backend
-make logs-frontend  # Logs solo del frontend
-make shell-backend  # Entrar al contenedor del backend
-make down           # Parar todo
-make clean          # Borrar TODO (volúmenes incluidos)
-```
+---
 
-## Estructura de ficheros
+## Comandos
+
+| Comando | Qué hace |
+|---|---|
+| `make setup` | Copia `.env.example` a `.env` si no existe |
+| `make wasm` | Recompila el frontend (C→WASM) y levanta |
+| `make up` | Levanta todos los contenedores en background |
+| `make dev` | Levanta con logs en pantalla (Ctrl+C para parar) |
+| `make build` | Build de todas las imágenes sin levantar |
+| `make re` | Baja, recompila WASM y vuelve a levantar |
+| `make logs` | Logs de todos los servicios en tiempo real |
+| `make logs-backend` | Logs solo del backend |
+| `make logs-frontend` | Logs solo del frontend |
+| `make shell-backend` | Shell dentro del contenedor del backend |
+| `make shell-frontend` | Shell dentro del contenedor del frontend |
+| `make down` | Para todos los contenedores |
+| `make clean` | Para todo y borra imágenes + volúmenes (reset total) |
+
+> `make shell-<servicio>` funciona con cualquier nombre de servicio definido en `docker-compose.yml`.
+
+---
+
+## Estructura del proyecto
 
 ```
 .
 ├── docker-compose.yml      ← Orquestación (no tocar si no sabes)
 ├── .env.example            ← Copia a .env y rellena
-├── Makefile                ← Comandos de conveniencia
+├── Makefile
 │
 ├── nginx/
 │   ├── Dockerfile          ← Genera cert HTTPS self-signed
@@ -65,50 +75,36 @@ make clean          # Borrar TODO (volúmenes incluidos)
 ├── frontend/
 │   ├── Dockerfile          ← Etapa 1: compila C→WASM / Etapa 2: nginx
 │   ├── index.html          ← Carga game.wasm + ws-client.js
-│   ├── nginx.conf          ← Config del nginx del frontend
+│   ├── nginx.conf
+│   ├── game/src/
+│   │   └── main.c          ← Código Raylib del juego
 │   └── js/
 │       └── ws-client.js    ← Puente WebSocket ↔ WASM
 │
-├── game/
-│   └── src/
-│       └── main.c          ← Código Raylib del juego [MODIFICAR]
-│
 ├── backend/
-│   ├── Dockerfile          ← Node.js (fácil de cambiar)
+│   ├── Dockerfile
 │   ├── package.json
 │   └── src/
-│       └── index.js        ← Game loop + WebSocket + API [MODIFICAR]
+│       └── index.js        ← Game loop + WebSocket + API
 │
 └── database/
-    └── init.sql            ← Schema inicial de PostgreSQL [MODIFICAR]
+    └── init.sql            ← Schema de PostgreSQL
 ```
 
-## Cómo trabaja cada compañero
+---
 
-### Cambiar el juego (main.c)
-Edita `game/src/main.c`. Añade campos al `GameState` y dibújalos con Raylib.
-Después: `make re` para recompilar.
+## Qué hace cada parte
 
-### Cambiar la lógica del servidor (index.js)
-Edita `backend/src/index.js`. Cambia `gameState`, `updateGameState()`, etc.
-El servidor recarga automáticamente con nodemon (sin `make re`).
+**`frontend/game/src/main.c`** — El juego en sí. Código C con Raylib que se compila a WebAssembly. Recibe el estado del juego por WebSocket y lo dibuja en un canvas. También captura los inputs del teclado y los manda al servidor. Cada vez que lo toques necesitas `make re` para recompilar.
 
-### Cambiar el schema de la DB (init.sql)
-Edita `database/init.sql`.
-Para aplicar cambios: `make clean && make up` (borra el volumen).
+**`frontend/js/ws-client.js`** — El puente entre el navegador y el WASM. Abre la conexión WebSocket, recibe mensajes del servidor y los pasa a la función C correspondiente, y viceversa.
 
-### Cambiar el backend a otro lenguaje
-1. Edita `backend/Dockerfile` (ver comentarios dentro)
-2. Borra `backend/src/index.js` y escribe el equivalente en tu lenguaje
-3. El contrato es simple: escuchar en `:3000`, tener `/ws` y `/api/*`
+**`frontend/index.html`** — Página mínima que carga el canvas, el JS generado por Emscripten y `ws-client.js`.
 
-## Módulos del subject (14 puntos mínimo)
+**`backend/src/index.js`** — El servidor. Aquí vive el game loop, la física, el `GameState`, y los endpoints REST (`/api/*`). Nodemon lo recarga automáticamente al guardar, no hace falta reiniciar nada.
 
-Con esta base ya tienes:
-- **Web: Use frameworks** → Minor frontend (React, si se añade) + Minor backend (Express) = **2 pts**
-- **Web: Real-time WebSocket** → Major = **2 pts**  
-- **Web: ORM** → Minor (añadir Prisma) = **1 pt**
-- **Gaming: Web-based game** → Major = **2 pts**
-- **Gaming: Remote players** → Major (ya funciona, 2 jugadores distintos IPs) = **2 pts**
+**`database/init.sql`** — Schema inicial de PostgreSQL. Se ejecuta solo la primera vez que se crea el volumen. Para aplicar cambios: `make clean && make wasm`.
 
-**Total base: 9 pts.** Faltan 5 pts → elegir módulos adicionales.
+**`nginx/nginx.conf`** — Proxy inverso que enruta `/` al frontend, `/api/*` y `/ws` al backend. También termina el TLS.
+
+**`backend/Dockerfile`** — Está comentado para explicar cómo cambiar el backend a otro lenguaje. El único contrato que hay que respetar es escuchar en `:3000` y exponer `/ws` y `/api/*`.
