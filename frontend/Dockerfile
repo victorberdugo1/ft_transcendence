@@ -24,12 +24,20 @@ RUN emcc src/main.c \
     --preload-file src/data@data \
     -O2
 
+FROM node:20-alpine AS react-builder
+
+WORKDIR /app
+COPY app/package*.json ./
+RUN npm install
+COPY app/ ./
+RUN npm run build
+
 FROM nginx:alpine
 
-COPY --from=game-builder /build/game.js   /usr/share/nginx/html/
-COPY --from=game-builder /build/game.wasm /usr/share/nginx/html/
-COPY --from=game-builder /build/game.data /usr/share/nginx/html/
-COPY index.html /usr/share/nginx/html/
-COPY js/        /usr/share/nginx/html/js/
+COPY --from=react-builder /app/dist         /usr/share/nginx/html/
+COPY --from=game-builder  /build/game.js    /usr/share/nginx/html/
+COPY --from=game-builder  /build/game.wasm  /usr/share/nginx/html/
+COPY --from=game-builder  /build/game.data  /usr/share/nginx/html/
+COPY js/                                    /usr/share/nginx/html/js/
 
 EXPOSE 80

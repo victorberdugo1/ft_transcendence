@@ -1,35 +1,38 @@
-/**
- * index.js  –  Backend para ft_transcendence multiplayer
- */
-
 const http      = require('http');
 const WebSocket = require('ws');
 
 const server = http.createServer();
-const wss    = new WebSocket.Server({ server });
+const wss = new WebSocket.Server({ noServer: true });
 
-/* ─── Duración mínima de animaciones de acción (segundos) ─── */
-// El servidor mantiene la animación activa al menos este tiempo
-// antes de volver a idle, aunque el cliente ya no mande el action.
+/* ─── CONFIG ─── */
+
 const ANIM_DURATIONS = {
   jump:  0.8,
   kick:  0.7,
   punch: 0.6,
 };
 
-/* ─── Estado del servidor ─────────────────────────────────── */
-
 let nextClientId = 1;
-
-// players: { clientId: { id, x, y, z, rotation, animation, ws, input,
-//                         animTimer, isMoving } }
 const players = {};
 
-const TICK_RATE  = 20;
-const MOVE_SPEED = 3.0;
-const TICK_DT    = 1 / TICK_RATE;
+const TICK_RATE        = 20;
+const MOVE_SPEED       = 3.0;
+const TICK_DT          = 1 / TICK_RATE;
+const IDLE_GRACE_TICKS = 3; // ticks de gracia antes de volver a idle (~150ms)
 
-/* ─── WebSocket ───────────────────────────────────────────── */
+/* ─── UPGRADE ─── */
+
+server.on('upgrade', (request, socket, head) => {
+  if (request.url === '/ws') {
+    wss.handleUpgrade(request, socket, head, (ws) => {
+      wss.emit('connection', ws, request);
+    });
+  } else {
+    socket.destroy();
+  }
+});
+
+/* ─── WEBSOCKET ─── */
 
 wss.on('connection', (ws) => {
   const clientId = nextClientId++;
@@ -43,11 +46,12 @@ wss.on('connection', (ws) => {
     animation: 'idle',
     ws,
     input:     { dx: 0, dz: 0, rotation: 0, action: 0 },
-    animTimer: 0,      // tiempo restante de la animación de acción actual
-    isMoving:  false,  // se actualiza por acumulación entre ticks
+    animTimer: 0,
+    isMoving:  false,
+    idleGrace: 0,
   };
 
-  console.log(`[SERVER] Cliente ${clientId} conectado. Total: ${Object.keys(players).length}`);
+  console.log(`[SERVER] Cliente ${clientId} conectado`);
 
   ws.send(JSON.stringify({ type: 'init', clientId }));
   broadcastState();
@@ -61,18 +65,14 @@ wss.on('connection', (ws) => {
       const p = players[clientId];
       if (!p) return;
 
-      p.input.rotation = (msg.rotation !== undefined) ? msg.rotation : 0;
+      p.input.rotation = msg.rotation ?? 0;
 
-      // Acumular movimiento: si en CUALQUIER mensaje del cliente hay dz!=0,
-      // marcamos isMoving=true para este tick. Se limpia al final del tick.
       if (msg.dz !== 0 || msg.dx !== 0) {
         p.isMoving = true;
         p.input.dx = msg.dx || 0;
         p.input.dz = msg.dz || 0;
       }
 
-      // Acción: solo sobreescribir si no hay ya una acción en curso
-      // (evita que un action=0 posterior en el mismo tick borre la acción)
       if (msg.action && msg.action !== 0) {
         p.input.action = msg.action;
       }
@@ -80,61 +80,55 @@ wss.on('connection', (ws) => {
   });
 
   ws.on('close', () => {
-    console.log(`[SERVER] Cliente ${clientId} desconectado`);
     delete players[clientId];
+    console.log(`[SERVER] Cliente ${clientId} desconectado`);
     broadcastState();
   });
 });
 
-/* ─── Game tick ───────────────────────────────────────────── */
+/* ─── GAME LOOP ─── */
 
 setInterval(() => {
   for (const [, p] of Object.entries(players)) {
     const { dx, dz, rotation, action } = p.input;
 
-    // 1. Actualizar rotación siempre
     p.rotation = rotation;
 
-    // 2. Mover si hay input de movimiento acumulado
     if (p.isMoving) {
       p.x += Math.sin(p.rotation) * dz * MOVE_SPEED * TICK_DT;
       p.z += Math.cos(p.rotation) * dz * MOVE_SPEED * TICK_DT;
+      p.idleGrace = IDLE_GRACE_TICKS;
+    } else if (p.idleGrace > 0) {
+      p.idleGrace--;
     }
 
-    // 3. Resolver animación
-    if (action !== 0 && actionName(action) !== '') {
-      // Acción nueva: iniciar timer
+    const isEffectivelyMoving = p.isMoving || p.idleGrace > 0;
+
+    if (action !== 0 && actionName(action)) {
       const name = actionName(action);
       p.animation = name;
       p.animTimer = ANIM_DURATIONS[name];
 
     } else if (p.animTimer > 0) {
-      // Acción en curso: decrementar timer, mantener animación
       p.animTimer -= TICK_DT;
       if (p.animTimer <= 0) {
-        p.animTimer = 0;
-        // Al terminar la acción, decidir qué viene después
-        p.animation = p.isMoving ? 'walk' : 'idle';
+        p.animation = isEffectivelyMoving ? 'walk' : 'idle';
       }
-      // Si animTimer > 0 no tocamos p.animation
 
     } else {
-      // Sin acción activa: walk o idle según movimiento
-      p.animation = p.isMoving ? 'walk' : 'idle';
+      p.animation = isEffectivelyMoving ? 'walk' : 'idle';
     }
 
-    // 4. Limpiar input para el siguiente tick
     p.input.dx     = 0;
     p.input.dz     = 0;
     p.input.action = 0;
     p.isMoving     = false;
-    /* rotation NO se resetea: mantener la última hasta que el cliente mande otra */
   }
 
   broadcastState();
 }, 1000 / TICK_RATE);
 
-/* ─── Helper ──────────────────────────────────────────────── */
+/* ─── HELPERS ─── */
 
 function actionName(action) {
   if (action === 2) return 'jump';
@@ -143,10 +137,9 @@ function actionName(action) {
   return '';
 }
 
-/* ─── Broadcast ───────────────────────────────────────────── */
-
 function broadcastState() {
   const snapshot = {};
+
   for (const [id, p] of Object.entries(players)) {
     snapshot[id] = {
       id:        p.id,
@@ -167,9 +160,10 @@ function broadcastState() {
   }
 }
 
-/* ─── Arrancar ────────────────────────────────────────────── */
+/* ─── START ─── */
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`[SERVER] Escuchando en http://localhost:${PORT}`);
+
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`[SERVER] WS listo en puerto ${PORT}`);
 });

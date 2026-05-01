@@ -167,13 +167,20 @@ EM_JS(void, ws_send_input, (float dx, float dz, float rotation, int action), {
 
 static void InitPlayer(Player* p, int id)
 {
+    // Guardar animación y índice antes del memset
+    int  savedAnimIndex = p->animIndex;
+    char savedAnim[16];
+    strncpy(savedAnim, p->animation, sizeof(savedAnim));
+    savedAnim[sizeof(savedAnim) - 1] = '\0';
+
     memset(p, 0, sizeof(Player));
     p->id              = id;
     p->active          = 1;
-    p->animIndex       = 0;
+    p->animIndex       = savedAnimIndex;
     p->hasRefCenter    = false;
     p->firstAnimCenter = (Vector3){0,0,0};
-    strncpy(p->animation, "idle", sizeof(p->animation));
+    strncpy(p->animation, savedAnim, sizeof(p->animation));
+
     p->character = CreateAnimatedCharacter(
         "data/textures/zeta/bone_textures.txt",
         "data/textures/zeta/texture_sets.txt"
@@ -182,7 +189,8 @@ static void InitPlayer(Player* p, int id)
         LockAnimationRootXZ(p->character, true);
         SetCharacterBillboards(p->character, true, true);
         SetCharacterAutoPlay(p->character, true);
-        LoadAnimWithOffset(p, ANIM_JSON[0], ANIM_META[0]);
+        // Cargar la animación que ya tenía asignada, no siempre idle
+        LoadAnimWithOffset(p, ANIM_JSON[p->animIndex], ANIM_META[p->animIndex]);
     }
 }
 
@@ -239,6 +247,9 @@ static void FetchState(void)
         if (!players[slot].active) {
             players[slot].id     = pid;
             players[slot].active = 2;
+            // FIX: guardar animación e índice antes de inicializar
+            strncpy(players[slot].animation, panim, sizeof(players[slot].animation));
+            players[slot].animIndex = AnimIndex(panim);
             QueuePlayerInit(pid);
         }
 
@@ -353,7 +364,7 @@ static void DrawGame(void)
                  (p->id == my_id) ? YELLOW : WHITE);
     }
 
-    DrawRectangle(0, SCREEN_H - 22, SCREEN_W, 22, (Color){0,0,0,160});
+    DrawRectangle(0, SCREEN_H - 22, SCREEN_W, SCREEN_W, (Color){0,0,0,160});
     DrawText("W/S: mover   A/D: girar   SPACE: jump   Z: kick   X: punch",
              8, SCREEN_H - 15, 11, (Color){160,160,180,255});
 
