@@ -1,16 +1,14 @@
 {
-  "name": "transcendence-backend",
+  "name": "ft_transcendence-backend",
+  "private": true,
   "version": "1.0.0",
-  "description": "Game server for ft_transcendence",
-  "main": "src/index.js",
+  "type": "commonjs",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "nodemon src/index.js"
+    "dev": "nodemon --watch src src/index.js"
   },
   "dependencies": {
-    "ws": "^8.16.0"
-  },
-  "devDependencies": {
-    "nodemon": "^3.0.3"
+    "express": "^4.19.2",
+    "ws": "^8.18.0"
   }
 }

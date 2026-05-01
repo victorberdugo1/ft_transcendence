@@ -1,110 +1,182 @@
-# ft_transcendence — Base del proyecto
+*This project has been created as part of the 42 curriculum by vberdugo, , , .*
 
-## Arquitectura
+---
+
+# ft_transcendence
+
+## Description
+
+<!-- TODO: brief description of the project -->
+
+Key features:
+- Web-based game built with Raylib compiled to WebAssembly
+- Real-time multiplayer via WebSocket
+- React frontend + Express backend + PostgreSQL database
+- Fully containerized with Docker
+
+---
+
+## Instructions
+
+### Prerequisites
+
+- Docker and Docker Compose
+- GNU Make
+- Google Chrome (latest stable)
+
+### Setup and run
+
+```bash
+make setup      # Creates .env from .env.example — edit it before continuing
+make wasm       # First time only: ~15 min (compiles Raylib → WASM, then starts everything)
+```
+
+Open https://localhost in Chrome and accept the self-signed certificate.
+
+### Make commands
+
+| Command | Description |
+|---|---|
+| `make setup` | Copies `.env.example` to `.env` if it doesn't exist |
+| `make wasm` | Builds the frontend (C→WASM) and starts all containers |
+| `make up` | Starts all containers in the background |
+| `make dev` | Starts with logs in the terminal (Ctrl+C to stop) |
+| `make build` | Builds all images without starting |
+| `make re` | Stops, rebuilds WASM, and starts again |
+| `make logs` | Streams logs from all services |
+| `make logs-<service>` | Streams logs from a specific service (e.g. `make logs-backend`) |
+| `make shell-<service>` | Opens a shell inside a container (e.g. `make shell-backend`) |
+| `make down` | Stops all containers |
+| `make clean` | Stops everything and removes all images and volumes (full reset) |
+
+---
+
+## Technical Stack
+
+**Frontend** — React 18 (Vite), with Raylib compiled to WebAssembly via Emscripten. React handles all UI (menus, routing, HUD). The game runs inside a `<canvas>` element rendered by React. Changes to React components do not require recompilation. Changes to `main.c` require `make re`.
+
+**Backend** — Node.js with Express. Handles the game loop, physics, WebSocket connections, and all REST endpoints under `/api/*`. Nodemon reloads the server automatically on file save.
+
+**Database** — PostgreSQL. Schema defined in `database/init.sql`, applied on first volume creation. To reset: `make clean && make wasm`.
+
+**Proxy** — nginx terminates TLS and routes `/` to the frontend, `/api/*` and `/ws` to the backend.
+
+**Containerization** — Docker Compose orchestrates all four services (nginx, frontend, backend, database). A single `make wasm` command builds and starts everything.
+
+---
+
+## Architecture
 
 ```
-NAVEGADOR
+BROWSER
   │
   ▼
 nginx :443 (HTTPS)
-  ├── /          → frontend (nginx sirviendo HTML + game.wasm)
+  ├── /          → frontend (React + Vite → static files served by nginx)
   ├── /api/*     → backend  (Express REST API)
-  └── /ws        → backend  (WebSocket del juego)
+  └── /ws        → backend  (WebSocket)
                       │
                       ▼
                   PostgreSQL
 ```
 
-El backend es la fuente de verdad. El frontend (Raylib compilado a WebAssembly) solo visualiza y manda inputs.
+The backend is the source of truth. React mounts the UI and the game canvas. The WASM module only renders and sends inputs.
 
 ```
-Backend (Node.js)          Frontend (Raylib WASM)
-  game loop                   canvas en el navegador
-  calcula física    ──WS──▶   ws-client.js recibe estado
-  manda estado      ◀──WS──   manda input del teclado
+Backend (Express)             Frontend (React + Raylib WASM)
+  game loop                     React renders the canvas
+  physics calculation ──WS──▶   ws-client.js receives state
+  sends state         ◀──WS──   sends keyboard input
 ```
 
 ---
 
-## Puesta en marcha
-
-```bash
-make setup      # Crea .env desde .env.example (no sobreescribe si ya existe)
-# Edita .env con tus contraseñas
-make wasm       # Primera vez: ~15 min (compila Raylib → WASM y levanta)
-```
-
-Abre https://localhost en Chrome y acepta el certificado self-signed.
-
----
-
-## Comandos
-
-| Comando | Qué hace |
-|---|---|
-| `make setup` | Copia `.env.example` a `.env` si no existe |
-| `make wasm` | Recompila el frontend (C→WASM) y levanta |
-| `make up` | Levanta todos los contenedores en background |
-| `make dev` | Levanta con logs en pantalla (Ctrl+C para parar) |
-| `make build` | Build de todas las imágenes sin levantar |
-| `make re` | Baja, recompila WASM y vuelve a levantar |
-| `make logs` | Logs de todos los servicios en tiempo real |
-| `make logs-backend` | Logs solo del backend |
-| `make logs-frontend` | Logs solo del frontend |
-| `make shell-backend` | Shell dentro del contenedor del backend |
-| `make shell-frontend` | Shell dentro del contenedor del frontend |
-| `make down` | Para todos los contenedores |
-| `make clean` | Para todo y borra imágenes + volúmenes (reset total) |
-
-> `make shell-<servicio>` funciona con cualquier nombre de servicio definido en `docker-compose.yml`.
-
----
-
-## Estructura del proyecto
+## Project Structure
 
 ```
 .
-├── docker-compose.yml      ← Orquestación (no tocar si no sabes)
-├── .env.example            ← Copia a .env y rellena
+├── docker-compose.yml
+├── .env.example                ← Copy to .env and fill in
 ├── Makefile
 │
 ├── nginx/
-│   ├── Dockerfile          ← Genera cert HTTPS self-signed
-│   └── nginx.conf          ← Rutas: /, /api/, /ws
+│   ├── Dockerfile              ← Generates self-signed HTTPS cert
+│   └── nginx.conf              ← Routes: /, /api/, /ws
 │
 ├── frontend/
-│   ├── Dockerfile          ← Etapa 1: compila C→WASM / Etapa 2: nginx
-│   ├── index.html          ← Carga game.wasm + ws-client.js
-│   ├── nginx.conf
+│   ├── Dockerfile              ← Stage 1: C→WASM / Stage 2: React build / Stage 3: nginx
+│   ├── app/                    ← React application (Vite)
+│   │   ├── index.html
+│   │   ├── package.json
+│   │   ├── vite.config.js
+│   │   └── src/
+│   │       ├── main.jsx        ← React entry point
+│   │       └── App.jsx         ← Root component — canvas lives here
 │   ├── game/src/
-│   │   └── main.c          ← Código Raylib del juego
+│   │   └── main.c              ← Raylib game code (requires make re after changes)
 │   └── js/
-│       └── ws-client.js    ← Puente WebSocket ↔ WASM
+│       └── ws-client.js        ← WebSocket ↔ WASM bridge
 │
 ├── backend/
 │   ├── Dockerfile
 │   ├── package.json
 │   └── src/
-│       └── index.js        ← Game loop + WebSocket + API
+│       └── index.js            ← Game loop + WebSocket + Express routes
 │
 └── database/
-    └── init.sql            ← Schema de PostgreSQL
+    └── init.sql                ← PostgreSQL schema
 ```
 
 ---
 
-## Qué hace cada parte
+## Database Schema
 
-**`frontend/game/src/main.c`** — El juego en sí. Código C con Raylib que se compila a WebAssembly. Recibe el estado del juego por WebSocket y lo dibuja en un canvas. También captura los inputs del teclado y los manda al servidor. Cada vez que lo toques necesitas `make re` para recompilar.
+<!-- TODO: tables, relationships, key fields -->
 
-**`frontend/js/ws-client.js`** — El puente entre el navegador y el WASM. Abre la conexión WebSocket, recibe mensajes del servidor y los pasa a la función C correspondiente, y viceversa.
+---
 
-**`frontend/index.html`** — Página mínima que carga el canvas, el JS generado por Emscripten y `ws-client.js`.
+## Features
 
-**`backend/src/index.js`** — El servidor. Aquí vive el game loop, la física, el `GameState`, y los endpoints REST (`/api/*`). Nodemon lo recarga automáticamente al guardar, no hace falta reiniciar nada.
+<!-- TODO: feature — team member responsible -->
 
-**`database/init.sql`** — Schema inicial de PostgreSQL. Se ejecuta solo la primera vez que se crea el volumen. Para aplicar cambios: `make clean && make wasm`.
+---
 
-**`nginx/nginx.conf`** — Proxy inverso que enruta `/` al frontend, `/api/*` y `/ws` al backend. También termina el TLS.
+## Modules
 
-**`backend/Dockerfile`** — Está comentado para explicar cómo cambiar el backend a otro lenguaje. El único contrato que hay que respetar es escuchar en `:3000` y exponer `/ws` y `/api/*`.
+<!-- TODO: module name — Major/Minor — justification — who implemented it -->
+
+---
+
+## Team Information
+
+| Login | Role | Responsibilities |
+|---|---|---|
+| vberdugo | | |
+| | | |
+| | | |
+| | | |
+
+---
+
+## Project Management
+
+<!-- TODO: tools used, meeting cadence, communication channel -->
+
+---
+
+## Individual Contributions
+
+<!-- TODO: per-person breakdown of features built, challenges faced, how solved -->
+
+---
+
+## Resources
+
+- [Raylib documentation](https://www.raylib.com/)
+- [Emscripten documentation](https://emscripten.org/docs/)
+- [React documentation](https://react.dev/)
+- [Express documentation](https://expressjs.com/)
+- [PostgreSQL documentation](https://www.postgresql.org/docs/)
+- [WebSocket API (MDN)](https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API)
+
+**AI usage:** <!-- TODO: which tasks, which parts of the project -->

@@ -1,8 +1,18 @@
 const http      = require('http');
 const WebSocket = require('ws');
+const express   = require('express');
 
-const server = http.createServer();
-const wss = new WebSocket.Server({ noServer: true });
+const app    = express();
+const server = http.createServer(app);
+const wss    = new WebSocket.Server({ noServer: true });
+
+app.use(express.json());
+
+/* ─── API ─── */
+
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', players: Object.keys(players).length });
+});
 
 /* ─── CONFIG ─── */
 
@@ -18,7 +28,7 @@ const players = {};
 const TICK_RATE        = 20;
 const MOVE_SPEED       = 3.0;
 const TICK_DT          = 1 / TICK_RATE;
-const IDLE_GRACE_TICKS = 3; // ticks de gracia antes de volver a idle (~150ms)
+const IDLE_GRACE_TICKS = 3;
 
 /* ─── UPGRADE ─── */
 
