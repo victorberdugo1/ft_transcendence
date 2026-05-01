@@ -22,7 +22,7 @@ Key features:
 
 - Docker and Docker Compose
 - GNU Make
-- Google Chrome (latest stable)
+- Web browser (latest stable version, e.g., Chrome, Firefox, Safari, Edge)
 
 ### Setup and run
 
@@ -31,7 +31,7 @@ make setup      # Creates .env from .env.example — edit it before continuing
 make wasm       # First time only: ~15 min (compiles Raylib → WASM, then starts everything)
 ```
 
-Open https://localhost in Chrome and accept the self-signed certificate.
+Open https://localhost in browser and accept the self-signed certificate.
 
 ### Make commands
 
