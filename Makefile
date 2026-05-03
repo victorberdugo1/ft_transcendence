@@ -30,9 +30,9 @@ clean:
 setup:
 	@if [ ! -f .env ]; then \
 		cp .env.example .env; \
-		echo "✅ .env creado. Edítalo antes de hacer 'make up'"; \
+		echo ".env creado. Edítalo antes de hacer 'make up'"; \
 	else \
-		echo "⚠️  .env ya existe, no se sobreescribe"; \
+		echo ".env ya existe, no se sobreescribe"; \
 	fi
 
 shell-%:

@@ -1,8 +1,8 @@
+# ft_transcendence
+
 *This project has been created as part of the 42 curriculum by vberdugo, , , .*
 
 ---
-
-# ft_transcendence
 
 ## Description
 
@@ -53,13 +53,13 @@ Open https://localhost in browser and accept the self-signed certificate.
 
 ## Technical Stack
 
-**Frontend** — React 18 (Vite), with Raylib compiled to WebAssembly via Emscripten. React handles all UI (menus, routing, HUD). The game runs inside a `<canvas>` element rendered by React. Changes to React components do not require recompilation. Changes to `main.c` require `make re`.
+**Frontend** — React 18 (Vite), with Raylib compiled to WebAssembly via Emscripten. React handles all UI (menus, routing, HUD). The game runs inside a `<canvas>` element rendered by React. The canvas resolution is calculated from the actual viewport size at load time, and a debounced resize listener reloads the page to recalculate it. Changes to React components do not require recompilation. Changes to `main.c` require `make re`.
 
 **Backend** — Node.js with Express. Handles the game loop, physics, WebSocket connections, and all REST endpoints under `/api/*`. Nodemon reloads the server automatically on file save.
 
 **Database** — PostgreSQL. Schema defined in `database/init.sql`, applied on first volume creation. To reset: `make clean && make wasm`.
 
-**Proxy** — nginx terminates TLS and routes `/` to the frontend, `/api/*` and `/ws` to the backend.
+**Proxy** — nginx terminates TLS and routes `/` to the frontend nginx, `/api/*` and `/ws` to the backend.
 
 **Containerization** — Docker Compose orchestrates all four services (nginx, frontend, backend, database). A single `make wasm` command builds and starts everything.
 
@@ -71,10 +71,10 @@ Open https://localhost in browser and accept the self-signed certificate.
 BROWSER
   │
   ▼
-nginx :443 (HTTPS)
-  ├── /          → frontend (React + Vite → static files served by nginx)
-  ├── /api/*     → backend  (Express REST API)
-  └── /ws        → backend  (WebSocket)
+nginx :443 (HTTPS/TLS termination)
+  ├── /          → frontend nginx :80 (serves React static build)
+  ├── /api/*     → backend :3000 (Express REST API)
+  └── /ws        → backend :3000 (WebSocket)
                       │
                       ▼
                   PostgreSQL
@@ -88,6 +88,8 @@ Backend (Express)             Frontend (React + Raylib WASM)
   physics calculation ──WS──▶   ws-client.js receives state
   sends state         ◀──WS──   sends keyboard input
 ```
+
+The frontend Dockerfile has three build stages: Emscripten compiles `main.c` to WASM, Vite builds the React app, and a final nginx image serves all static files.
 
 ---
 
@@ -179,4 +181,6 @@ Backend (Express)             Frontend (React + Raylib WASM)
 - [PostgreSQL documentation](https://www.postgresql.org/docs/)
 - [WebSocket API (MDN)](https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API)
 
-**AI usage:** <!-- TODO: which tasks, which parts of the project -->
+**AI usage:** AI tools were used to support documentation drafting, code review,
+and breaking down technical problems into smaller steps. All suggestions were
+critically reviewed and discussed within the team before being applied.
