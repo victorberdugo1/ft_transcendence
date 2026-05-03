@@ -1,4 +1,14 @@
-window._gameState = { players: {} };
+// Restaurar último estado conocido inmediatamente — evita el frame en 0,0,0
+(function restoreLastState() {
+  try {
+    const saved = sessionStorage.getItem('gameState');
+    if (saved) window._gameState = JSON.parse(saved);
+    else        window._gameState = { players: {} };
+  } catch {
+    window._gameState = { players: {} };
+  }
+})();
+
 window._myClientId = -1;
 window._ws = null;
 
@@ -11,7 +21,6 @@ window._ws = null;
   window._ws = ws;
 
   function setStatus(text) {
-    // Espera a que React monte el elemento
     const el = document.getElementById('status');
     if (el) el.textContent = text;
   }
@@ -19,6 +28,11 @@ window._ws = null;
   ws.addEventListener('open', () => {
     console.log('[WS] Conectado');
     setStatus('⬤ Conectado');
+
+    const savedId = sessionStorage.getItem('clientId');
+    if (savedId) {
+      ws.send(JSON.stringify({ type: 'rejoin', clientId: parseInt(savedId, 10) }));
+    }
   });
 
   ws.addEventListener('message', ({ data }) => {
@@ -28,9 +42,12 @@ window._ws = null;
 
     if (msg.type === 'init') {
       window._myClientId = msg.clientId;
+      sessionStorage.setItem('clientId', msg.clientId);
       console.log('[WS] Mi clientId:', window._myClientId);
     } else if (msg.type === 'state') {
       window._gameState = msg;
+      // Persistir para el próximo reload
+      try { sessionStorage.setItem('gameState', JSON.stringify(msg)); } catch {}
     } else {
       window._gameState = msg;
     }

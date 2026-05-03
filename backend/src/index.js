@@ -23,12 +23,14 @@ const ANIM_DURATIONS = {
 };
 
 let nextClientId = 1;
-const players = {};
+const players   = {};
+const lastState = {}; // guarda posición/rotación de jugadores desconectados
 
 const TICK_RATE        = 20;
 const MOVE_SPEED       = 3.0;
 const TICK_DT          = 1 / TICK_RATE;
 const IDLE_GRACE_TICKS = 3;
+const GHOST_TTL_MS     = 30_000; // 30s para reconectar antes de perder posición
 
 /* ─── UPGRADE ─── */
 
@@ -45,55 +47,87 @@ server.on('upgrade', (request, socket, head) => {
 /* ─── WEBSOCKET ─── */
 
 wss.on('connection', (ws) => {
-  const clientId = nextClientId++;
+  let clientId = null;
 
-  players[clientId] = {
-    id:        clientId,
-    x:         (Math.random() - 0.5) * 6,
-    y:         0,
-    z:         (Math.random() - 0.5) * 6,
-    rotation:  0,
-    animation: 'idle',
-    ws,
-    input:     { dx: 0, dz: 0, rotation: 0, action: 0 },
-    animTimer: 0,
-    isMoving:  false,
-    idleGrace: 0,
-  };
-
-  console.log(`[SERVER] Cliente ${clientId} conectado`);
-
-  ws.send(JSON.stringify({ type: 'init', clientId }));
-  broadcastState();
-
-  ws.on('message', (raw) => {
+  ws.once('message', (raw) => {
     let msg;
-    try { msg = JSON.parse(raw); }
-    catch { return; }
+    try { msg = JSON.parse(raw); } catch { msg = {}; }
 
-    if (msg.type === 'input') {
-      const p = players[clientId];
-      if (!p) return;
-
-      p.input.rotation = msg.rotation ?? 0;
-
-      if (msg.dz !== 0 || msg.dx !== 0) {
-        p.isMoving = true;
-        p.input.dx = msg.dx || 0;
-        p.input.dz = msg.dz || 0;
-      }
-
-      if (msg.action && msg.action !== 0) {
-        p.input.action = msg.action;
-      }
+    if (msg.type === 'rejoin' && msg.clientId && !players[msg.clientId]) {
+      clientId = msg.clientId;
+      if (clientId >= nextClientId) nextClientId = clientId + 1;
+      console.log(`[SERVER] Cliente ${clientId} reconectado (rejoin)`);
+    } else {
+      clientId = nextClientId++;
+      console.log(`[SERVER] Cliente ${clientId} conectado`);
     }
+
+    // Restaurar posición si existe, si no posición aleatoria
+    const saved = lastState[clientId];
+    if (saved) clearTimeout(saved.timer);
+
+    players[clientId] = {
+      id:        clientId,
+      x:         saved ? saved.x        : (Math.random() - 0.5) * 6,
+      y:         saved ? saved.y        : 0,
+      z:         saved ? saved.z        : (Math.random() - 0.5) * 6,
+      rotation:  saved ? saved.rotation : 0,
+      animation: 'idle',
+      ws,
+      input:     { dx: 0, dz: 0, rotation: 0, action: 0 },
+      animTimer: 0,
+      isMoving:  false,
+      idleGrace: 0,
+    };
+
+    delete lastState[clientId];
+
+    ws.send(JSON.stringify({ type: 'init', clientId }));
+    broadcastState();
+
+    ws.on('message', (raw) => {
+      let msg;
+      try { msg = JSON.parse(raw); } catch { return; }
+
+      if (msg.type === 'input') {
+        const p = players[clientId];
+        if (!p) return;
+
+        p.input.rotation = msg.rotation ?? 0;
+
+        if (msg.dz !== 0 || msg.dx !== 0) {
+          p.isMoving = true;
+          p.input.dx = msg.dx || 0;
+          p.input.dz = msg.dz || 0;
+        }
+
+        if (msg.action && msg.action !== 0) {
+          p.input.action = msg.action;
+        }
+      }
+    });
   });
 
   ws.on('close', () => {
-    delete players[clientId];
-    console.log(`[SERVER] Cliente ${clientId} desconectado`);
-    broadcastState();
+    if (clientId !== null && players[clientId]) {
+      const p = players[clientId];
+
+      // Guardar posición con TTL por si reconecta
+      lastState[clientId] = {
+        x:        p.x,
+        y:        p.y,
+        z:        p.z,
+        rotation: p.rotation,
+        timer:    setTimeout(() => delete lastState[clientId], GHOST_TTL_MS),
+      };
+
+      delete players[clientId];
+      console.log(`[SERVER] Cliente ${clientId} desconectado`);
+      broadcastState();
+    }
   });
+
+  ws.on('error', () => ws.close());
 });
 
 /* ─── GAME LOOP ─── */

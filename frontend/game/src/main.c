@@ -7,9 +7,10 @@
 #include <string.h>
 #include <math.h>
 
-#define SCREEN_W    800
-#define SCREEN_H    600
 #define MAX_PLAYERS 8
+
+static int SCREEN_W = 800;
+static int SCREEN_H = 600;
 
 static const char* ANIM_JSON[5] = {
     "data/animations/idle.json",
@@ -133,6 +134,16 @@ static bool LoadAnimWithOffset(Player* p, const char* jsonPath, const char* meta
     return true;
 }
 
+EM_JS(int, js_canvas_width, (void), {
+    return (window._canvasWidth && window._canvasWidth > 0)
+        ? (window._canvasWidth | 0) : 800;
+});
+
+EM_JS(int, js_canvas_height, (void), {
+    return (window._canvasHeight && window._canvasHeight > 0)
+        ? (window._canvasHeight | 0) : 600;
+});
+
 EM_JS(int, ws_get_my_id, (void), {
     return (window._myClientId !== undefined && window._myClientId > 0)
         ? (window._myClientId | 0) : -1;
@@ -167,7 +178,6 @@ EM_JS(void, ws_send_input, (float dx, float dz, float rotation, int action), {
 
 static void InitPlayer(Player* p, int id)
 {
-    // Guardar animación y índice antes del memset
     int  savedAnimIndex = p->animIndex;
     char savedAnim[16];
     strncpy(savedAnim, p->animation, sizeof(savedAnim));
@@ -189,7 +199,6 @@ static void InitPlayer(Player* p, int id)
         LockAnimationRootXZ(p->character, true);
         SetCharacterBillboards(p->character, true, true);
         SetCharacterAutoPlay(p->character, true);
-        // Cargar la animación que ya tenía asignada, no siempre idle
         LoadAnimWithOffset(p, ANIM_JSON[p->animIndex], ANIM_META[p->animIndex]);
     }
 }
@@ -247,7 +256,6 @@ static void FetchState(void)
         if (!players[slot].active) {
             players[slot].id     = pid;
             players[slot].active = 2;
-            // FIX: guardar animación e índice antes de inicializar
             strncpy(players[slot].animation, panim, sizeof(players[slot].animation));
             players[slot].animIndex = AnimIndex(panim);
             QueuePlayerInit(pid);
@@ -391,6 +399,9 @@ static void MainLoop(void)
 
 int main(void)
 {
+    SCREEN_W = js_canvas_width();
+    SCREEN_H = js_canvas_height();
+
     memset(players, 0, sizeof(players));
     InitWindow(SCREEN_W, SCREEN_H, "ft_transcendence");
     SetTargetFPS(60);
