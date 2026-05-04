@@ -56,6 +56,7 @@ typedef struct {
     bool  respawning;
     bool  crouching;
     int   hitId;
+    float visualRotation;   /* rotación interpolada para el giro suave */
     AnimatedCharacter* character;
     /* Centro de la primera animación cargada (idle) — referencia fija para todas.
      * Igual estrategia que el proyecto de referencia: en vez de recalcular el
@@ -414,6 +415,8 @@ static void FetchState(void) {
         players[slot].wx        = px;
         players[slot].wy        = py;
         players[slot].rotation  = prot;
+        /* Al aparecer por primera vez sincronizamos la visual para no girar desde 0 */
+        if (players[slot].active == 2) players[slot].visualRotation = prot;
         players[slot].stocks    = pstocks;
         players[slot].respawning = prespawning;
         players[slot].crouching = pcrouching;
@@ -455,8 +458,8 @@ static Vector3 WorldTo3D(float wx, float wy) {
 #define STAGE_RIGHT    8.0f
 #define STAGE_Y       -0.05f
 #define PLATFORM_H     0.12f
-#define ATTACK_RANGE   1.4f
-#define ATTACK_RANGE_Y 0.8f
+#define ATTACK_RANGE   0.6f
+#define ATTACK_RANGE_Y 0.4f
 
 /* ─── DRAW ─── */
 
@@ -556,7 +559,31 @@ static void DrawGame(void) {
         float visualY = p->wy - (p->hasAnchorY ? p->anchorYOffset : 0.0f);
         Vector3 worldPos = (Vector3){ p->wx, visualY, 0.0f };
 
-        float drawRot = p->rotation + (float)M_PI_2;
+        /*
+         * GIRO SUAVE:
+         * Interpolamos visualRotation hacia rotation (objetivo del servidor).
+         * Velocidad de giro ajustable con TURN_SPEED (radianes/segundo).
+         * Para el efecto cara/espalda usamos el componente Y del draw:
+         *   - mirando derecha (rotation ≈ 0):   scale.x = +1 → cara al frente
+         *   - mirando izquierda (rotation ≈ π): scale.x = -1 → espejo = espalda
+         * El lerp hace la transición visible en lugar de instantánea.
+         */
+        const float TURN_SPEED = 12.0f;   /* rad/s — ajusta a tu gusto */
+        {
+            float target = p->rotation;   /* 0 = derecha, π = izquierda */
+            float cur    = p->visualRotation;
+
+            /* Diferencia angular en [-π, π] para el camino más corto */
+            float diff = target - cur;
+            while (diff >  (float)M_PI) diff -= 2.0f * (float)M_PI;
+            while (diff < -(float)M_PI) diff += 2.0f * (float)M_PI;
+
+            float step = TURN_SPEED * dt;
+            if (fabsf(diff) <= step) p->visualRotation = target;
+            else                     p->visualRotation  = cur + (diff > 0 ? step : -step);
+        }
+
+        float drawRot = p->visualRotation + (float)M_PI_2;
         DrawAnimatedCharacterTransformed(p->character, scene_cam, worldPos, drawRot);
     }
 
@@ -578,15 +605,15 @@ static void DrawGame(void) {
             Vector3 wp   = (Vector3){ p->wx, p->wy, 0.0f };
             Color   cc   = (p->id == my_id) ? (Color){0, 255, 100, 220} : (Color){255, 80, 80, 220};
 
-            DrawCubeWires((Vector3){wp.x, wp.y + 0.8f, 0.0f}, 0.9f, 1.6f, 0.05f, cc);
+            DrawCubeWires((Vector3){wp.x, wp.y + 0.36f, 0.0f}, 0.48f, 0.72f, 0.05f, cc);
             DrawSphere(wp, 0.06f, cc);
 
             if (strncmp(p->animation, "punch", 5) == 0 ||
                 strncmp(p->animation, "kick",  4) == 0) {
-                float facing = (p->rotation < 1.0f) ? 1.0f : -1.0f;
+                float facing = (p->visualRotation < 1.0f) ? 1.0f : -1.0f;
                 DrawCubeWires(
-                    (Vector3){ wp.x + facing * (ATTACK_RANGE * 0.5f), wp.y + 0.4f, 0.0f },
-                    ATTACK_RANGE, ATTACK_RANGE_Y * 2.0f, 0.05f,
+                    (Vector3){ wp.x + facing * (ATTACK_RANGE * 0.5f), wp.y + ATTACK_RANGE_Y * 0.5f, 0.0f },
+                    ATTACK_RANGE, ATTACK_RANGE_Y, 0.05f,
                     (Color){255, 255, 0, 220});
             }
         }

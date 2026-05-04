@@ -34,7 +34,7 @@ const STAGE_BOTTOM = -6.0;
 
 const ATTACK_DURATION   = 0.3;
 const ATTACK_COOLDOWN   = 0.5;
-const ATTACK_RANGE      = 1.4;
+const ATTACK_RANGE      = 1.2;
 const ATTACK_RANGE_Y    = 0.8;
 const ATTACK_KNOCKBACK  = 14.0;
 const ATTACK_KB_UP      = 6.0;
@@ -153,8 +153,8 @@ const PLATFORMS = [
   { x:  0, y: 2.8,      hw: 1.2 },
 ];
 
-const PLAYER_RADIUS = 0.45;
-const PLAYER_HEIGHT = 1.6;
+const PLAYER_RADIUS = 0.24;
+const PLAYER_HEIGHT = 0.72;
 
 /* ─── GAME LOOP ─── */
 
