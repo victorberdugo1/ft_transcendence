@@ -39,7 +39,7 @@ Open https://localhost in browser and accept the self-signed certificate.
 |---|---|
 | `make setup` | Copies `.env.example` to `.env` if it doesn't exist |
 | `make wasm` | Builds the frontend (C→WASM) and starts all containers |
-| `make up` | Starts all containers in the background |
+| `make up` | Starts all containers — reloads any changes to `.js` files without rebuild |
 | `make dev` | Starts with logs in the terminal (Ctrl+C to stop) |
 | `make build` | Builds all images without starting |
 | `make re` | Stops, rebuilds WASM, and starts again |
@@ -53,7 +53,7 @@ Open https://localhost in browser and accept the self-signed certificate.
 
 ## Technical Stack
 
-**Frontend** — React 18 (Vite), with Raylib compiled to WebAssembly via Emscripten. React handles all UI (menus, routing, HUD). The game runs inside a `<canvas>` element rendered by React. The canvas resolution is calculated from the actual viewport size at load time, and a debounced resize listener reloads the page to recalculate it. Changes to React components do not require recompilation. Changes to `main.c` require `make re`.
+**Frontend** — React 18 (Vite), with Raylib compiled to WebAssembly via Emscripten. React handles all UI (menus, routing, HUD). The game runs inside a `<canvas>` element rendered by React. The canvas resolution is calculated from the actual viewport size at load time, and a debounced resize listener reloads the page to recalculate it. Changes to React components do not require recompilation. Changes to `main.c` require `make wasm`. Changes to `ws-client.js` or any file under `frontend/js/` and `backend/src/` are served live via Docker volume mounts — `make up` is enough.
 
 **Backend** — Node.js with Express. Handles the game loop, physics, WebSocket connections, and all REST endpoints under `/api/*`. Nodemon reloads the server automatically on file save.
 

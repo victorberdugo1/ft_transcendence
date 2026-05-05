@@ -17,6 +17,8 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+    volumes:
+      - ./frontend/js:/usr/share/nginx/html/js
     networks:
       - app-network
     restart: unless-stopped

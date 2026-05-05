@@ -8,11 +8,19 @@
 #include <math.h>
 
 #define MAX_PLAYERS 8
+#define ANIM_COUNT  12
+
+#define STAGE_LEFT    -8.0f
+#define STAGE_RIGHT    8.0f
+#define STAGE_Y       -0.05f
+#define PLATFORM_H     0.12f
+#define ATTACK_RANGE   0.6f
+#define ATTACK_RANGE_Y 0.72f
 
 static int SCREEN_W = 800;
 static int SCREEN_H = 600;
 
-static const char* ANIM_JSON[12] = {
+static const char* ANIM_JSON[ANIM_COUNT] = {
     "data/animations/idle.json",
     "data/animations/walk.json",
     "data/animations/jump.json",
@@ -26,7 +34,7 @@ static const char* ANIM_JSON[12] = {
     "data/animations/crouch.json",
     "data/animations/hurt.json",
 };
-static const char* ANIM_META[12] = {
+static const char* ANIM_META[ANIM_COUNT] = {
     "data/animations/idle.anim",
     "data/animations/walk.anim",
     "data/animations/jump.anim",
@@ -40,19 +48,11 @@ static const char* ANIM_META[12] = {
     "data/animations/crouch.anim",
     "data/animations/hurt.anim",
 };
-static const char* ANIM_NAME[12] = {
+static const char* ANIM_NAME[ANIM_COUNT] = {
     "idle", "walk", "jump",
     "attack_air", "attack_combo_1", "attack_combo_2", "attack_combo_3",
-    "attack_crouch",
-    "dash", "crouch", "crouch_loop", "hurt",
+    "attack_crouch", "dash", "crouch", "crouch_loop", "hurt",
 };
-#define ANIM_COUNT 12
-
-static int AnimIndex(const char* name) {
-    for (int i = 0; i < ANIM_COUNT; i++)
-        if (strcmp(name, ANIM_NAME[i]) == 0) return i;
-    return 0;
-}
 
 typedef struct {
     int   id;
@@ -67,23 +67,19 @@ typedef struct {
     int   hitId;
     int   jumpId;
     float visualRotation;
+    float attackFlashTimer;
+    float attackFlashFacing;
     AnimatedCharacter* character;
-
     Vector3 referenceCenter;
     bool    hasReferenceCenter;
     float   anchorYOffset;
     bool    hasAnchorY;
-
-    // Debug: timer visual de hitbox de ataque (independiente de la animación)
-    float   attackFlashTimer;
-    float   attackFlashFacing; // dirección en el momento del golpe
 } Player;
 
 static Player players[MAX_PLAYERS];
 static int    my_id      = -1;
 static bool   game_ready = false;
 static bool   debug_mode = false;
-
 static Camera scene_cam;
 
 #define MAX_PENDING 8
@@ -91,6 +87,12 @@ static int pending_ids[MAX_PENDING];
 static int pending_count = 0;
 
 static void InitPlayer(Player* p, int id);
+
+static int AnimIndex(const char* name) {
+    for (int i = 0; i < ANIM_COUNT; i++)
+        if (strcmp(name, ANIM_NAME[i]) == 0) return i;
+    return 0;
+}
 
 static void QueuePlayerInit(int id) {
     for (int i = 0; i < pending_count; i++)
@@ -106,8 +108,7 @@ static void FlushOnePlayerInit(void) {
     int slot = -1;
     for (int s = 0; s < MAX_PLAYERS; s++)
         if (players[s].id == id && players[s].active == 2) { slot = s; break; }
-    if (slot < 0) return;
-    InitPlayer(&players[slot], id);
+    if (slot >= 0) InitPlayer(&players[slot], id);
 }
 
 static Vector3 CalcAnimCenter(const AnimationFrame* frame) {
@@ -212,18 +213,14 @@ static void StabilizeAnimX(BonesAnimation* anim) {
     }
 }
 
-// Duración de transición según animación destino.
-// Movimiento básico (idle/walk/jump/crouch/dash) → rápido para que no se vea
-// arrastrado. Ataques y hurt → un poco más suave para que no sea abrupto.
 static float TransitionDurationForAnim(const char* anim) {
-    if (!anim) return 0.10f;
+    if (!anim)                          return 0.10f;
     if (strncmp(anim, "idle",   4) == 0) return 0.10f;
     if (strncmp(anim, "walk",   4) == 0) return 0.10f;
     if (strncmp(anim, "jump",   4) == 0) return 0.08f;
     if (strncmp(anim, "crouch", 6) == 0) return 0.10f;
     if (strncmp(anim, "dash",   4) == 0) return 0.06f;
     if (strncmp(anim, "hurt",   4) == 0) return 0.10f;
-    // ataques
     return 0.12f;
 }
 
@@ -235,7 +232,6 @@ static bool LoadAnimWithOffset(Player* p, const char* jsonPath, const char* meta
 
     if (p->character->animation.isLoaded && p->character->animation.frameCount > 0) {
         BonesAnimation* anim = &p->character->animation;
-
         StabilizeAnimX(anim);
 
         Vector3 thisCenter = {0, 0, 0};
@@ -243,7 +239,6 @@ static bool LoadAnimWithOffset(Player* p, const char* jsonPath, const char* meta
         if (!hasCtr) thisCenter = CalcAnimCenter(&anim->frames[0]);
 
         if (!p->hasReferenceCenter) {
-
             Vector3 xzOffset = { -thisCenter.x, 0.0f, -thisCenter.z };
             if (fabsf(xzOffset.x) > 0.001f || fabsf(xzOffset.z) > 0.001f)
                 ApplyOffsetToAnim(anim, xzOffset);
@@ -256,7 +251,6 @@ static bool LoadAnimWithOffset(Player* p, const char* jsonPath, const char* meta
             p->anchorYOffset      = thisCenter.y;
             p->hasAnchorY         = true;
         } else {
-
             Vector3 delta = Vector3Subtract(p->referenceCenter, thisCenter);
             if (Vector3Length(delta) > 0.001f)
                 ApplyOffsetToAnim(anim, delta);
@@ -284,51 +278,42 @@ EM_JS(int, ws_get_player, (int idx, char* buf, int len), {
     if (!p) return 0;
     const s = [
         p.id | 0,
-        (p.x         ?? 0).toFixed(3),
-        (p.y         ?? 0).toFixed(3),
-        (p.rotation  ?? 0).toFixed(4),
-        p.animation  || 'idle',
-        p.stocks     ?? 3,
+        (p.x        ?? 0).toFixed(3),
+        (p.y        ?? 0).toFixed(3),
+        (p.rotation ?? 0).toFixed(4),
+        p.animation || 'idle',
+        p.stocks    ?? 3,
         p.respawning ? 1 : 0,
-        p.hitId      ?? 0,
-        p.crouching  ? 1 : 0,
-        p.jumpId     ?? 0,
+        p.hitId     ?? 0,
+        p.crouching ? 1 : 0,
+        p.jumpId    ?? 0,
     ].join('|');
     stringToUTF8(s, buf, len);
     return 1;
 });
 
-static void InitPlayer(Player* p, int id) {
-    int  savedAnimIndex = p->animIndex;
-    char savedAnim[24];
-    strncpy(savedAnim, p->animation, sizeof(savedAnim));
-    savedAnim[sizeof(savedAnim) - 1] = '\0';
+static void strcpy_safe(char* dst, const char* src, size_t n) {
+    strncpy(dst, src, n - 1);
+    dst[n - 1] = '\0';
+}
 
-    float savedX       = p->wx;
-    float savedY       = p->wy;
-    float savedRot     = p->rotation;
-    int   savedStocks  = p->stocks > 0 ? p->stocks : 3;
-    int   savedHitId   = p->hitId;
-    float savedAnchorY        = p->anchorYOffset;
-    bool  savedHasAY          = p->hasAnchorY;
-    Vector3 savedRefCenter    = p->referenceCenter;
-    bool    savedHasRefCenter = p->hasReferenceCenter;
+static void InitPlayer(Player* p, int id) {
+    const Player prev = *p;
 
     memset(p, 0, sizeof(Player));
-    p->id                = id;
-    p->active            = 1;
-    p->animIndex         = savedAnimIndex;
-    p->wx                = savedX;
-    p->wy                = savedY;
-    p->rotation          = savedRot;
-    p->stocks            = savedStocks;
-    p->hitId             = savedHitId;
-    p->anchorYOffset     = savedAnchorY;
-    p->hasAnchorY        = savedHasAY;
-    p->referenceCenter   = savedRefCenter;
-    p->hasReferenceCenter = savedHasRefCenter;
-    strncpy(p->animation, savedAnim, sizeof(p->animation));
-    p->animation[sizeof(p->animation) - 1] = '\0';
+    p->id                 = id;
+    p->active             = 1;
+    p->animIndex          = prev.animIndex;
+    p->wx                 = prev.wx;
+    p->wy                 = prev.wy;
+    p->rotation           = prev.rotation;
+    p->stocks             = prev.stocks > 0 ? prev.stocks : 3;
+    p->hitId              = prev.hitId;
+    p->anchorYOffset      = prev.anchorYOffset;
+    p->hasAnchorY         = prev.hasAnchorY;
+    p->referenceCenter    = prev.referenceCenter;
+    p->hasReferenceCenter = prev.hasReferenceCenter;
+    strcpy_safe(p->animation, prev.animation, sizeof(p->animation));
 
     p->character = CreateAnimatedCharacter(
         "data/textures/zeta/bone_textures.txt",
@@ -403,20 +388,18 @@ static void FetchState(void) {
             players[slot].id        = pid;
             players[slot].active    = 2;
             players[slot].animIndex = AnimIndex(panim);
-            strncpy(players[slot].animation, panim, sizeof(players[slot].animation));
-            players[slot].animation[sizeof(players[slot].animation) - 1] = '\0';
+            strcpy_safe(players[slot].animation, panim, sizeof(players[slot].animation));
             QueuePlayerInit(pid);
         }
 
-        seen[slot]              = 1;
-        players[slot].wx        = px;
-        players[slot].wy        = py;
-        players[slot].rotation  = prot;
-
+        seen[slot]               = 1;
+        players[slot].wx         = px;
+        players[slot].wy         = py;
+        players[slot].rotation   = prot;
         if (players[slot].active == 2) players[slot].visualRotation = prot;
-        players[slot].stocks    = pstocks;
+        players[slot].stocks     = pstocks;
         players[slot].respawning = prespawning;
-        players[slot].crouching = pcrouching;
+        players[slot].crouching  = pcrouching;
 
         if (phitId != players[slot].hitId) {
             players[slot].hitId = phitId;
@@ -425,7 +408,7 @@ static void FetchState(void) {
                 LoadAnimWithOffset(&players[slot], ANIM_JSON[ai], ANIM_META[ai]);
                 SetCharacterAutoPlay(players[slot].character, true);
                 players[slot].animIndex = ai;
-                strncpy(players[slot].animation, "hurt", sizeof(players[slot].animation));
+                strcpy_safe(players[slot].animation, "hurt", sizeof(players[slot].animation));
             }
         } else if (pjumpId != players[slot].jumpId) {
             players[slot].jumpId = pjumpId;
@@ -434,7 +417,7 @@ static void FetchState(void) {
                 LoadAnimWithOffset(&players[slot], ANIM_JSON[ai], ANIM_META[ai]);
                 SetCharacterAutoPlay(players[slot].character, true);
                 players[slot].animIndex = ai;
-                strncpy(players[slot].animation, "jump", sizeof(players[slot].animation));
+                strcpy_safe(players[slot].animation, "jump", sizeof(players[slot].animation));
             }
         } else if (strncmp(players[slot].animation, panim, sizeof(players[slot].animation)) != 0) {
             int ai = AnimIndex(panim);
@@ -443,38 +426,29 @@ static void FetchState(void) {
                 SetCharacterAutoPlay(players[slot].character, true);
                 players[slot].animIndex = ai;
             }
-            // Si la nueva animación es un ataque, arrancar el flash timer
-            // con la duración real del golpe (0.3 s) y capturar el facing actual.
             if (strncmp(panim, "attack", 6) == 0 &&
                 strncmp(players[slot].animation, "attack", 6) != 0) {
-                players[slot].attackFlashTimer  = 0.3f; // ATTACK_DURATION del servidor
-                // rotation == 0 → derecha, PI → izquierda
+                players[slot].attackFlashTimer  = 0.3f;
                 players[slot].attackFlashFacing = (prot > 1.0f) ? -1.0f : 1.0f;
             }
-            strncpy(players[slot].animation, panim, sizeof(players[slot].animation));
-            players[slot].animation[sizeof(players[slot].animation) - 1] = '\0';
+            strcpy_safe(players[slot].animation, panim, sizeof(players[slot].animation));
         }
     }
 
-    for (int s = 0; s < MAX_PLAYERS; s++)
+    for (int s = 0; s < MAX_PLAYERS; s++) {
         if (players[s].active && !seen[s]) {
-            for (int q = 0; q < pending_count; q++)
+            for (int q = 0; q < pending_count; q++) {
                 if (pending_ids[q] == players[s].id) {
                     for (int r = q + 1; r < pending_count; r++) pending_ids[r - 1] = pending_ids[r];
                     pending_count--;
                     break;
                 }
+            }
             if (players[s].active == 1) FreePlayer(&players[s]);
             else { players[s].active = 0; players[s].id = -1; }
         }
+    }
 }
-
-#define STAGE_LEFT    -8.0f
-#define STAGE_RIGHT    8.0f
-#define STAGE_Y       -0.05f
-#define PLATFORM_H     0.12f
-#define ATTACK_RANGE   0.6f
-#define ATTACK_RANGE_Y 0.72f
 
 static void DrawGame(void) {
     static float camX = 0.0f;
@@ -534,8 +508,7 @@ static void DrawGame(void) {
                 p->character->forceUpdate  = true;
                 SetCharacterAutoPlay(p->character, false);
             } else if (p->animIndex != 0) {
-                strncpy(p->animation, "idle", sizeof(p->animation));
-                p->animation[sizeof(p->animation) - 1] = '\0';
+                strcpy_safe(p->animation, "idle", sizeof(p->animation));
                 p->animIndex = 0;
                 LoadAnimWithOffset(p, ANIM_JSON[0], ANIM_META[0]);
                 SetCharacterAutoPlay(p->character, true);
@@ -545,7 +518,6 @@ static void DrawGame(void) {
         if (p->character->autoCenterCalculated) {
             p->character->autoCenter.x = 0.0f;
             p->character->autoCenter.z = 0.0f;
-
         }
 
         float visualY = p->wy - (p->hasAnchorY ? p->anchorYOffset : 0.0f);
@@ -555,11 +527,9 @@ static void DrawGame(void) {
         {
             float target = p->rotation;
             float cur    = p->visualRotation;
-
-            float diff = target - cur;
+            float diff   = target - cur;
             while (diff >  (float)M_PI) diff -= 2.0f * (float)M_PI;
             while (diff < -(float)M_PI) diff += 2.0f * (float)M_PI;
-
             float step = TURN_SPEED * dt;
             if (fabsf(diff) <= step) p->visualRotation = target;
             else                     p->visualRotation  = cur + (diff > 0 ? step : -step);
@@ -569,7 +539,7 @@ static void DrawGame(void) {
         DrawAnimatedCharacterTransformed(p->character, scene_cam, worldPos, drawRot);
     }
 
-    // TODO: BORRAR BLOQUE DEBUG
+    // DEBUG_START
     if (IsKeyPressed(KEY_U)) debug_mode = !debug_mode;
     if (debug_mode) {
         BeginMode3D(scene_cam);
@@ -585,13 +555,12 @@ static void DrawGame(void) {
         for (int s = 0; s < MAX_PLAYERS; s++) {
             Player* p = &players[s];
             if (p->active != 1 || p->respawning) continue;
-            Vector3 wp   = (Vector3){ p->wx, p->wy, 0.0f };
-            Color   cc   = (p->id == my_id) ? (Color){0, 255, 100, 220} : (Color){255, 80, 80, 220};
+            Vector3 wp = (Vector3){ p->wx, p->wy, 0.0f };
+            Color   cc = (p->id == my_id) ? (Color){0, 255, 100, 220} : (Color){255, 80, 80, 220};
 
             DrawCubeWires((Vector3){wp.x, wp.y + 0.36f, 0.0f}, 0.48f, 0.72f, 0.05f, cc);
             DrawSphere(wp, 0.06f, cc);
 
-            // Tick del timer de hitbox de ataque
             if (p->attackFlashTimer > 0.0f) {
                 p->attackFlashTimer -= dt;
                 if (p->attackFlashTimer > 0.0f) {
@@ -605,7 +574,7 @@ static void DrawGame(void) {
         }
         EndMode3D();
     }
-    // FIN BLOQUE DEBUG
+    // DEBUG_END
 
     int hudY = 8;
     for (int s = 0; s < MAX_PLAYERS; s++) {
@@ -624,10 +593,6 @@ static void DrawGame(void) {
     } else {
         DrawText("Conectando...", SCREEN_W - 100, 8, 12, (Color){220, 140, 40, 255});
     }
-
-    DrawRectangle(0, SCREEN_H - 22, SCREEN_W, 22, (Color){0, 0, 0, 160});
-    DrawText("A/D: mover   W: saltar   G: atacar   AA/DD: dash   S: agachar",
-             8, SCREEN_H - 15, 11, (Color){160, 160, 180, 255});
 
     EndDrawing();
 }
