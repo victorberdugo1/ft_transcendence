@@ -1,6 +1,6 @@
 {
   "name": "Run",
-  "fps": 60,
+  "fps": 120,
   "start_frame": 0,
   "end_frame": 52,
   "loop": true,

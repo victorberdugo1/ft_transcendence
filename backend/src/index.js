@@ -8,10 +8,6 @@ const wss    = new WebSocket.Server({ noServer: true });
 
 app.use(express.json());
 
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', players: Object.keys(players).length });
-});
-
 /* ─── CONFIG ─── */
 
 const TICK_RATE   = 60;
@@ -19,7 +15,7 @@ const TICK_DT     = 1 / TICK_RATE;
 const GHOST_TTL   = 30_000;
 
 const GRAVITY          = -28.0;
-const JUMP_FORCE       = 12.0;
+const JUMP_FORCE       = 10.8;
 const MOVE_SPEED       = 5.0;
 const DASH_SPEED       = 14.0;
 const DASH_DURATION    = 0.12;
@@ -35,11 +31,21 @@ const STAGE_BOTTOM = -6.0;
 const ATTACK_DURATION   = 0.3;
 const ATTACK_COOLDOWN   = 0.5;
 const ATTACK_RANGE      = 1.2;
-const ATTACK_RANGE_Y    = 0.8;
+const ATTACK_RANGE_Y    = 0.72;
 const ATTACK_KNOCKBACK  = 14.0;
 const ATTACK_KB_UP      = 6.0;
 
-const ANIM_DURATIONS = { jump: 0.8, kick: 0.7, punch: 0.6, dash: 0.15, hurt: 0.4 };
+const ANIM_DURATIONS = {
+  attack_air:      0.5,
+  attack_crouch:   0.5,
+  attack_combo_1:  0.35,
+  attack_combo_2:  0.35,
+  attack_combo_3:  0.5,
+  dash:            0.15,
+  hurt:            0.4,
+  jump:            0.15,
+};
+const COMBO_WINDOW = 0.25;
 
 let nextClientId = 1;
 const players    = {};
@@ -95,9 +101,13 @@ wss.on('connection', (ws) => {
       attacking:     false,
       attackTimer:   0,
       attackCooldown:0,
+      comboStep:     0,
+      comboWindow:   0,
       animation:    'idle',
       animTimer:    0,
       hitId:        0,
+      hitTargets:   new Set(),
+      jumpId:       0,
       stocks:       3,
       score:        0,
       respawning:   false,
@@ -214,6 +224,7 @@ setInterval(() => {
       p.vy = JUMP_FORCE;
       p.jumpsLeft--;
       p.onGround = false;
+      p.jumpId++;
       p.animation = 'jump';
       p.animTimer = ANIM_DURATIONS.jump;
       if (!p.dashing && moveX !== 0) {
@@ -223,16 +234,42 @@ setInterval(() => {
     }
 
     if (p.attackCooldown > 0) p.attackCooldown -= TICK_DT;
+    if (p.comboWindow  > 0) p.comboWindow  -= TICK_DT;
+
     if (attack && !p.attacking && p.attackCooldown <= 0) {
       p.attacking      = true;
       p.attackTimer    = ATTACK_DURATION;
-      p.attackCooldown = ATTACK_COOLDOWN;
-      const animName   = p.onGround ? 'punch' : 'kick';
-      p.animation = animName;
-      p.animTimer = ANIM_DURATIONS[animName];
 
+      let animName;
+      if (!p.onGround) {
+        animName    = 'attack_air';
+        p.comboStep = 0;
+      } else if (p.onGround && crouch) {
+        animName    = 'attack_crouch';
+        p.comboStep = 0;
+      } else if (p.comboWindow > 0 && p.comboStep > 0) {
+        p.comboStep = p.comboStep < 3 ? p.comboStep + 1 : 1;
+        animName    = `attack_combo_${p.comboStep}`;
+      } else {
+        p.comboStep = 1;
+        animName    = 'attack_combo_1';
+      }
+
+      p.animation    = animName;
+      p.animTimer    = ANIM_DURATIONS[animName];
+      p.comboWindow  = p.animTimer + COMBO_WINDOW;
+      p.attackCooldown = p.comboStep > 0 ? 0.1 : ATTACK_COOLDOWN;
+      p.hitTargets   = new Set(); // reset targets al iniciar cada ataque
+    }
+
+    if (p.attackTimer > 0) {
+      p.attackTimer -= TICK_DT;
+
+      // Detectar hits cada tick mientras la hitbox está activa.
+      // hitTargets evita que el mismo ataque golpee al mismo enemigo más de una vez.
       for (const other of alive) {
         if (other.id === p.id) continue;
+        if (p.hitTargets && p.hitTargets.has(other.id)) continue;
         const dx = other.x - p.x;
         const dy = other.y - p.y;
         const inFront = Math.sign(dx) === p.facing || Math.abs(dx) < 0.3;
@@ -246,12 +283,10 @@ setInterval(() => {
           other.dashing   = false;
           other.attacking = false;
           other.onGround  = false;
+          p.hitTargets.add(other.id);
         }
       }
-    }
 
-    if (p.attackTimer > 0) {
-      p.attackTimer -= TICK_DT;
       if (p.attackTimer <= 0) p.attacking = false;
     }
   }
@@ -313,8 +348,10 @@ setInterval(() => {
     for (const plat of PLATFORMS) {
       const inRange = Math.abs(p.x - plat.x) <= plat.hw;
       // El jugador venía de arriba si su Y anterior estaba en o por encima de la superficie
-      const wasAbove = p.prevY >= plat.y;
-      // Ha cruzado hacia abajo este tick
+      // wasAbove: los pies del jugador estaban cerca o por encima de la
+      // superficie el frame anterior. Usar PLAYER_HEIGHT como margen permite
+      // detectar el aterrizaje también cuando se sube desde justo debajo.
+      const wasAbove = p.prevY >= plat.y - PLAYER_HEIGHT;
       const crossed  = p.y <= plat.y && (p.vy + p.kby) <= 0;
 
       if (inRange && wasAbove && crossed) {
@@ -324,6 +361,12 @@ setInterval(() => {
         p.onGround = true;
         p.jumpsLeft = 2;
         landed     = true;
+        // Cancelar el timer de salto al aterrizar para que la animación
+        // cambie inmediatamente (idle/walk) sin quedarse congelada en jump.
+        if (p.animation === 'jump') {
+          p.animTimer = 0;
+          p.animation = decideAnim(p);
+        }
         break;
       }
     }
@@ -344,7 +387,7 @@ setInterval(() => {
     if (p.animTimer > 0) {
       p.animTimer -= TICK_DT;
       if (p.animTimer <= 0) p.animation = decideAnim(p);
-    } else {
+    } else if (p.animation !== 'hurt') {
       p.animation = decideAnim(p);
     }
   }
@@ -373,10 +416,10 @@ function broadcastState() {
       animation:  p.animation,
       onGround:   p.onGround,
       stocks:     p.stocks,
-      score:      p.score,
       respawning: p.respawning,
       crouching:  p.crouching,
       hitId:      p.hitId,
+      jumpId:     p.jumpId,
     };
   }
 
@@ -389,6 +432,4 @@ function broadcastState() {
 /* ─── START ─── */
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`[SERVER] WS listo en puerto ${PORT}`);
-});
+server.listen(PORT, '0.0.0.0');
