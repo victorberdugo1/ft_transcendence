@@ -598,15 +598,20 @@ static void DrawGame(void) {
 }
 
 static void MainLoop(void) {
-	if (!game_ready) return;
-	if (my_id < 0) my_id = ws_get_my_id();
+    if (!game_ready) return;
+    if (my_id < 0) my_id = ws_get_my_id();
 
-	SCREEN_W = js_canvas_width();
-	SCREEN_H = js_canvas_height();
+    int newW = js_canvas_width();
+    int newH = js_canvas_height();
+    if (newW != SCREEN_W || newH != SCREEN_H) {
+        SCREEN_W = newW;
+        SCREEN_H = newH;
+        SetWindowSize(SCREEN_W, SCREEN_H);
+    }
 
-	FetchState();
-	FlushOnePlayerInit();
-	DrawGame();
+    FetchState();
+    FlushOnePlayerInit();
+    DrawGame();
 }
 
 int main(void) {

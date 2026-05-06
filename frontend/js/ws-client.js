@@ -21,7 +21,7 @@ window.addEventListener('keyup',   e => { keys[e.code] = false; });
 window.addEventListener('keydown', (e) => {
 	if (e.repeat) return;
 	if (e.code === 'KeyW' || e.code === 'ArrowUp') frameEvents.jump   = true;
-	if (e.code === 'KeyG')                          frameEvents.attack = true;
+	if (e.code === 'KeyG' || e.code === 'Space')   frameEvents.attack = true;
 });
 
 window.addEventListener('keydown', (e) => {
