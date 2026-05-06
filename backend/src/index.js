@@ -28,10 +28,45 @@ const STAGE_BOTTOM = -6.0;
 
 const ATTACK_DURATION  = 0.3;
 const ATTACK_COOLDOWN  = 0.5;
-const ATTACK_RANGE     = 1.2;
-const ATTACK_RANGE_Y   = 0.72;
+const ATTACK_RANGE     = 0.525;  // 0.7 - 25%
+const ATTACK_RANGE_Y   = 0.5;
 const ATTACK_KNOCKBACK = 14.0;
 const ATTACK_KB_UP     =  6.0;
+
+// ── VOLTAGE ──────────────────────────────────────────────────────────────────
+const VOLTAGE_MAX          = 200;
+const VOLTAGE_PER_HIT      =  12;
+const VOLTAGE_DRAIN_BLOCK  =   8;
+const VOLTAGE_SCALE_ATTACK = 1.0;
+const VOLTAGE_SCALE_DEFEND = 1.0;
+//
+// Knockback curve:
+//   0%   → ×1.00
+//  50%   → ×1.22
+// 100%   → ×1.40
+// 150%   → ×1.55
+// 199%   → ×1.70  ← cap of "survivable" play
+// 200%   → instant KO (knockback so high it always exits the stage)
+//
+// Formula: logarithmic 0→199, then hard fatal threshold at 200.
+
+function voltageMultiplier(v) {
+	if (v >= VOLTAGE_MAX) return 5.0;
+	// log curve: fast rise early, flattens toward 199%
+	// ln(1 + v/40) scaled so that v=199 → ~1.70
+	return 1.0 + Math.log(1 + v / 40) * 0.38;
+}
+
+// ── BLOCK ─────────────────────────────────────────────────────────────────────
+const BLOCK_KB_MULTIPLIER  = 0.15;  // incoming knockback when blocking (85% absorbed)
+const BLOCK_MOVE_FACTOR    = 0.05;  // movement speed while blocking
+const BLOCK_HOLD_TICKS     = 35;    // frames (~0.58s at 60hz) player must hold before block activates
+const BLOCK_DASH_LOCKOUT   = 0.6;   // seconds block is forbidden after a dash ends
+
+// ── DASH ATTACK ───────────────────────────────────────────────────────────────
+const DASH_ATTACK_WINDOW   = 0.18;  // seconds after dash ends to qualify
+const DASH_ATTACK_KB_MULT  = 1.65;  // knockback multiplier for dash attack
+const DASH_ATTACK_RANGE_X  = 1.65;  // ancho total hitbox dash attack
 
 const ANIM_DURATIONS = {
 	attack_air:     0.5,
@@ -39,9 +74,11 @@ const ANIM_DURATIONS = {
 	attack_combo_1: 0.35,
 	attack_combo_2: 0.35,
 	attack_combo_3: 0.5,
+	attack_dash:    0.4,   // dash attack: own animation, only on correct timing
 	dash:           0.15,
 	hurt:           0.4,
 	jump:           0.15,
+	block:          0.0,
 };
 const COMBO_WINDOW = 0.25;
 
@@ -99,6 +136,8 @@ wss.on('connection', (ws) => {
 			dashTimer:     0,
 			dashDir:       0,
 			dashCooldown:  0,
+			// How long ago the last dash ended (counts down from DASH_ATTACK_WINDOW)
+			dashEndWindow: 0,
 			attacking:     false,
 			attackTimer:   0,
 			attackCooldown: 0,
@@ -114,13 +153,28 @@ wss.on('connection', (ws) => {
 			respawning:   false,
 			respawnTimer: 0,
 			crouching:    false,
-			input: { moveX: 0, jump: false, attack: false, dash: false, dashDir: 0, crouch: false },
+			// ── NEW ──
+			voltage:        0,
+			voltageMaxed:   false,  // true once voltage hits 200 — stays until stock lost
+			blocking:       false,
+			blockLockout:   0,
+			blockHoldTicks: 0,
+			// ─────────
+			input: { moveX: 0, jump: false, attack: false, dash: false, dashDir: 0, crouch: false, block: false, dashAttack: false },
 			ws,
 		};
 
 		delete lastState[clientId];
 
-		ws.send(JSON.stringify({ type: 'init', clientId }));
+		ws.send(JSON.stringify({
+			type: 'init',
+			clientId,
+			config: {
+				attackRange:     ATTACK_RANGE,
+				attackRangeY:    ATTACK_RANGE_Y,
+				dashAttackRange: DASH_ATTACK_RANGE_X,
+			}
+		}));
 		broadcastState();
 		console.log(`[SERVER] Jugador ${clientId} conectado`);
 
@@ -129,12 +183,14 @@ wss.on('connection', (ws) => {
 			if (msg.type === 'input') {
 				const p = players[clientId];
 				if (!p) return;
-				p.input.moveX   = msg.moveX  ?? 0;
-				p.input.jump    = !!msg.jump;
-				p.input.attack  = !!msg.attack;
-				p.input.dash    = !!msg.dash;
-				p.input.dashDir = msg.dashDir ?? 0;
-				p.input.crouch  = !!msg.crouch;
+				p.input.moveX      = msg.moveX     ?? 0;
+				p.input.jump       = !!msg.jump;
+				p.input.attack     = !!msg.attack;
+				p.input.dash       = !!msg.dash;
+				p.input.dashDir    = msg.dashDir   ?? 0;
+				p.input.crouch     = !!msg.crouch;
+				p.input.block      = !!msg.block;       // ← NEW
+				p.input.dashAttack = !!msg.dashAttack;  // ← NEW
 			}
 		});
 	});
@@ -158,6 +214,7 @@ wss.on('connection', (ws) => {
 setInterval(() => {
 	const alive = Object.values(players).filter(p => !p.respawning);
 
+	// ── Respawn tick ─────────────────────────────────────────────────────────
 	for (const p of Object.values(players)) {
 		if (!p.respawning) continue;
 		p.respawnTimer -= TICK_DT;
@@ -170,17 +227,50 @@ setInterval(() => {
 			p.jumpsLeft = 2;
 			p.onGround  = false;
 			p.animation = 'idle';
+			p.voltage   = 0;  // reset voltage on respawn
 		}
 	}
 
 	for (const p of alive) {
-		const { moveX, jump, attack, dash, dashDir, crouch } = p.input;
-		p.input.jump   = false;
-		p.input.attack = false;
-		p.input.dash   = false;
+		const { moveX, jump, attack, dash, dashDir, crouch, block, dashAttack } = p.input;
+		p.input.jump       = false;
+		p.input.attack     = false;
+		p.input.dash       = false;
+		p.input.dashAttack = false;
 
+		// ── Block lockout countdown (server-authoritative) ────────────────────
+		if (p.blockLockout > 0) p.blockLockout -= TICK_DT;
+
+		// ── Block hold accumulator ────────────────────────────────────────────
+		// Attack input resets the hold counter — attack always wins over block.
+		// This handles the case where keyup fires attack the same frame block=1
+		// is still being sent by the client's interval.
+		const blockAllowed = p.onGround
+			&& !p.dashing
+			&& !p.attacking
+			&& !attack
+			&& !dashAttack
+			&& p.blockLockout <= 0
+			&& p.dashEndWindow <= 0
+			&& !p.voltageMaxed;     // ← no block at 200%
+
+		if (block && blockAllowed) {
+			p.blockHoldTicks++;
+		} else {
+			p.blockHoldTicks = 0;
+		}
+		p.blocking = p.blockHoldTicks >= BLOCK_HOLD_TICKS;
+
+		if (p.blocking && !p.voltageMaxed) {
+			p.voltage = Math.max(0, p.voltage - VOLTAGE_DRAIN_BLOCK * TICK_DT);
+		}
+
+		// ── Dash attack window countdown ──────────────────────────────────────
+		if (p.dashEndWindow > 0) p.dashEndWindow -= TICK_DT;
+
+		// ── Dash ──────────────────────────────────────────────────────────────
 		if (p.dashCooldown > 0) p.dashCooldown -= TICK_DT;
-		if (dash && !p.dashing && p.dashCooldown <= 0) {
+		if (dash && !p.dashing && p.dashCooldown <= 0 && !p.blocking) {
 			p.dashing      = true;
 			p.dashTimer    = DASH_DURATION;
 			p.dashDir      = dashDir !== 0 ? Math.sign(dashDir) : p.facing;
@@ -193,7 +283,16 @@ setInterval(() => {
 		if (p.dashing) {
 			p.dashTimer -= TICK_DT;
 			p.vx = p.dashDir * DASH_SPEED;
-			if (p.dashTimer <= 0) { p.dashing = false; p.vx = 0; }
+			if (p.dashTimer <= 0) {
+				p.dashing        = false;
+				p.vx             = 0;
+				p.dashEndWindow  = DASH_ATTACK_WINDOW;
+				p.blockLockout   = BLOCK_DASH_LOCKOUT;   // ← forbid block after dash
+				p.blockHoldTicks = 0;                    // ← reset any held counter
+			}
+		} else if (p.blocking) {
+			// Blocked movement: slow walk allowed
+			p.vx = moveX * MOVE_SPEED * BLOCK_MOVE_FACTOR;
 		} else {
 			if (crouch) {
 				p.vx = 0;
@@ -205,9 +304,9 @@ setInterval(() => {
 			}
 		}
 
-		p.crouching = p.onGround && !p.dashing && !p.attacking && crouch;
+		p.crouching = p.onGround && !p.dashing && !p.attacking && !p.blocking && crouch;
 
-		if (jump && p.jumpsLeft > 0) {
+		if (jump && p.jumpsLeft > 0 && !p.blocking) {
 			p.vy = JUMP_FORCE;
 			p.jumpsLeft--;
 			p.onGround = false;
@@ -220,15 +319,23 @@ setInterval(() => {
 			}
 		}
 
+		// ── Attack ────────────────────────────────────────────────────────────
 		if (p.attackCooldown > 0) p.attackCooldown -= TICK_DT;
 		if (p.comboWindow  > 0) p.comboWindow  -= TICK_DT;
 
-		if (attack && !p.attacking && p.attackCooldown <= 0) {
+		// dashAttack flag: client says attack was pressed within dash window
+		const isDashAttack = (attack || dashAttack) && p.dashEndWindow > 0;
+
+		if ((attack || (dashAttack && p.dashEndWindow > 0)) && !p.attacking && p.attackCooldown <= 0) {
 			p.attacking   = true;
 			p.attackTimer = ATTACK_DURATION;
+			p._isDashAttack = isDashAttack;  // stored for hit resolution
 
 			let animName;
-			if (!p.onGround) {
+			if (isDashAttack) {
+				animName    = 'attack_dash';  // exclusive animation: only on correct timing
+				p.comboStep = 0;
+			} else if (!p.onGround) {
 				animName    = 'attack_air';
 				p.comboStep = 0;
 			} else if (p.onGround && crouch) {
@@ -247,33 +354,76 @@ setInterval(() => {
 			p.comboWindow    = p.animTimer + COMBO_WINDOW;
 			p.attackCooldown = p.comboStep > 0 ? 0.1 : ATTACK_COOLDOWN;
 			p.hitTargets     = new Set();
+			if (isDashAttack) p.dashEndWindow = 0;  // consume the window
 		}
 
 		if (p.attackTimer > 0) {
 			p.attackTimer -= TICK_DT;
+
+			const rangeX = p._isDashAttack ? DASH_ATTACK_RANGE_X : ATTACK_RANGE;
+
+			// ── AABB ─────────────────────────────────────────────────────────────
+			const hbCX  = p.x + p.facing * (rangeX / 2);
+			const hbCY  = p.y + 0.5;    // altura del pecho, igual que el debug
+			const hbHW  = rangeX / 2;
+			const hbHH  = ATTACK_RANGE_Y / 2;
+			const hurtHW = 0.24;
+			const hurtHH = 0.36;
+
 			for (const other of alive) {
 				if (other.id === p.id) continue;
 				if (p.hitTargets && p.hitTargets.has(other.id)) continue;
-				const dx = other.x - p.x;
-				const dy = other.y - p.y;
-				const inFront = Math.sign(dx) === p.facing || Math.abs(dx) < 0.3;
-				if (inFront && Math.abs(dx) < ATTACK_RANGE && Math.abs(dy) < ATTACK_RANGE_Y) {
-					const dir = dx >= 0 ? 1 : -1;
-					other.kbx += dir * ATTACK_KNOCKBACK;
-					other.kby += ATTACK_KB_UP;
-					other.hitId++;
+
+				const obCX = other.x;
+				const obCY = other.y + 0.36;
+
+				const overlapX = Math.abs(hbCX - obCX) < (hbHW + hurtHW);
+				const overlapY = Math.abs(hbCY - obCY) < (hbHH + hurtHH);
+
+				if (!overlapX || !overlapY) continue;
+
+				const dir = other.x >= p.x ? 1 : -1;
+
+				const attackerMult  = voltageMultiplier(p.voltage)     * VOLTAGE_SCALE_ATTACK;
+				const defenderMult  = voltageMultiplier(other.voltage) * VOLTAGE_SCALE_DEFEND;
+				const dashMult      = p._isDashAttack ? DASH_ATTACK_KB_MULT : 1.0;
+				const totalMult     = attackerMult * defenderMult * dashMult;
+
+				let kbx = dir * ATTACK_KNOCKBACK * totalMult;
+				let kby = ATTACK_KB_UP * totalMult;
+
+				const defenderBlocking = other.blocking && other.voltage < VOLTAGE_MAX;
+
+				if (defenderBlocking) {
+					kbx *= BLOCK_KB_MULTIPLIER;
+					kby *= BLOCK_KB_MULTIPLIER;
+					other.voltage = Math.min(VOLTAGE_MAX, other.voltage + VOLTAGE_PER_HIT * 0.25);
+				} else {
+					other.voltage = Math.min(VOLTAGE_MAX, other.voltage + VOLTAGE_PER_HIT);
+				}
+
+				if (other.voltage >= VOLTAGE_MAX) {
+					other.voltage      = VOLTAGE_MAX;
+					other.voltageMaxed = true;
+				}
+
+				other.kbx += kbx;
+				other.kby += kby;
+				other.hitId++;
+				if (!defenderBlocking) {
 					other.animation = 'hurt';
 					other.animTimer = ANIM_DURATIONS.hurt;
 					other.dashing   = false;
 					other.attacking = false;
 					other.onGround  = false;
-					p.hitTargets.add(other.id);
 				}
+				p.hitTargets.add(other.id);
 			}
-			if (p.attackTimer <= 0) p.attacking = false;
+			if (p.attackTimer <= 0) { p.attacking = false; p._isDashAttack = false; }
 		}
 	}
 
+	// ── Knockback decay & physics ─────────────────────────────────────────────
 	for (const p of alive) {
 		p.kbx *= Math.pow(KNOCKBACK_DECAY, TICK_DT * TICK_RATE);
 		p.kby *= Math.pow(KNOCKBACK_DECAY, TICK_DT * TICK_RATE);
@@ -287,6 +437,7 @@ setInterval(() => {
 		p.y += (p.vy + p.kby) * TICK_DT;
 	}
 
+	// ── Player–player collision ───────────────────────────────────────────────
 	for (let i = 0; i < alive.length; i++) {
 		for (let j = i + 1; j < alive.length; j++) {
 			const a = alive[i];
@@ -321,6 +472,7 @@ setInterval(() => {
 		}
 	}
 
+	// ── Platform landing ──────────────────────────────────────────────────────
 	for (const p of alive) {
 		let landed = false;
 		for (const plat of PLATFORMS) {
@@ -347,13 +499,15 @@ setInterval(() => {
 		if (p.y < STAGE_BOTTOM || p.x < STAGE_LEFT - 2 || p.x > STAGE_RIGHT + 2) {
 			p.stocks = Math.max(0, p.stocks - 1);
 			if (p.stocks === 0) p.stocks = 3;
-			p.respawning   = true;
-			p.respawnTimer = 1.5;
+			p.respawning      = true;
+			p.respawnTimer    = 1.5;
 			p.vx = 0; p.vy = 0; p.kbx = 0; p.kby = 0;
-			p.animation = 'idle';
+			p.animation       = 'idle';
+			p.voltageMaxed    = false;   // ← unlock voltage on stock loss
 		}
 	}
 
+	// ── Animation ─────────────────────────────────────────────────────────────
 	for (const p of alive) {
 		if (p.respawning) continue;
 		if (p.animTimer > 0) {
@@ -371,6 +525,7 @@ function decideAnim(p) {
 	if (!p.onGround) return 'jump';
 	if (p.dashing)   return 'dash';
 	if (p.crouching) return 'crouch';
+	if (p.blocking)  return 'block';
 	if (p.vx !== 0)  return 'walk';
 	return 'idle';
 }
@@ -390,6 +545,9 @@ function broadcastState() {
 			crouching:  p.crouching,
 			hitId:      p.hitId,
 			jumpId:     p.jumpId,
+			voltage:      +p.voltage.toFixed(1),
+			voltageMaxed: p.voltageMaxed,        // ← client uses this to blink the bar
+			blocking:   p.blocking,              // ← NEW
 		};
 	}
 

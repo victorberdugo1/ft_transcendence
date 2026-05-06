@@ -8,14 +8,16 @@
 #include <math.h>
 
 #define MAX_PLAYERS 8
-#define ANIM_COUNT  12
+#define ANIM_COUNT  14
 
 #define STAGE_LEFT    -8.0f
 #define STAGE_RIGHT    8.0f
 #define STAGE_Y       -0.05f
 #define PLATFORM_H     0.12f
-#define ATTACK_RANGE   0.6f
-#define ATTACK_RANGE_Y 0.72f
+
+/* Hitbox — se sobreescriben con los valores reales del servidor al conectar */
+static float ATTACK_RANGE   = 0.525f;
+static float ATTACK_RANGE_Y = 0.5f;
 
 static int SCREEN_W = 800;
 static int SCREEN_H = 600;
@@ -33,6 +35,8 @@ static const char* ANIM_JSON[ANIM_COUNT] = {
 	"data/animations/crouch.json",
 	"data/animations/crouch.json",
 	"data/animations/hurt.json",
+	"data/animations/block.json",
+	"data/animations/attack_dash.json",
 };
 static const char* ANIM_META[ANIM_COUNT] = {
 	"data/animations/idle.anim",
@@ -47,11 +51,13 @@ static const char* ANIM_META[ANIM_COUNT] = {
 	"data/animations/crouch.anim",
 	"data/animations/crouch.anim",
 	"data/animations/hurt.anim",
+	"data/animations/block.anim",
+	"data/animations/attack_dash.anim",
 };
 static const char* ANIM_NAME[ANIM_COUNT] = {
 	"idle", "walk", "jump",
 	"attack_air", "attack_combo_1", "attack_combo_2", "attack_combo_3",
-	"attack_crouch", "dash", "crouch", "crouch_loop", "hurt",
+	"attack_crouch", "dash", "crouch", "crouch_loop", "hurt", "block", "attack_dash",
 };
 
 typedef struct {
@@ -69,6 +75,9 @@ typedef struct {
 	float visualRotation;
 	float attackFlashTimer;
 	float attackFlashFacing;
+	float voltage;      /* 0.0 – 200.0 */
+	bool  voltageMaxed; /* true cuando voltage == 200 */
+	bool  blocking;
 	AnimatedCharacter* character;
 	Vector3 referenceCenter;
 	bool    hasReferenceCenter;
@@ -221,6 +230,8 @@ static float TransitionDurationForAnim(const char* anim) {
 	if (strncmp(anim, "crouch", 6) == 0) return 0.10f;
 	if (strncmp(anim, "dash",   4) == 0) return 0.06f;
 	if (strncmp(anim, "hurt",   4) == 0) return 0.10f;
+	if (strncmp(anim, "block",  5) == 0) return 0.08f;
+	if (strncmp(anim, "attack_dash", 11) == 0) return 0.06f;
 	return 0.12f;
 }
 
@@ -265,6 +276,13 @@ EM_JS(int, js_canvas_width,  (void), { return (window._canvasWidth  > 0) ? (wind
 EM_JS(int, js_canvas_height, (void), { return (window._canvasHeight > 0) ? (window._canvasHeight | 0) : 600; });
 EM_JS(int, ws_get_my_id,     (void), { return (window._myClientId   > 0) ? (window._myClientId   | 0) : -1;  });
 
+EM_JS(float, ws_get_attack_range,   (void), {
+	return (window._gameConfig && window._gameConfig.attackRange)  ? window._gameConfig.attackRange  : 0.525;
+});
+EM_JS(float, ws_get_attack_range_y, (void), {
+	return (window._gameConfig && window._gameConfig.attackRangeY) ? window._gameConfig.attackRangeY : 0.5;
+});
+
 EM_JS(int, ws_player_count, (void), {
 		if (!window._gameState || !window._gameState.players) return 0;
 		return Object.keys(window._gameState.players).length;
@@ -287,6 +305,9 @@ EM_JS(int, ws_get_player, (int idx, char* buf, int len), {
 		p.hitId     ?? 0,
 		p.crouching ? 1 : 0,
 		p.jumpId    ?? 0,
+		(p.voltage  ?? 0).toFixed(1),
+		p.blocking      ? 1 : 0,
+		p.voltageMaxed  ? 1 : 0,
 		].join('|');
 		stringToUTF8(s, buf, len);
 		return 1;
@@ -340,7 +361,8 @@ static void FreePlayer(Player* p) {
 static int ParsePlayer(const char* buf,
 		int* id, float* x, float* y, float* rot,
 		char* anim, int animLen,
-		int* stocks, int* respawning, int* hitId, int* crouching, int* jumpId)
+		int* stocks, int* respawning, int* hitId, int* crouching, int* jumpId,
+		float* voltage, int* blocking, int* voltageMaxed)
 {
 	char tmp[256];
 	strncpy(tmp, buf, 255); tmp[255] = '\0';
@@ -357,6 +379,9 @@ static int ParsePlayer(const char* buf,
 	tok = strtok(NULL, "|"); *hitId      = tok ? atoi(tok) : 0;
 	tok = strtok(NULL, "|"); *crouching  = tok ? atoi(tok) : 0;
 	tok = strtok(NULL, "|"); *jumpId     = tok ? atoi(tok) : 0;
+	tok = strtok(NULL, "|"); *voltage    = tok ? (float)atof(tok) : 0.0f;
+	tok = strtok(NULL, "|"); *blocking   = tok ? atoi(tok) : 0;
+	tok = strtok(NULL, "|"); *voltageMaxed = tok ? atoi(tok) : 0;
 	return 1;
 }
 
@@ -370,11 +395,12 @@ static void FetchState(void) {
 	for (int i = 0; i < count && i < MAX_PLAYERS; i++) {
 		if (!ws_get_player(i, buf, sizeof(buf))) continue;
 
-		int   pid, pstocks, prespawning, phitId, pcrouching, pjumpId;
-		float px, py, prot;
+		int   pid, pstocks, prespawning, phitId, pcrouching, pjumpId, pblocking, pvoltageMaxed;
+		float px, py, prot, pvoltage;
 		char  panim[24];
 		if (!ParsePlayer(buf, &pid, &px, &py, &prot, panim, sizeof(panim),
-					&pstocks, &prespawning, &phitId, &pcrouching, &pjumpId)) continue;
+					&pstocks, &prespawning, &phitId, &pcrouching, &pjumpId,
+					&pvoltage, &pblocking, &pvoltageMaxed)) continue;
 
 		int slot = -1;
 		for (int s = 0; s < MAX_PLAYERS; s++)
@@ -400,6 +426,9 @@ static void FetchState(void) {
 		players[slot].stocks     = pstocks;
 		players[slot].respawning = prespawning;
 		players[slot].crouching  = pcrouching;
+		players[slot].voltage    = pvoltage;      /* NEW */
+		players[slot].voltageMaxed = pvoltageMaxed; /* NEW */
+		players[slot].blocking   = pblocking;  /* NEW */
 
 		if (phitId != players[slot].hitId) {
 			players[slot].hitId = phitId;
@@ -566,7 +595,7 @@ static void DrawGame(void) {
 				if (p->attackFlashTimer > 0.0f) {
 					DrawCubeWires(
 							(Vector3){ wp.x + p->attackFlashFacing * (ATTACK_RANGE * 0.5f),
-							wp.y + 0.36f, 0.0f },
+							wp.y + 0.5f, 0.0f },
 							ATTACK_RANGE, ATTACK_RANGE_Y, 0.05f,
 							(Color){255, 255, 0, 220});
 				}
@@ -576,15 +605,81 @@ static void DrawGame(void) {
 	}
 	// DEBUG_END
 
+	/* ── HUD: stocks + voltage bar ────────────────────────────────────────── */
 	int hudY = 8;
 	for (int s = 0; s < MAX_PLAYERS; s++) {
 		Player* p = &players[s];
 		if (!p->active) continue;
-		char hud[32];
+
+		const bool isMe = (p->id == my_id);
+
+		/* ── Stocks label ── */
+		char hud[48];
 		snprintf(hud, sizeof(hud), "P%d: %d stocks", p->id, p->stocks);
-		Color c = (p->id == my_id) ? YELLOW : WHITE;
-		DrawText(hud, 8, hudY, 12, c);
-		hudY += 16;
+		Color labelCol = isMe ? YELLOW : WHITE;
+		DrawText(hud, 8, hudY, 12, labelCol);
+		hudY += 14;
+
+		/* ── Voltage bar background ── */
+		const int BAR_W = 120;
+		const int BAR_H = 8;
+		DrawRectangle(8, hudY, BAR_W, BAR_H, (Color){30, 30, 50, 200});
+
+		/* ── Parpadeo crítico a 200% ── */
+		static float blinkTimer = 0.0f;
+		static bool  blinkOn    = true;
+		blinkTimer += dt;
+		if (blinkTimer > 0.18f) { blinkTimer = 0.0f; blinkOn = !blinkOn; }
+
+		/* ── Voltage fill: blue(0%) → yellow(100%) → red(200%) ── */
+		float t = p->voltage / 200.0f;   /* 0.0 – 1.0 */
+		Color fillCol;
+		if (p->voltageMaxed) {
+			/* Rojo/naranja parpadeante — estado crítico */
+			fillCol = blinkOn
+				? (Color){255, 30,  30, 255}
+				: (Color){255, 160,  0, 255};
+		} else if (t < 0.5f) {
+			/* blue → yellow */
+			float u = t * 2.0f;
+			fillCol = (Color){
+				(unsigned char)(u * 255),
+				(unsigned char)(u * 220),
+				(unsigned char)((1.0f - u) * 255),
+				230
+			};
+		} else {
+			/* yellow → red */
+			float u = (t - 0.5f) * 2.0f;
+			fillCol = (Color){
+				255,
+				(unsigned char)((1.0f - u) * 220),
+				0,
+				230
+			};
+		}
+
+		int fillW = (int)(BAR_W * t);
+		if (fillW > 0)
+			DrawRectangle(8, hudY, fillW, BAR_H, fillCol);
+
+		/* Borde parpadeante extra en estado crítico */
+		if (p->voltageMaxed && blinkOn)
+			DrawRectangleLines(8, hudY, BAR_W, BAR_H, (Color){255, 80, 80, 255});
+
+		/* ── Voltage percentage label ── */
+		char vLabel[12];
+		snprintf(vLabel, sizeof(vLabel), "%.0f%%", p->voltage);
+		Color vLabelCol = (p->voltageMaxed && blinkOn)
+			? (Color){255, 80, 80, 255}
+			: labelCol;
+		DrawText(vLabel, 8 + BAR_W + 4, hudY, 10, vLabelCol);
+
+		/* ── Block indicator ── */
+		if (p->blocking)
+			DrawText("[BLK]", 8 + BAR_W + 38, hudY, 10, (Color){80, 200, 255, 255});
+
+		hudY += BAR_H + 6;
 	}
 
 	if (my_id > 0) {
@@ -599,7 +694,14 @@ static void DrawGame(void) {
 
 static void MainLoop(void) {
     if (!game_ready) return;
-    if (my_id < 0) my_id = ws_get_my_id();
+    if (my_id < 0) {
+        my_id = ws_get_my_id();
+        if (my_id > 0) {
+            /* Primera vez que tenemos ID — leer config del servidor */
+            ATTACK_RANGE   = ws_get_attack_range();
+            ATTACK_RANGE_Y = ws_get_attack_range_y();
+        }
+    }
 
     int newW = js_canvas_width();
     int newH = js_canvas_height();
