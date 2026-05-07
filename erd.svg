@@ -1,0 +1,236 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="1040" viewBox="0 0 900 1040">
+<defs>
+  <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+    <path d="M2 2L8 5L2 8" fill="none" stroke="#7F77DD" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </marker>
+</defs>
+<rect width="900" height="1040" fill="#f4f3ef"/>
+<!-- title -->
+<text x="20" y="30" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="16" font-weight="700" fill="#3C3489">ft_transcendence — Database ERD</text>
+
+<path d="M600,183 C320,183 320,106 40,106" fill="none" stroke="#AFA9EC" stroke-width="1.5" opacity="0.6" marker-end="url(#arr)"/>
+<path d="M400,183 C320,183 320,377 240,377" fill="none" stroke="#AFA9EC" stroke-width="1.5" opacity="0.6" marker-end="url(#arr)"/>
+<path d="M400,183 C320,183 320,628 240,628" fill="none" stroke="#AFA9EC" stroke-width="1.5" opacity="0.6" marker-end="url(#arr)"/>
+<path d="M400,183 C320,183 320,890 240,890" fill="none" stroke="#AFA9EC" stroke-width="1.5" opacity="0.6" marker-end="url(#arr)"/>
+<path d="M600,183 C630,183 630,128 660,128" fill="none" stroke="#AFA9EC" stroke-width="1.5" opacity="0.6" marker-end="url(#arr)"/>
+<path d="M600,183 C630,183 630,377 660,377" fill="none" stroke="#AFA9EC" stroke-width="1.5" opacity="0.6" marker-end="url(#arr)"/>
+<path d="M600,183 C630,183 630,595 660,595" fill="none" stroke="#AFA9EC" stroke-width="1.5" opacity="0.6" marker-end="url(#arr)"/>
+<path d="M600,183 C500,183 500,488 400,488" fill="none" stroke="#AFA9EC" stroke-width="1.5" opacity="0.6" marker-end="url(#arr)"/>
+<path d="M500,326 C500,326 500,600 500,600" fill="none" stroke="#AFA9EC" stroke-width="1.5" opacity="0.6" marker-end="url(#arr)"/>
+<path d="M760,454 C760,454 760,540 760,540" fill="none" stroke="#AFA9EC" stroke-width="1.5" opacity="0.6" marker-end="url(#arr)"/>
+<path d="M760,454 C760,454 760,780 760,780" fill="none" stroke="#AFA9EC" stroke-width="1.5" opacity="0.6" marker-end="url(#arr)"/>
+<path d="M240,890 C450,890 450,846 660,846" fill="none" stroke="#AFA9EC" stroke-width="1.5" opacity="0.6" marker-end="url(#arr)"/>
+<path d="M500,800 C500,800 500,710 500,710" fill="none" stroke="#AFA9EC" stroke-width="1.5" opacity="0.6" marker-end="url(#arr)"/>
+<rect x="403" y="43" width="200" height="286" rx="8" fill="#00000018"/>
+<rect x="400" y="40" width="200" height="286" rx="8" fill="white" stroke="#c8c6be" stroke-width="1"/>
+<rect x="400" y="40" width="200" height="32" rx="8" fill="#534AB7"/>
+<rect x="400" y="64" width="200" height="8" fill="#534AB7"/>
+<text x="500" y="61" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="white">users</text>
+<rect x="401" y="75" width="198" height="22" fill="#f7f6f2" rx="2"/>
+<rect x="568" y="77" width="22" height="14" rx="3" fill="#EF9F27" opacity="0.9"/>
+<text x="579" y="88" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="9" font-weight="700" fill="white">PK</text>
+<text x="410" y="88" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2C2C2A">id</text>
+<text x="410" y="110" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">username</text>
+<rect x="401" y="119" width="198" height="22" fill="#f7f6f2" rx="2"/>
+<text x="410" y="132" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">email</text>
+<text x="410" y="154" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">password_hash</text>
+<rect x="401" y="163" width="198" height="22" fill="#f7f6f2" rx="2"/>
+<text x="410" y="176" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">avatar_url</text>
+<text x="410" y="198" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">is_online</text>
+<rect x="401" y="207" width="198" height="22" fill="#f7f6f2" rx="2"/>
+<text x="410" y="220" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">role</text>
+<text x="410" y="242" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">totp_secret</text>
+<rect x="401" y="251" width="198" height="22" fill="#f7f6f2" rx="2"/>
+<text x="410" y="264" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">totp_enabled</text>
+<text x="410" y="286" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">created_at</text>
+<rect x="401" y="295" width="198" height="22" fill="#f7f6f2" rx="2"/>
+<text x="410" y="308" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">updated_at</text>
+<rect x="43" y="43" width="200" height="132" rx="8" fill="#00000018"/>
+<rect x="40" y="40" width="200" height="132" rx="8" fill="white" stroke="#c8c6be" stroke-width="1"/>
+<rect x="40" y="40" width="200" height="32" rx="8" fill="#534AB7"/>
+<rect x="40" y="64" width="200" height="8" fill="#534AB7"/>
+<text x="140" y="61" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="white">sessions</text>
+<rect x="41" y="75" width="198" height="22" fill="#f7f6f2" rx="2"/>
+<rect x="208" y="77" width="22" height="14" rx="3" fill="#EF9F27" opacity="0.9"/>
+<text x="219" y="88" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="9" font-weight="700" fill="white">PK</text>
+<text x="50" y="88" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2C2C2A">token</text>
+<rect x="208" y="99" width="22" height="14" rx="3" fill="#7F77DD" opacity="0.9"/>
+<text x="219" y="110" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="9" font-weight="700" fill="white">FK</text>
+<text x="50" y="110" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">user_id</text>
+<rect x="41" y="119" width="198" height="22" fill="#f7f6f2" rx="2"/>
+<text x="50" y="132" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">expires_at</text>
+<text x="50" y="154" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">created_at</text>
+<rect x="43" y="303" width="200" height="154" rx="8" fill="#00000018"/>
+<rect x="40" y="300" width="200" height="154" rx="8" fill="white" stroke="#c8c6be" stroke-width="1"/>
+<rect x="40" y="300" width="200" height="32" rx="8" fill="#534AB7"/>
+<rect x="40" y="324" width="200" height="8" fill="#534AB7"/>
+<text x="140" y="321" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="white">friendships</text>
+<rect x="41" y="335" width="198" height="22" fill="#f7f6f2" rx="2"/>
+<rect x="208" y="337" width="22" height="14" rx="3" fill="#EF9F27" opacity="0.9"/>
+<text x="219" y="348" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="9" font-weight="700" fill="white">PK</text>
+<text x="50" y="348" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2C2C2A">id</text>
+<rect x="208" y="359" width="22" height="14" rx="3" fill="#7F77DD" opacity="0.9"/>
+<text x="219" y="370" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="9" font-weight="700" fill="white">FK</text>
+<text x="50" y="370" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">user_id</text>
+<rect x="41" y="379" width="198" height="22" fill="#f7f6f2" rx="2"/>
+<rect x="208" y="381" width="22" height="14" rx="3" fill="#7F77DD" opacity="0.9"/>
+<text x="219" y="392" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="9" font-weight="700" fill="white">FK</text>
+<text x="50" y="392" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">friend_id</text>
+<text x="50" y="414" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">status</text>
+<rect x="41" y="423" width="198" height="22" fill="#f7f6f2" rx="2"/>
+<text x="50" y="436" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">created_at</text>
+<rect x="43" y="543" width="200" height="176" rx="8" fill="#00000018"/>
+<rect x="40" y="540" width="200" height="176" rx="8" fill="white" stroke="#c8c6be" stroke-width="1"/>
+<rect x="40" y="540" width="200" height="32" rx="8" fill="#534AB7"/>
+<rect x="40" y="564" width="200" height="8" fill="#534AB7"/>
+<text x="140" y="561" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="white">messages</text>
+<rect x="41" y="575" width="198" height="22" fill="#f7f6f2" rx="2"/>
+<rect x="208" y="577" width="22" height="14" rx="3" fill="#EF9F27" opacity="0.9"/>
+<text x="219" y="588" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="9" font-weight="700" fill="white">PK</text>
+<text x="50" y="588" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2C2C2A">id</text>
+<rect x="208" y="599" width="22" height="14" rx="3" fill="#7F77DD" opacity="0.9"/>
+<text x="219" y="610" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="9" font-weight="700" fill="white">FK</text>
+<text x="50" y="610" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">sender_id</text>
+<rect x="41" y="619" width="198" height="22" fill="#f7f6f2" rx="2"/>
+<rect x="208" y="621" width="22" height="14" rx="3" fill="#7F77DD" opacity="0.9"/>
+<text x="219" y="632" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="9" font-weight="700" fill="white">FK</text>
+<text x="50" y="632" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">receiver_id</text>
+<text x="50" y="654" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">content</text>
+<rect x="41" y="663" width="198" height="22" fill="#f7f6f2" rx="2"/>
+<text x="50" y="676" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">is_read</text>
+<text x="50" y="698" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">sent_at</text>
+<rect x="43" y="783" width="200" height="220" rx="8" fill="#00000018"/>
+<rect x="40" y="780" width="200" height="220" rx="8" fill="white" stroke="#c8c6be" stroke-width="1"/>
+<rect x="40" y="780" width="200" height="32" rx="8" fill="#534AB7"/>
+<rect x="40" y="804" width="200" height="8" fill="#534AB7"/>
+<text x="140" y="801" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="white">matches</text>
+<rect x="41" y="815" width="198" height="22" fill="#f7f6f2" rx="2"/>
+<rect x="208" y="817" width="22" height="14" rx="3" fill="#EF9F27" opacity="0.9"/>
+<text x="219" y="828" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="9" font-weight="700" fill="white">PK</text>
+<text x="50" y="828" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2C2C2A">id</text>
+<rect x="208" y="839" width="22" height="14" rx="3" fill="#7F77DD" opacity="0.9"/>
+<text x="219" y="850" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="9" font-weight="700" fill="white">FK</text>
+<text x="50" y="850" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">player1_id</text>
+<rect x="41" y="859" width="198" height="22" fill="#f7f6f2" rx="2"/>
+<rect x="208" y="861" width="22" height="14" rx="3" fill="#7F77DD" opacity="0.9"/>
+<text x="219" y="872" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="9" font-weight="700" fill="white">FK</text>
+<text x="50" y="872" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">player2_id</text>
+<text x="50" y="894" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">score1</text>
+<rect x="41" y="903" width="198" height="22" fill="#f7f6f2" rx="2"/>
+<text x="50" y="916" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">score2</text>
+<rect x="208" y="927" width="22" height="14" rx="3" fill="#7F77DD" opacity="0.9"/>
+<text x="219" y="938" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="9" font-weight="700" fill="white">FK</text>
+<text x="50" y="938" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">winner_id</text>
+<rect x="41" y="947" width="198" height="22" fill="#f7f6f2" rx="2"/>
+<text x="50" y="960" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">game_type</text>
+<text x="50" y="982" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">played_at</text>
+<rect x="663" y="43" width="200" height="176" rx="8" fill="#00000018"/>
+<rect x="660" y="40" width="200" height="176" rx="8" fill="white" stroke="#c8c6be" stroke-width="1"/>
+<rect x="660" y="40" width="200" height="32" rx="8" fill="#534AB7"/>
+<rect x="660" y="64" width="200" height="8" fill="#534AB7"/>
+<text x="760" y="61" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="white">user_stats</text>
+<rect x="661" y="75" width="198" height="22" fill="#f7f6f2" rx="2"/>
+<rect x="828" y="77" width="22" height="14" rx="3" fill="#EF9F27" opacity="0.9"/>
+<text x="839" y="88" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="9" font-weight="700" fill="white">PK</text>
+<text x="670" y="88" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2C2C2A">user_id</text>
+<text x="670" y="110" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">wins</text>
+<rect x="661" y="119" width="198" height="22" fill="#f7f6f2" rx="2"/>
+<text x="670" y="132" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">losses</text>
+<text x="670" y="154" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">xp</text>
+<rect x="661" y="163" width="198" height="22" fill="#f7f6f2" rx="2"/>
+<text x="670" y="176" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">level</text>
+<text x="670" y="198" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">updated_at</text>
+<rect x="663" y="303" width="200" height="154" rx="8" fill="#00000018"/>
+<rect x="660" y="300" width="200" height="154" rx="8" fill="white" stroke="#c8c6be" stroke-width="1"/>
+<rect x="660" y="300" width="200" height="32" rx="8" fill="#534AB7"/>
+<rect x="660" y="324" width="200" height="8" fill="#534AB7"/>
+<text x="760" y="321" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="white">tournaments</text>
+<rect x="661" y="335" width="198" height="22" fill="#f7f6f2" rx="2"/>
+<rect x="828" y="337" width="22" height="14" rx="3" fill="#EF9F27" opacity="0.9"/>
+<text x="839" y="348" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="9" font-weight="700" fill="white">PK</text>
+<text x="670" y="348" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2C2C2A">id</text>
+<text x="670" y="370" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">name</text>
+<rect x="661" y="379" width="198" height="22" fill="#f7f6f2" rx="2"/>
+<text x="670" y="392" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">status</text>
+<rect x="828" y="403" width="22" height="14" rx="3" fill="#7F77DD" opacity="0.9"/>
+<text x="839" y="414" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="9" font-weight="700" fill="white">FK</text>
+<text x="670" y="414" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">created_by</text>
+<rect x="661" y="423" width="198" height="22" fill="#f7f6f2" rx="2"/>
+<text x="670" y="436" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">created_at</text>
+<rect x="663" y="543" width="200" height="110" rx="8" fill="#00000018"/>
+<rect x="660" y="540" width="200" height="110" rx="8" fill="white" stroke="#c8c6be" stroke-width="1"/>
+<rect x="660" y="540" width="200" height="32" rx="8" fill="#534AB7"/>
+<rect x="660" y="564" width="200" height="8" fill="#534AB7"/>
+<text x="760" y="561" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="white">tournament_players</text>
+<rect x="661" y="575" width="198" height="22" fill="#f7f6f2" rx="2"/>
+<rect x="828" y="577" width="22" height="14" rx="3" fill="#7F77DD" opacity="0.9"/>
+<text x="839" y="588" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="9" font-weight="700" fill="white">FK</text>
+<text x="670" y="588" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">tournament_id</text>
+<rect x="828" y="599" width="22" height="14" rx="3" fill="#7F77DD" opacity="0.9"/>
+<text x="839" y="610" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="9" font-weight="700" fill="white">FK</text>
+<text x="670" y="610" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">user_id</text>
+<rect x="661" y="619" width="198" height="22" fill="#f7f6f2" rx="2"/>
+<text x="670" y="632" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">eliminated</text>
+<rect x="663" y="783" width="200" height="132" rx="8" fill="#00000018"/>
+<rect x="660" y="780" width="200" height="132" rx="8" fill="white" stroke="#c8c6be" stroke-width="1"/>
+<rect x="660" y="780" width="200" height="32" rx="8" fill="#534AB7"/>
+<rect x="660" y="804" width="200" height="8" fill="#534AB7"/>
+<text x="760" y="801" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="white">tournament_matches</text>
+<rect x="661" y="815" width="198" height="22" fill="#f7f6f2" rx="2"/>
+<rect x="828" y="817" width="22" height="14" rx="3" fill="#EF9F27" opacity="0.9"/>
+<text x="839" y="828" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="9" font-weight="700" fill="white">PK</text>
+<text x="670" y="828" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2C2C2A">id</text>
+<rect x="828" y="839" width="22" height="14" rx="3" fill="#7F77DD" opacity="0.9"/>
+<text x="839" y="850" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="9" font-weight="700" fill="white">FK</text>
+<text x="670" y="850" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">tournament_id</text>
+<rect x="661" y="859" width="198" height="22" fill="#f7f6f2" rx="2"/>
+<rect x="828" y="861" width="22" height="14" rx="3" fill="#7F77DD" opacity="0.9"/>
+<text x="839" y="872" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="9" font-weight="700" fill="white">FK</text>
+<text x="670" y="872" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">match_id</text>
+<text x="670" y="894" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">round</text>
+<rect x="403" y="803" width="200" height="132" rx="8" fill="#00000018"/>
+<rect x="400" y="800" width="200" height="132" rx="8" fill="white" stroke="#c8c6be" stroke-width="1"/>
+<rect x="400" y="800" width="200" height="32" rx="8" fill="#534AB7"/>
+<rect x="400" y="824" width="200" height="8" fill="#534AB7"/>
+<text x="500" y="821" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="white">achievements</text>
+<rect x="401" y="835" width="198" height="22" fill="#f7f6f2" rx="2"/>
+<rect x="568" y="837" width="22" height="14" rx="3" fill="#EF9F27" opacity="0.9"/>
+<text x="579" y="848" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="9" font-weight="700" fill="white">PK</text>
+<text x="410" y="848" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2C2C2A">id</text>
+<text x="410" y="870" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">key</text>
+<rect x="401" y="879" width="198" height="22" fill="#f7f6f2" rx="2"/>
+<text x="410" y="892" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">name</text>
+<text x="410" y="914" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">description</text>
+<rect x="403" y="603" width="200" height="110" rx="8" fill="#00000018"/>
+<rect x="400" y="600" width="200" height="110" rx="8" fill="white" stroke="#c8c6be" stroke-width="1"/>
+<rect x="400" y="600" width="200" height="32" rx="8" fill="#534AB7"/>
+<rect x="400" y="624" width="200" height="8" fill="#534AB7"/>
+<text x="500" y="621" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="white">user_achievements</text>
+<rect x="401" y="635" width="198" height="22" fill="#f7f6f2" rx="2"/>
+<rect x="568" y="637" width="22" height="14" rx="3" fill="#7F77DD" opacity="0.9"/>
+<text x="579" y="648" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="9" font-weight="700" fill="white">FK</text>
+<text x="410" y="648" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">user_id</text>
+<rect x="568" y="659" width="22" height="14" rx="3" fill="#7F77DD" opacity="0.9"/>
+<text x="579" y="670" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="9" font-weight="700" fill="white">FK</text>
+<text x="410" y="670" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">achievement_id</text>
+<rect x="401" y="679" width="198" height="22" fill="#f7f6f2" rx="2"/>
+<text x="410" y="692" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">earned_at</text>
+<rect x="403" y="403" width="200" height="176" rx="8" fill="#00000018"/>
+<rect x="400" y="400" width="200" height="176" rx="8" fill="white" stroke="#c8c6be" stroke-width="1"/>
+<rect x="400" y="400" width="200" height="32" rx="8" fill="#534AB7"/>
+<rect x="400" y="424" width="200" height="8" fill="#534AB7"/>
+<text x="500" y="421" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="white">notifications</text>
+<rect x="401" y="435" width="198" height="22" fill="#f7f6f2" rx="2"/>
+<rect x="568" y="437" width="22" height="14" rx="3" fill="#EF9F27" opacity="0.9"/>
+<text x="579" y="448" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="9" font-weight="700" fill="white">PK</text>
+<text x="410" y="448" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#2C2C2A">id</text>
+<rect x="568" y="459" width="22" height="14" rx="3" fill="#7F77DD" opacity="0.9"/>
+<text x="579" y="470" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="9" font-weight="700" fill="white">FK</text>
+<text x="410" y="470" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">user_id</text>
+<rect x="401" y="479" width="198" height="22" fill="#f7f6f2" rx="2"/>
+<text x="410" y="492" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">type</text>
+<text x="410" y="514" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">payload</text>
+<rect x="401" y="523" width="198" height="22" fill="#f7f6f2" rx="2"/>
+<text x="410" y="536" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">is_read</text>
+<text x="410" y="558" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="400" fill="#444441">created_at</text>
+</svg>

@@ -55,7 +55,7 @@ Open https://localhost in browser and accept the self-signed certificate.
 
 **Frontend** — React 18 (Vite), with Raylib compiled to WebAssembly via Emscripten. React handles all UI (menus, routing, HUD). The game runs inside a `<canvas>` element rendered by React. The canvas resolution is calculated from the actual viewport size at load time, and a debounced resize listener reloads the page to recalculate it. Changes to React components do not require recompilation. Changes to `main.c` require `make wasm`. Changes to `ws-client.js` or any file under `frontend/js/` and `backend/src/` are served live via Docker volume mounts — `make up` is enough.
 
-**Backend** — Node.js with Express. Handles the game loop, physics, WebSocket connections, and all REST endpoints under `/api/*`. Nodemon reloads the server automatically on file save.
+**Backend** — Node.js with Express. Handles the game loop, physics, WebSocket connections, and all REST endpoints under `/api/*`. Authentication uses `bcrypt` (password hashing, 10 rounds) and opaque session tokens stored in PostgreSQL. Nodemon reloads the server automatically on file save.
 
 **Database** — PostgreSQL. Schema defined in `database/init.sql`, applied on first volume creation. To reset: `make clean && make wasm`.
 
@@ -121,19 +121,62 @@ The frontend Dockerfile has three build stages: Emscripten compiles `main.c` to 
 │
 ├── backend/
 │   ├── Dockerfile
-│   ├── package.json
+│   ├── package.json            ← bcrypt, pg, express, ws
 │   └── src/
-│       └── index.js            ← Game loop + WebSocket + Express routes
+│       └── index.js            ← Game loop + WebSocket + Express routes + Auth
 │
 └── database/
-    └── init.sql                ← PostgreSQL schema
+    ├── init.sql                ← PostgreSQL schema
+    └── erd.svg                 ← Entity-Relationship Diagram
 ```
 
 ---
 
 ## Database Schema
 
-<!-- TODO: tables, relationships, key fields -->
+Full ERD with all relationships:
+
+![Database ERD](./database/erd.svg)
+
+| Table | Purpose | Key columns |
+|---|---|---|
+| `users` | Cuenta de usuario | `id`, `username`, `email`, `password_hash` (bcrypt), `role`, `is_online` |
+| `sessions` | Tokens de sesión (auth) | `token` PK, `user_id` FK, `expires_at` (7 días) |
+| `user_stats` | Estadísticas de juego | `user_id` PK, `wins`, `losses`, `xp`, `level` |
+| `friendships` | Sistema de amigos | `user_id`, `friend_id`, `status` (`pending`/`accepted`/`blocked`) |
+| `messages` | Chat directo | `sender_id`, `receiver_id`, `content`, `is_read` |
+| `matches` | Historial de partidas | `player1_id`, `player2_id`, `winner_id`, `score1`, `score2` |
+| `tournaments` | Torneos | `name`, `status` (`open`/`ongoing`/`finished`), `created_by` |
+| `tournament_players` | Participantes de torneo | `tournament_id`, `user_id`, `eliminated` |
+| `tournament_matches` | Partidas de torneo | `tournament_id`, `match_id`, `round` |
+| `achievements` | Catálogo de logros | `key`, `name`, `description` |
+| `user_achievements` | Logros desbloqueados | `user_id`, `achievement_id`, `earned_at` |
+| `notifications` | Notificaciones in-app | `user_id`, `type`, `payload` (JSONB), `is_read` |
+
+**Relaciones principales:** `users` es la tabla central — `sessions`, `user_stats`, `friendships`, `messages`, `matches`, `notifications` y `user_achievements` todas referencian a `users`. Los torneos se componen de `tournaments` → `tournament_players` (quién participa) y `tournament_matches` (qué partidas pertenecen a cada ronda).
+
+---
+
+## Auth API
+
+Four ready-to-use endpoints. Sessions are stored in the `sessions` table and delivered via an `HttpOnly` cookie named `sid`.
+
+| Method | Route | Auth required | Description |
+|---|---|---|---|
+| POST | `/api/register` | No | Creates user + starts session |
+| POST | `/api/login` | No | Validates password + starts session |
+| POST | `/api/logout` | Yes | Deletes session + marks offline |
+| GET | `/api/me` | Yes | Returns current user object |
+
+**Register / Login body:**
+```json
+{ "username": "alice", "email": "alice@example.com", "password": "min8chars" }
+```
+
+**Response (success):**
+```json
+{ "user": { "id": 1, "username": "alice", "email": "...", "avatar_url": "...", "role": "user" } }
+```
 
 ---
 
@@ -180,6 +223,8 @@ The frontend Dockerfile has three build stages: Emscripten compiles `main.c` to 
 - [Express documentation](https://expressjs.com/)
 - [PostgreSQL documentation](https://www.postgresql.org/docs/)
 - [WebSocket API (MDN)](https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API)
+- [bcrypt (npm)](https://www.npmjs.com/package/bcrypt)
+- [node-postgres (pg)](https://node-postgres.com/)
 
 **AI usage:** AI tools were used to support documentation drafting, code review,
 and breaking down technical problems into smaller steps. All suggestions were
