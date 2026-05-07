@@ -14,11 +14,11 @@ const { Pool }  = require('pg');
 //  DATABASE
 // ─────────────────────────────────────────────────────────────────────────────
 const db = new Pool({
-    host:     process.env.PGHOST     || 'db',
-    port:     process.env.PGPORT     || 5432,
-    database: process.env.PGDATABASE || 'transcendence',
-    user:     process.env.PGUSER     || 'postgres',
-    password: process.env.PGPASSWORD || 'postgres',
+    host:     process.env.PGHOST      || 'db',
+    port:     process.env.PGPORT      || 5432,
+    database: process.env.PGDATABASE  || 'transcendence',
+    user:     process.env.PGUSER      || 'postgres',
+    password: process.env.PGPASSWORD  || 'postgres',
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -33,7 +33,7 @@ app.use(express.json());
 // ─────────────────────────────────────────────────────────────────────────────
 //  AUTH HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
-const BCRYPT_ROUNDS   = 10;
+const BCRYPT_ROUNDS  = 10;
 const SESSION_DAYS    = 7;
 const SESSION_COOKIE  = 'sid';
 
@@ -107,13 +107,11 @@ app.post('/api/register', async (req, res) => {
             [username.trim(), email.trim().toLowerCase(), hash]
         );
 
-        // Create empty stats row for new user
         await db.query(
             'INSERT INTO user_stats (user_id) VALUES ($1) ON CONFLICT DO NOTHING',
             [rows[0].id]
         );
 
-        // Automatically create a session after registration
         const token     = generateToken();
         const expiresAt = new Date(Date.now() + SESSION_DAYS * 86_400_000);
         await db.query(
@@ -125,13 +123,13 @@ app.post('/api/register', async (req, res) => {
             httpOnly: true,
             secure:   process.env.NODE_ENV === 'production',
             sameSite: 'lax',
-            expires:  expiresAt,
+            expires:   expiresAt,
         });
 
         res.status(201).json({ user: rows[0] });
 
     } catch (err) {
-        if (err.code === '23505') // unique_violation
+        if (err.code === '23505')
             return res.status(409).json({ error: 'Username or email already exists' });
         console.error('[AUTH] register error:', err.message);
         res.status(500).json({ error: 'Internal error' });
@@ -155,7 +153,7 @@ app.post('/api/login', async (req, res) => {
         if (!user) return res.status(401).json({ error: 'Invalid credentials' });
 
         const match = await bcrypt.compare(password, user.password_hash);
-        if (!match)  return res.status(401).json({ error: 'Invalid credentials' });
+        if (!match) return res.status(401).json({ error: 'Invalid credentials' });
 
         const token     = generateToken();
         const expiresAt = new Date(Date.now() + SESSION_DAYS * 86_400_000);
@@ -164,14 +162,13 @@ app.post('/api/login', async (req, res) => {
             [token, user.id, expiresAt]
         );
 
-        // Mark user as online
         await db.query('UPDATE users SET is_online = TRUE WHERE id = $1', [user.id]);
 
         res.cookie(SESSION_COOKIE, token, {
             httpOnly: true,
             secure:   process.env.NODE_ENV === 'production',
             sameSite: 'lax',
-            expires:  expiresAt,
+            expires:   expiresAt,
         });
 
         res.json({
@@ -240,10 +237,10 @@ const ATTACK_KB_UP     =  6.0;
 //  VOLTAGE SYSTEM
 // ─────────────────────────────────────────────────────────────────────────────
 const VOLTAGE_MAX          = 200;
-const VOLTAGE_PER_HIT      =  12;
-const VOLTAGE_DRAIN_BLOCK  =   8;
-const VOLTAGE_SCALE_ATTACK = 1.0;
-const VOLTAGE_SCALE_DEFEND = 1.0;
+const VOLTAGE_PER_HIT       =  12;
+const VOLTAGE_DRAIN_BLOCK   =   8;
+const VOLTAGE_SCALE_ATTACK  = 1.0;
+const VOLTAGE_SCALE_DEFEND  = 1.0;
 
 function voltageMultiplier(v) {
     if (v >= VOLTAGE_MAX) return 5.0;
@@ -270,15 +267,15 @@ const DASH_ATTACK_RANGE_X = 1.65;
 // ─────────────────────────────────────────────────────────────────────────────
 const ANIM_DURATIONS = {
     attack_air:     0.5,
-    attack_crouch:  0.5,
-    attack_combo_1: 0.35,
-    attack_combo_2: 0.35,
-    attack_combo_3: 0.5,
-    attack_dash:    0.4,
-    dash:           0.15,
-    hurt:           0.4,
-    jump:           0.15,
-    block:          0.0,
+    attack_crouch:   0.5,
+    attack_combo_1:  0.35,
+    attack_combo_2:  0.35,
+    attack_combo_3:  0.5,
+    attack_dash:     0.4,
+    dash:            0.15,
+    hurt:            0.4,
+    jump:            0.15,
+    block:           0.0,
 };
 
 const COMBO_WINDOW = 0.25;
@@ -299,11 +296,11 @@ const PLAYER_HEIGHT = 0.72;
 // ─────────────────────────────────────────────────────────────────────────────
 //  PLAYER REGISTRY
 // ─────────────────────────────────────────────────────────────────────────────
-const MAX_PLAYERS = 8;   // connections beyond this become spectators
+const MAX_PLAYERS = 8;
 
 let nextClientId = 1;
-const players   = {};
-const lastState = {};
+const players    = {};
+const lastState  = {};
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  SPECTATOR REGISTRY
@@ -311,12 +308,105 @@ const lastState = {};
 /**
  * spectators[clientId] = {
  *   id, dbUserId, ws,
- *   watchingSession: string|null,  // sessionId being watched (null = lobby mode)
+ *   watchingSession: string|null,
  *   mode: 'overflow'|'voluntary',
- *   dbRowId: number|null,          // spectators table PK for updating left_at
+ *   dbRowId: number|null
  * }
  */
 const spectators = {};
+let frameId = 0;
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  SPECTATOR HELPERS
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function getLastWatchedSession(dbUserId) {
+    if (!dbUserId) return null;
+    try {
+        const { rows } = await db.query(
+            `SELECT session_id
+             FROM spectators
+             WHERE user_id = $1 AND session_id <> 'lobby'
+             ORDER BY joined_at DESC
+             LIMIT 1`,
+            [dbUserId]
+        );
+        return rows[0]?.session_id ?? null;
+    } catch (err) {
+        console.error('[SPECTATOR] restore session error:', err.message);
+        return null;
+    }
+}
+
+function listActiveSessions() {
+    const result = [];
+    for (const [id, sess] of gameSessions.entries()) {
+        const spectatorCount = Object.values(spectators)
+            .filter(s => s.watchingSession === id).length;
+        result.push({
+            sessionId:    id,
+            mode:         sess.mode,
+            tournamentId: sess.tournamentId ?? null,
+            round:        sess.round ?? null,
+            playerIds:    [...sess.playerIds],
+            startedAt:    sess.startedAt,
+            spectators:   spectatorCount,
+        });
+    }
+    return result;
+}
+
+function sendStateToSpectator(spec) {
+    if (!spec.ws || spec.ws.readyState !== WebSocket.OPEN) return;
+
+    const snapshot = {};
+    let sessionIds = null;
+
+    if (spec.watchingSession) {
+        const sess = gameSessions.get(spec.watchingSession);
+        if (sess) {
+            sessionIds = new Set(sess.playerIds);
+        } else {
+            spec.watchingSession = null;
+            spec.ws.send(JSON.stringify({
+                type: 'spectator_session_changed',
+                watchingSession: null,
+            }));
+        }
+    }
+
+    for (const [id, p] of Object.entries(players)) {
+        if (sessionIds && !sessionIds.has(Number(id))) continue;
+        snapshot[id] = {
+            id:           p.id,
+            x:            +p.x.toFixed(3),
+            y:            +p.y.toFixed(3),
+            rotation:     p.facing === -1 ? Math.PI : 0,
+            animation:    p.animation,
+            onGround:     p.onGround,
+            stocks:       p.stocks,
+            respawning:   p.respawning,
+            crouching:    p.crouching,
+            hitId:        p.hitId,
+            jumpId:       p.jumpId,
+            voltage:      +p.voltage.toFixed(1),
+            voltageMaxed: p.voltageMaxed,
+            blocking:     p.blocking,
+        };
+    }
+
+    spec.ws.send(JSON.stringify({
+        type: 'state',
+        frameId: ++frameId,
+        players: snapshot,
+    }));
+}
+
+function broadcastStateToSpectators() {
+    for (const spec of Object.values(spectators)) {
+        sendStateToSpectator(spec);
+    }
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  WEBSOCKET UPGRADE
@@ -333,11 +423,13 @@ server.on('upgrade', (req, socket, head) => {
 //  CONNECTION HANDLER
 // ─────────────────────────────────────────────────────────────────────────────
 wss.on('connection', async (ws, req) => {
-    let clientId  = null;
-    let dbUserId  = null;
+    let clientId = null;
+    let dbUserId = null;
     let isSpectator = false;
+    let mode = null;
+    let firstMessageSeen = false;
+    let autoSpectatorTimer = null;
 
-    // Resolve DB user from session cookie on the upgrade request
     try {
         const cookieHeader = req.headers.cookie || '';
         let token = null;
@@ -356,141 +448,256 @@ wss.on('connection', async (ws, req) => {
         console.error('[WS] session resolve error:', err.message);
     }
 
-    ws.once('message', async (raw) => {
-        let msg;
-        try { msg = JSON.parse(raw); } catch { msg = {}; }
+    async function insertOrUpdateSpectatorRow(specMode, watchingSession) {
+        const current = spectators[clientId];
+        if (!current) return;
 
-        // ── Assign clientId ───────────────────────────────────────────────────
-        if (msg.type === 'rejoin' && msg.clientId && !players[msg.clientId] && !spectators[msg.clientId]) {
-            clientId = msg.clientId;
-            if (clientId >= nextClientId) nextClientId = clientId + 1;
+        const tournamentId = watchingSession
+            ? (gameSessions.get(watchingSession)?.tournamentId ?? null)
+            : null;
+
+        if (!current.dbRowId) {
+            try {
+                const { rows: dbRows } = await db.query(
+                    `INSERT INTO spectators (user_id, session_id, tournament_id, mode)
+                     VALUES ($1, $2, $3, $4)
+                     RETURNING id`,
+                    [dbUserId, watchingSession ?? 'lobby', tournamentId, specMode]
+                );
+                current.dbRowId = dbRows[0]?.id ?? null;
+            } catch (err) {
+                console.error('[SPECTATOR] DB insert error:', err.message);
+            }
         } else {
+            db.query(
+                `UPDATE spectators
+                 SET session_id = $1,
+                     tournament_id = $2,
+                     mode = $3
+                 WHERE id = $4`,
+                [watchingSession ?? 'lobby', tournamentId, specMode, current.dbRowId]
+            ).catch(err => console.error('[SPECTATOR] DB update error:', err.message));
+        }
+    }
+
+    function sendSpectatorWelcome(specMode, watchingSession) {
+        if (!spectators[clientId]) return;
+
+        ws.send(JSON.stringify({
+            type: 'spectator_mode',
+            clientId,
+            mode: specMode,
+            watchingSession,
+            activeSessions: listActiveSessions(),
+        }));
+
+        sendStateToSpectator(spectators[clientId]);
+    }
+
+    async function ensureSpectatorReady(specMode = 'overflow', watchingSession = null) {
+        if (clientId === null) {
             clientId = nextClientId++;
+            if (clientId >= nextClientId) nextClientId = clientId + 1;
         }
 
-        // ── Decide: player or spectator ───────────────────────────────────────
-        // Voluntary spectator: client sends { type: 'watch', sessionId? }
-        // Overflow spectator: no room for more players (> MAX_PLAYERS)
-        const activePlayers   = Object.keys(players).length;
-        const voluntaryWatch  = msg.type === 'watch';
-        isSpectator = voluntaryWatch || activePlayers >= MAX_PLAYERS;
-
-        if (isSpectator) {
-            // ── SPECTATOR PATH ────────────────────────────────────────────────
-            const mode            = voluntaryWatch ? 'voluntary' : 'overflow';
-            const watchingSession = (voluntaryWatch && msg.sessionId)
-                ? msg.sessionId
-                : null;   // null = lobby (will receive all broadcasts)
-
+        if (!spectators[clientId]) {
             spectators[clientId] = {
                 id: clientId,
                 dbUserId,
                 ws,
                 watchingSession,
-                mode,
+                mode: specMode,
                 dbRowId: null,
             };
+            isSpectator = true;
+            mode = specMode;
 
-            // Persist to DB (best-effort)
-            try {
-                const sessionForDb = watchingSession ?? null;
-                const tournamentId = watchingSession
-                    ? (gameSessions.get(watchingSession)?.tournamentId ?? null)
-                    : null;
+            await insertOrUpdateSpectatorRow(specMode, watchingSession);
+            sendSpectatorWelcome(specMode, watchingSession);
+            console.log(
+                `[SPECTATOR] Client ${clientId} connected as ${specMode} spectator` +
+                (watchingSession ? ` watching session ${watchingSession}` : ' (lobby)')
+            );
+        } else {
+            spectators[clientId].watchingSession = watchingSession;
+            spectators[clientId].mode = specMode;
+            isSpectator = true;
+            mode = specMode;
 
-                const { rows: dbRows } = await db.query(
-                    `INSERT INTO spectators (user_id, session_id, tournament_id, mode)
-                     VALUES ($1, $2, $3, $4) RETURNING id`,
-                    [dbUserId, sessionForDb ?? 'lobby', tournamentId, mode]
-                );
-                spectators[clientId].dbRowId = dbRows[0]?.id ?? null;
-            } catch (err) {
-                console.error('[SPECTATOR] DB insert error:', err.message);
+            await insertOrUpdateSpectatorRow(specMode, watchingSession);
+            ws.send(JSON.stringify({
+                type: 'spectator_session_changed',
+                watchingSession,
+            }));
+            sendStateToSpectator(spectators[clientId]);
+        }
+    }
+
+    async function promoteToPlayer(initialMsg = null) {
+        if (!clientId && clientId !== 0) {
+            clientId = nextClientId++;
+            if (clientId >= nextClientId) nextClientId = clientId + 1;
+        }
+
+        if (players[clientId]) return;
+
+        if (spectators[clientId]) {
+            const spec = spectators[clientId];
+            if (spec.dbRowId) {
+                db.query(
+                    `UPDATE spectators SET left_at = NOW() WHERE id = $1`,
+                    [spec.dbRowId]
+                ).catch(err => console.error('[SPECTATOR] left_at update error:', err.message));
+            }
+            delete spectators[clientId];
+        }
+
+        const saved = lastState[clientId];
+        if (saved) clearTimeout(saved.timer);
+
+        players[clientId] = createPlayer(clientId, saved, ws);
+        players[clientId].dbUserId = dbUserId;
+        delete lastState[clientId];
+
+        isSpectator = false;
+        mode = 'player';
+
+        ws.send(JSON.stringify({
+            type: 'init',
+            clientId,
+            config: {
+                attackRange:     ATTACK_RANGE,
+                attackRangeY:    ATTACK_RANGE_Y,
+                dashAttackRange: DASH_ATTACK_RANGE_X,
+            },
+        }));
+
+        if (initialMsg && initialMsg.type === 'input') {
+            const p = players[clientId];
+            if (p) {
+                p.input.moveX      = initialMsg.moveX      ?? 0;
+                p.input.jump       = !!initialMsg.jump;
+                p.input.attack     = !!initialMsg.attack;
+                p.input.dash       = !!initialMsg.dash;
+                p.input.dashDir    = initialMsg.dashDir    ?? 0;
+                p.input.crouch     = !!initialMsg.crouch;
+                p.input.block      = !!initialMsg.block;
+                p.input.dashAttack = !!initialMsg.dashAttack;
+            }
+        }
+
+        broadcastState();
+        console.log(`[SERVER] Player ${clientId} connected (${Object.keys(players).length}/${MAX_PLAYERS})`);
+    }
+
+    autoSpectatorTimer = setTimeout(async () => {
+        if (firstMessageSeen) return;
+        if (players[clientId] || spectators[clientId]) return;
+        await ensureSpectatorReady('overflow', null);
+    }, 120);
+
+    ws.on('message', async (raw) => {
+        let msg;
+        try {
+            msg = JSON.parse(raw);
+        } catch {
+            return;
+        }
+
+        firstMessageSeen = true;
+        if (autoSpectatorTimer) {
+            clearTimeout(autoSpectatorTimer);
+            autoSpectatorTimer = null;
+        }
+
+        if (msg.type === 'rejoin' && msg.clientId && !players[msg.clientId] && !spectators[msg.clientId]) {
+            if (clientId !== null && clientId !== msg.clientId) {
+                if (spectators[clientId]) {
+                    spectators[msg.clientId] = spectators[clientId];
+                    spectators[msg.clientId].id = msg.clientId;
+                    delete spectators[clientId];
+                } else if (players[clientId]) {
+                    players[msg.clientId] = players[clientId];
+                    players[msg.clientId].id = msg.clientId;
+                    delete players[clientId];
+                    playerSession.set(msg.clientId, playerSession.get(clientId));
+                    playerSession.delete(clientId);
+                }
+            }
+            clientId = msg.clientId;
+            if (clientId >= nextClientId) nextClientId = clientId + 1;
+        }
+
+        if (msg.type === 'watch') {
+            if (!clientId && clientId !== 0) {
+                clientId = nextClientId++;
+                if (clientId >= nextClientId) nextClientId = clientId + 1;
             }
 
-            // Tell the client it's in spectator mode + send current state
-            ws.send(JSON.stringify({
-                type:     'spectator_mode',
-                clientId,
-                mode,
-                watchingSession,
-                activeSessions: listActiveSessions(),
-            }));
+            const watchingSession = (msg.sessionId && gameSessions.get(msg.sessionId))
+                ? msg.sessionId
+                : (msg.sessionId ?? await getLastWatchedSession(dbUserId));
 
-            // Send current game state immediately so the view isn't blank
-            sendStateToSpectator(spectators[clientId]);
+            await ensureSpectatorReady('voluntary', watchingSession ?? null);
 
-            console.log(`[SPECTATOR] Client ${clientId} connected as ${mode} spectator` +
-                        (watchingSession ? ` watching session ${watchingSession}` : ' (lobby)'));
+            if (spectators[clientId]) {
+                spectators[clientId].watchingSession = watchingSession ?? null;
+                spectators[clientId].mode = 'voluntary';
 
-            // ── Spectator message loop ────────────────────────────────────────
-            ws.on('message', (raw2) => {
-                let m2;
-                try { m2 = JSON.parse(raw2); } catch { return; }
+                await insertOrUpdateSpectatorRow('voluntary', watchingSession ?? null);
 
-                // Allow spectator to switch the session they're watching
-                if (m2.type === 'watch' && spectators[clientId]) {
-                    spectators[clientId].watchingSession = m2.sessionId ?? null;
-                    ws.send(JSON.stringify({
-                        type:     'spectator_session_changed',
-                        watchingSession: spectators[clientId].watchingSession,
-                    }));
-                    sendStateToSpectator(spectators[clientId]);
-                }
-                // All other messages (input, etc.) are silently ignored
-            });
+                ws.send(JSON.stringify({
+                    type: 'spectator_session_changed',
+                    watchingSession: spectators[clientId].watchingSession,
+                }));
 
-        } else {
-            // ── PLAYER PATH (original behaviour) ─────────────────────────────
-            const saved = lastState[clientId];
-            if (saved) clearTimeout(saved.timer);
+                sendStateToSpectator(spectators[clientId]);
+            }
+            return;
+        }
 
-            players[clientId] = createPlayer(clientId, saved, ws);
-            players[clientId].dbUserId = dbUserId;
-            delete lastState[clientId];
+        if (msg.type === 'input') {
+            if (!players[clientId]) {
+                await promoteToPlayer(msg);
+                return;
+            }
 
-            ws.send(JSON.stringify({
-                type:     'init',
-                clientId,
-                config: {
-                    attackRange:     ATTACK_RANGE,
-                    attackRangeY:    ATTACK_RANGE_Y,
-                    dashAttackRange: DASH_ATTACK_RANGE_X,
-                },
-            }));
+            const p = players[clientId];
+            if (!p) return;
 
-            broadcastState();
-            console.log(`[SERVER] Player ${clientId} connected (${activePlayers + 1}/${MAX_PLAYERS})`);
+            p.input.moveX      = msg.moveX      ?? 0;
+            p.input.jump       = !!msg.jump;
+            p.input.attack     = !!msg.attack;
+            p.input.dash       = !!msg.dash;
+            p.input.dashDir    = msg.dashDir    ?? 0;
+            p.input.crouch     = !!msg.crouch;
+            p.input.block      = !!msg.block;
+            p.input.dashAttack = !!msg.dashAttack;
+            return;
+        }
 
-            ws.on('message', (raw2) => {
-                let m2;
-                try { m2 = JSON.parse(raw2); } catch { return; }
-                if (m2.type !== 'input') return;
-
-                const p = players[clientId];
-                if (!p) return;
-
-                p.input.moveX      = m2.moveX      ?? 0;
-                p.input.jump       = !!m2.jump;
-                p.input.attack     = !!m2.attack;
-                p.input.dash       = !!m2.dash;
-                p.input.dashDir    = m2.dashDir     ?? 0;
-                p.input.crouch     = !!m2.crouch;
-                p.input.block      = !!m2.block;
-                p.input.dashAttack = !!m2.dashAttack;
-            });
+        if (spectators[clientId]) {
+            if (msg.type === 'spectator_ping') {
+                sendStateToSpectator(spectators[clientId]);
+            }
         }
     });
 
     ws.on('close', async () => {
+        if (autoSpectatorTimer) {
+            clearTimeout(autoSpectatorTimer);
+            autoSpectatorTimer = null;
+        }
+
         if (clientId === null) return;
 
-        if (isSpectator && spectators[clientId]) {
+        if (spectators[clientId]) {
             const spec = spectators[clientId];
-            // Update left_at in DB
             if (spec.dbRowId) {
-                db.query(`UPDATE spectators SET left_at = NOW() WHERE id = $1`, [spec.dbRowId])
-                  .catch(err => console.error('[SPECTATOR] left_at update error:', err.message));
+                db.query(
+                    `UPDATE spectators SET left_at = NOW() WHERE id = $1`,
+                    [spec.dbRowId]
+                ).catch(err => console.error('[SPECTATOR] left_at update error:', err.message));
             }
             delete spectators[clientId];
             console.log(`[SPECTATOR] Client ${clientId} disconnected`);
@@ -524,7 +731,7 @@ function createPlayer(id, saved, ws) {
 
     return {
         id,
-        dbUserId: null,    // set after createPlayer() by connection handler
+        dbUserId: null,
         x:  saved ? saved.x : spawnX,
         y:  saved ? saved.y : GROUND_Y,
         vx: 0, vy: 0,
@@ -569,7 +776,6 @@ function createPlayer(id, saved, ws) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  GAME LOOP  (60 Hz)
-// ─────────────────────────────────────────────────────────────────────────────
 setInterval(tick, 1000 / TICK_RATE);
 
 function tick() {
@@ -679,7 +885,7 @@ function tickMovement(p, moveX, jump, crouch) {
         } else if (crouch) {
             p.vx = 0;
         } else if (moveX !== 0) {
-            p.vx    = moveX * MOVE_SPEED;
+            p.vx     = moveX * MOVE_SPEED;
             p.facing = Math.sign(moveX);
         } else {
             p.vx = 0;
@@ -760,8 +966,8 @@ function resolveHits(p) {
     const hurtHH = 0.36;
 
     for (const target of alive) {
-        if (target.id === p.id)            continue;
-        if (p.hitTargets.has(target.id))   continue;
+        if (target.id === p.id) continue;
+        if (p.hitTargets.has(target.id)) continue;
 
         const tCX = target.x;
         const tCY = target.y + 0.36;
@@ -828,8 +1034,8 @@ function tickPhysics(alive) {
         if (!p.onGround) p.vy += GRAVITY * TICK_DT;
 
         p.prevY = p.y;
-        p.x    += (p.vx + p.kbx) * TICK_DT;
-        p.y    += (p.vy + p.kby) * TICK_DT;
+        p.x += (p.vx + p.kbx) * TICK_DT;
+        p.y += (p.vy + p.kby) * TICK_DT;
     }
 }
 
@@ -842,10 +1048,10 @@ function tickCollisions(alive) {
 }
 
 function resolvePlayerCollision(a, b) {
-    const dx       = b.x - a.x;
-    const dy       = b.y - a.y;
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
     const overlapX = 2 * PLAYER_RADIUS - Math.abs(dx);
-    const overlapY = PLAYER_HEIGHT     - Math.abs(dy);
+    const overlapY = PLAYER_HEIGHT - Math.abs(dy);
 
     if (overlapX <= 0 || overlapY <= 0) return;
 
@@ -907,7 +1113,7 @@ function tickPlatforms(alive) {
 
             if (p.stocks === 0) {
                 handleElimination(p);
-                return;   // player removed from game — skip respawn
+                return;
             }
 
             Object.assign(p, {
@@ -944,148 +1150,11 @@ function decideAnim(p) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  SPECTATOR HELPERS
-// ─────────────────────────────────────────────────────────────────────────────
-
-/** Returns a summary of all active game sessions (for the spectator lobby). */
-function listActiveSessions() {
-    const result = [];
-    for (const [id, sess] of gameSessions.entries()) {
-        const spectatorCount = Object.values(spectators)
-            .filter(s => s.watchingSession === id).length;
-        result.push({
-            sessionId:    id,
-            mode:         sess.mode,
-            tournamentId: sess.tournamentId ?? null,
-            round:        sess.round        ?? null,
-            playerIds:    [...sess.playerIds],
-            startedAt:    sess.startedAt,
-            spectators:   spectatorCount,
-        });
-    }
-    return result;
-}
-
-/**
- * Send the current game state to a single spectator.
- * If they're watching a specific session, only send that session's players;
- * otherwise send all players (lobby/overview mode).
- *
- * Edge case: if the watched session has already ended, fall back to lobby
- * mode and notify the client so it can update its UI accordingly.
- */
-function sendStateToSpectator(spec) {
-    if (!spec.ws || spec.ws.readyState !== WebSocket.OPEN) return;
-
-    const snapshot = {};
-    let sessionIds = null;   // null → send everyone (lobby mode)
-
-    if (spec.watchingSession) {
-        const sess = gameSessions.get(spec.watchingSession);
-        if (sess) {
-            // Session is still alive → filter to its players only.
-            sessionIds = new Set(sess.playerIds);
-        } else {
-            // Session ended while the spectator was still watching it.
-            // Reset to lobby mode and tell the client so it can react (e.g.
-            // show the session list again).  sessionIds stays null so the
-            // snapshot includes all current players instead of being empty.
-            spec.watchingSession = null;
-            spec.ws.send(JSON.stringify({
-                type:            'spectator_session_changed',
-                watchingSession: null,
-            }));
-        }
-    }
-
-    for (const [id, p] of Object.entries(players)) {
-        if (sessionIds && !sessionIds.has(Number(id))) continue;
-        snapshot[id] = {
-            id:           p.id,
-            x:            +p.x.toFixed(3),
-            y:            +p.y.toFixed(3),
-            rotation:     p.facing === -1 ? Math.PI : 0,
-            animation:    p.animation,
-            onGround:     p.onGround,
-            stocks:       p.stocks,
-            respawning:   p.respawning,
-            crouching:    p.crouching,
-            hitId:        p.hitId,
-            jumpId:       p.jumpId,
-            voltage:      +p.voltage.toFixed(1),
-            voltageMaxed: p.voltageMaxed,
-            blocking:     p.blocking,
-        };
-    }
-
-    spec.ws.send(JSON.stringify({ type: 'state', players: snapshot }));
-}
-
-/** Broadcast state updates to all spectators as well as players. */
-function broadcastStateToSpectators() {
-    for (const spec of Object.values(spectators)) {
-        sendStateToSpectator(spec);
-    }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  STATE BROADCAST
-// ─────────────────────────────────────────────────────────────────────────────
-function broadcastState() {
-    const snapshot = {};
-
-    for (const [id, p] of Object.entries(players)) {
-        snapshot[id] = {
-            id:           p.id,
-            x:            +p.x.toFixed(3),
-            y:            +p.y.toFixed(3),
-            rotation:     p.facing === -1 ? Math.PI : 0,
-            animation:    p.animation,
-            onGround:     p.onGround,
-            stocks:       p.stocks,
-            respawning:   p.respawning,
-            crouching:    p.crouching,
-            hitId:        p.hitId,
-            jumpId:       p.jumpId,
-            voltage:      +p.voltage.toFixed(1),
-            voltageMaxed: p.voltageMaxed,
-            blocking:     p.blocking,
-        };
-    }
-
-    const msg = JSON.stringify({ type: 'state', players: snapshot });
-
-    // Send to active players
-    for (const p of Object.values(players)) {
-        if (p.ws.readyState === WebSocket.OPEN) p.ws.send(msg);
-    }
-
-    // Send to spectators (filtered per session)
-    broadcastStateToSpectators();
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 //  GAME MODES
 // ─────────────────────────────────────────────────────────────────────────────
-/**
- * Active game sessions. Key = sessionId (string).
- * Each session:
- *   { id, mode: '1v1'|'tournament', playerIds: Set<clientId>,
- *     eliminated: Set<clientId>,
- *     tournamentId: number|null,
- *     round: number,
- *     matchDbId: number|null,
- *     startedAt: Date }
- */
 const gameSessions = new Map();
 let nextSessionId = 1;
-
-/**
- * Maps clientId → sessionId so a player can be looked up quickly.
- */
 const playerSession = new Map();
-
-// ─── 1v1 ─────────────────────────────────────────────────────────────────────
 
 /** Start a 1v1 match between two connected clientIds. */
 function startDuel(clientId1, clientId2) {
@@ -1104,7 +1173,6 @@ function startDuel(clientId1, clientId2) {
     playerSession.set(clientId1, id);
     playerSession.set(clientId2, id);
 
-    // Reset both players to full stocks
     for (const cid of [clientId1, clientId2]) {
         const p = players[cid];
         if (p) p.stocks = 3;
@@ -1115,17 +1183,14 @@ function startDuel(clientId1, clientId2) {
     return session;
 }
 
-// ─── TOURNAMENT ───────────────────────────────────────────────────────────────
-
 /**
  * Create a tournament in the DB and kick off round 1.
- * @param {number[]} clientIds   – exactly 8 (or 4, or 2) connected clientIds
- * @param {number}   creatorDbId – users.id of the creator
+ * @param {number[]} clientIds
+ * @param {number} creatorDbId
  */
 async function startTournament(clientIds, creatorDbId) {
     if (clientIds.length < 2) throw new Error('Need at least 2 players for a tournament');
 
-    // Power-of-2 bracket only
     const sizes = [2, 4, 8];
     const bracketSize = sizes.find(s => s >= clientIds.length) ?? 8;
 
@@ -1136,7 +1201,6 @@ async function startTournament(clientIds, creatorDbId) {
     );
     const tournamentId = rows[0].id;
 
-    // Register all participants
     for (const cid of clientIds) {
         const p = players[cid];
         if (p?.dbUserId) {
@@ -1148,9 +1212,8 @@ async function startTournament(clientIds, creatorDbId) {
         }
     }
 
-    // Shuffle and pair for round 1
     const shuffled = [...clientIds].sort(() => Math.random() - 0.5);
-    const pairs     = [];
+    const pairs = [];
     for (let i = 0; i < shuffled.length - 1; i += 2) {
         pairs.push([shuffled[i], shuffled[i + 1]]);
     }
@@ -1198,8 +1261,6 @@ async function startTournamentMatch(clientId1, clientId2, tournamentId, round) {
     return session;
 }
 
-// ─── ELIMINATION ─────────────────────────────────────────────────────────────
-
 /**
  * Called when a player reaches 0 stocks.
  * Handles session bookkeeping, DB writes, and tournament advancement.
@@ -1208,12 +1269,10 @@ function handleElimination(loser) {
     const sessionId = playerSession.get(loser.id);
     const session   = sessionId ? gameSessions.get(sessionId) : null;
 
-    // Snapshot the loser's DB identity and remaining stocks BEFORE removing from players[].
-    // resolveMatchWinner() needs these after the player object is gone.
     if (session) {
         session.eliminated.add(loser.id);
         session.loserDbId    = loser.dbUserId ?? null;
-        session.loserStocks  = loser.stocks   ?? 0;
+        session.loserStocks  = loser.stocks ?? 0;
     }
     delete players[loser.id];
     playerSession.delete(loser.id);
@@ -1226,7 +1285,6 @@ function handleElimination(loser) {
     const remaining = [...session.playerIds].filter(id => !session.eliminated.has(id));
 
     if (remaining.length === 1) {
-        // We have a winner for this match
         const winnerId = remaining[0];
         resolveMatchWinner(session, winnerId, loser.id);
     }
@@ -1236,13 +1294,10 @@ function handleElimination(loser) {
 async function resolveMatchWinner(session, winnerClientId, loserClientId) {
     const winner     = players[winnerClientId];
     const winnerDbId = winner?.dbUserId ?? null;
-    // loserDbId and loserStocks were captured by handleElimination() before
-    // the loser was removed from players[], so they are always available here.
-    const loserDbId   = session.loserDbId   ?? null;
-    const loserStocks = session.loserStocks  ?? 0;
+    const loserDbId   = session.loserDbId ?? null;
+    const loserStocks = session.loserStocks ?? 0;
 
     try {
-        // ── Persist match to DB ─────────────────────────────────────────────
         const { rows } = await db.query(
             `INSERT INTO matches
                (player1_id, player2_id, winner_id, score1, score2, game_type)
@@ -1254,7 +1309,6 @@ async function resolveMatchWinner(session, winnerClientId, loserClientId) {
         );
         session.matchDbId = rows[0].id;
 
-        // ── Link to tournament_matches if applicable ────────────────────────
         if (session.tournamentId && session.matchDbId) {
             await db.query(
                 `INSERT INTO tournament_matches (tournament_id, match_id, round)
@@ -1263,7 +1317,6 @@ async function resolveMatchWinner(session, winnerClientId, loserClientId) {
             );
         }
 
-        // ── Update user_stats ───────────────────────────────────────────────
         if (winnerDbId) {
             await db.query(
                 `UPDATE user_stats
@@ -1290,7 +1343,6 @@ async function resolveMatchWinner(session, winnerClientId, loserClientId) {
         console.error('[GAME] DB write error on match resolve:', err.message);
     }
 
-    // ── Notify clients ───────────────────────────────────────────────────────
     broadcastToSession(session, {
         type:     'match_end',
         winner:   winnerClientId,
@@ -1301,12 +1353,10 @@ async function resolveMatchWinner(session, winnerClientId, loserClientId) {
 
     console.log(`[GAME] Match resolved — winner: ${winnerClientId}, session: ${session.id}`);
 
-    // ── Tournament bracket advancement ───────────────────────────────────────
     if (session.mode === 'tournament') {
         advanceTournament(session.tournamentId, winnerClientId);
     }
 
-    // Clean up session
     gameSessions.delete(session.id);
 }
 
@@ -1315,7 +1365,6 @@ async function resolveMatchWinner(session, winnerClientId, loserClientId) {
  * and start the next round's matches when ready.
  */
 async function advanceTournament(tournamentId, newWinnerId) {
-    // Collect winners waiting for next round (not yet in a session)
     if (!tournamentWaitingWinners) tournamentWaitingWinners = {};
     if (!tournamentWaitingWinners[tournamentId]) {
         tournamentWaitingWinners[tournamentId] = [];
@@ -1325,7 +1374,6 @@ async function advanceTournament(tournamentId, newWinnerId) {
     const waiting = tournamentWaitingWinners[tournamentId];
 
     if (waiting.length < 2) {
-        // Not enough winners yet to form a new match
         broadcastToAll({
             type: 'tournament_waiting',
             tournamentId,
@@ -1334,21 +1382,18 @@ async function advanceTournament(tournamentId, newWinnerId) {
         return;
     }
 
-    // Determine round number from DB
     const { rows: roundRows } = await db.query(
         `SELECT MAX(round) AS max_round FROM tournament_matches WHERE tournament_id = $1`,
         [tournamentId]
     );
     const nextRound = (roundRows[0].max_round ?? 0) + 1;
 
-    // Pair waiting winners into new matches
     while (waiting.length >= 2) {
         const [a, b] = waiting.splice(0, 2);
-        const sess   = await startTournamentMatch(a, b, tournamentId, nextRound);
+        const sess = await startTournamentMatch(a, b, tournamentId, nextRound);
         console.log(`[TOURNAMENT] Round ${nextRound}: ${a} vs ${b} → session ${sess.id}`);
     }
 
-    // If exactly 1 winner remains it's the tournament champion
     if (waiting.length === 1) {
         const champion = waiting.splice(0, 1)[0];
         await finalizeTournament(tournamentId, champion);
@@ -1364,7 +1409,6 @@ async function finalizeTournament(tournamentId, championClientId) {
             [tournamentId]
         );
         if (champion?.dbUserId) {
-            // Grant extra XP for winning the tournament
             await db.query(
                 `UPDATE user_stats
                  SET xp = xp + 500,
@@ -1389,11 +1433,11 @@ async function finalizeTournament(tournamentId, championClientId) {
     console.log(`[TOURNAMENT] ${tournamentId} finished — champion: ${championClientId}`);
 }
 
-// Keyed by tournamentId → array of clientIds waiting for their next match
 let tournamentWaitingWinners = {};
 
-// ─── ACHIEVEMENTS ─────────────────────────────────────────────────────────────
-
+// ─────────────────────────────────────────────────────────────────────────────
+//  ACHIEVEMENTS
+// ─────────────────────────────────────────────────────────────────────────────
 async function checkAndGrantAchievements(dbUserId) {
     try {
         const { rows: stats } = await db.query(
@@ -1420,16 +1464,17 @@ async function checkAndGrantAchievements(dbUserId) {
     }
 }
 
-// ─── BROADCAST HELPERS ────────────────────────────────────────────────────────
-
+// ─────────────────────────────────────────────────────────────────────────────
+//  BROADCAST HELPERS
+// ─────────────────────────────────────────────────────────────────────────────
 function broadcastToSession(session, msg) {
     const raw = JSON.stringify(msg);
-    // Send to players in the session
+
     for (const cid of session.playerIds) {
         const p = players[cid];
         if (p?.ws?.readyState === WebSocket.OPEN) p.ws.send(raw);
     }
-    // Also send to spectators watching this session
+
     for (const spec of Object.values(spectators)) {
         if (spec.watchingSession === session.id && spec.ws.readyState === WebSocket.OPEN) {
             spec.ws.send(raw);
@@ -1442,19 +1487,53 @@ function broadcastToAll(msg) {
     for (const p of Object.values(players)) {
         if (p.ws?.readyState === WebSocket.OPEN) p.ws.send(raw);
     }
-    // Spectators also get global events (eliminations, tournament updates)
     for (const spec of Object.values(spectators)) {
         if (spec.ws?.readyState === WebSocket.OPEN) spec.ws.send(raw);
     }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+//  STATE BROADCAST
+// ─────────────────────────────────────────────────────────────────────────────
+function broadcastState() {
+    const snapshot = {};
+
+    for (const [id, p] of Object.entries(players)) {
+        snapshot[id] = {
+            id:           p.id,
+            x:            +p.x.toFixed(3),
+            y:            +p.y.toFixed(3),
+            rotation:     p.facing === -1 ? Math.PI : 0,
+            animation:    p.animation,
+            onGround:     p.onGround,
+            stocks:       p.stocks,
+            respawning:   p.respawning,
+            crouching:    p.crouching,
+            hitId:        p.hitId,
+            jumpId:       p.jumpId,
+            voltage:      +p.voltage.toFixed(1),
+            voltageMaxed: p.voltageMaxed,
+            blocking:     p.blocking,
+        };
+    }
+
+    const msg = JSON.stringify({
+        type: 'state',
+        frameId: ++frameId,
+        players: snapshot,
+    });
+
+    for (const p of Object.values(players)) {
+        if (p.ws.readyState === WebSocket.OPEN) p.ws.send(msg);
+    }
+
+    broadcastStateToSpectators();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 //  GAME MODE REST ENDPOINTS
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** POST /api/duel  – Start a 1v1 between two clientIds.
- *  Body: { clientId1: number, clientId2: number }
- */
 app.post('/api/duel', requireAuth, (req, res) => {
     const { clientId1, clientId2 } = req.body ?? {};
     if (!clientId1 || !clientId2 || clientId1 === clientId2)
@@ -1466,9 +1545,6 @@ app.post('/api/duel', requireAuth, (req, res) => {
     res.json({ sessionId: session.id });
 });
 
-/** POST /api/tournament – Start a tournament.
- *  Body: { clientIds: number[] }  (2, 4 or 8 elements)
- */
 app.post('/api/tournament', requireAuth, async (req, res) => {
     const { clientIds } = req.body ?? {};
     if (!Array.isArray(clientIds) || clientIds.length < 2)
@@ -1487,7 +1563,6 @@ app.post('/api/tournament', requireAuth, async (req, res) => {
     }
 });
 
-/** GET /api/tournament/:id – Get bracket status. */
 app.get('/api/tournament/:id', requireAuth, async (req, res) => {
     const id = parseInt(req.params.id);
     try {
@@ -1518,7 +1593,6 @@ app.get('/api/tournament/:id', requireAuth, async (req, res) => {
     }
 });
 
-/** GET /api/leaderboard – Top 10 by wins. */
 app.get('/api/leaderboard', async (req, res) => {
     try {
         const { rows } = await db.query(
@@ -1535,16 +1609,8 @@ app.get('/api/leaderboard', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  DEV HELPERS  — remove or gate behind NODE_ENV before going to production
+//  DEV HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * GET /api/players
- * Returns the list of currently connected WebSocket clients.
- * Useful for picking clientIds to pass to /api/duel or /api/tournament.
- *
- * Response: { players: [ { clientId, dbUserId, inSession } ], spectatorCount }
- */
 app.get('/api/players', (req, res) => {
     const list = Object.values(players).map(p => ({
         clientId:  p.id,
@@ -1554,13 +1620,6 @@ app.get('/api/players', (req, res) => {
     res.json({ players: list, spectatorCount: Object.keys(spectators).length });
 });
 
-/**
- * GET /api/sessions
- * Lists all active game sessions — used by the spectator lobby UI.
- * Public — no auth required.
- *
- * Response: { sessions: [...], lobbySpectators: number, totalSpectators: number }
- */
 app.get('/api/sessions', (req, res) => {
     const lobbySpectators = Object.values(spectators)
         .filter(s => s.watchingSession === null).length;
@@ -1572,13 +1631,6 @@ app.get('/api/sessions', (req, res) => {
     });
 });
 
-/**
- * GET /api/spectators/:sessionId
- * Returns the DB history of who watched a specific session (past + current).
- * Requires auth.
- *
- * Response: { spectators: [...] }
- */
 app.get('/api/spectators/:sessionId', requireAuth, async (req, res) => {
     const { sessionId } = req.params;
     try {
@@ -1598,14 +1650,6 @@ app.get('/api/spectators/:sessionId', requireAuth, async (req, res) => {
     }
 });
 
-/**
- * POST /api/dev/duel
- * Starts a 1v1 between ALL connected players that are not already in a session.
- * Pairs them in connection order; any leftover player waits.
- * No auth required — for local development only.
- *
- * Response: { sessions: [ sessionId, ... ] }
- */
 app.post('/api/dev/duel', (req, res) => {
     const free = Object.values(players)
         .filter(p => !playerSession.has(p.id))
@@ -1622,13 +1666,6 @@ app.post('/api/dev/duel', (req, res) => {
     res.json({ sessions });
 });
 
-/**
- * POST /api/dev/tournament
- * Starts a tournament with ALL connected players that are not already in a session.
- * No auth required — for local development only.
- *
- * Response: { tournamentId }
- */
 app.post('/api/dev/tournament', async (req, res) => {
     const free = Object.values(players)
         .filter(p => !playerSession.has(p.id))
@@ -1638,7 +1675,6 @@ app.post('/api/dev/tournament', async (req, res) => {
         return res.status(400).json({ error: 'Need at least 2 players not already in a session' });
 
     try {
-        // Use id=0 as the creator when no authenticated user is present
         const creatorDbId = req.user?.user_id ?? null;
         const tournamentId = await startTournament(free, creatorDbId);
         res.json({ tournamentId });

@@ -154,12 +154,15 @@ setInterval(() => {
 
     ws.addEventListener('open', () => {
         setStatus('⬤ Connected');
-        const savedId      = sessionStorage.getItem('clientId');
-        const wasSpectator = sessionStorage.getItem('isSpectator') === '1';
-        const watchTarget  = sessionStorage.getItem('watchSession') ?? null;
+        const savedId       = sessionStorage.getItem('clientId');
+        const wasSpectator  = sessionStorage.getItem('isSpectator') === '1';
+        const spectatorMode = sessionStorage.getItem('spectatorMode'); // 'voluntary' | 'overflow'
+        const watchTarget   = sessionStorage.getItem('watchSession') ?? null;
 
-        if (wasSpectator) {
-            // Rejoin as spectator watching the same session (or lobby)
+        if (wasSpectator && spectatorMode === 'voluntary') {
+            // Only rejoin as spectator if the user *chose* to watch.
+            // Overflow spectators should try to reconnect as players — the server
+            // will demote them to spectator again if the room is still full.
             ws.send(JSON.stringify({ type: 'watch', sessionId: watchTarget }));
         } else if (savedId) {
             ws.send(JSON.stringify({ type: 'rejoin', clientId: parseInt(savedId, 10) }));
@@ -191,8 +194,9 @@ setInterval(() => {
                 watchingSession:  msg.watchingSession,   // sessionId or null (lobby)
                 activeSessions:   msg.activeSessions,    // array of session summaries
             };
-            sessionStorage.setItem('clientId',     msg.clientId);
-            sessionStorage.setItem('isSpectator',  '1');
+            sessionStorage.setItem('clientId',      msg.clientId);
+            sessionStorage.setItem('isSpectator',   '1');
+            sessionStorage.setItem('spectatorMode', msg.mode); // persist 'voluntary' | 'overflow'
             // Persist the watched session so we can rejoin it after a page refresh.
             // Store empty string for lobby mode (null is not valid for sessionStorage).
             sessionStorage.setItem('watchSession', msg.watchingSession ?? '');
@@ -207,6 +211,7 @@ setInterval(() => {
             window.dispatchEvent(new CustomEvent('spectator_session_changed', { detail: msg }));
 
         } else if (msg.type === 'state') {
+            // Server sends slot-indexed snapshot (keys 0..MAX_PLAYERS-1)
             window._gameState = msg;
             try { sessionStorage.setItem('gameState', JSON.stringify(msg)); } catch { /* quota */ }
 
@@ -244,6 +249,14 @@ setInterval(() => {
     ws.addEventListener('close', () => {
         window._myClientId  = -1;
         window._isSpectator = false;
+        // Clear overflow-spectator flags so a reconnect always tries to join
+        // as a player first. Voluntary-spectator flag is preserved because the
+        // user explicitly chose to watch and should land back in spectator mode.
+        if (sessionStorage.getItem('spectatorMode') !== 'voluntary') {
+            sessionStorage.removeItem('isSpectator');
+            sessionStorage.removeItem('spectatorMode');
+            sessionStorage.removeItem('watchSession');
+        }
         setStatus('⬤ Disconnected — reconnecting…');
         setTimeout(connectWS, 2000);
     });
@@ -263,6 +276,9 @@ setInterval(() => {
  */
 function sendInput(frame) {
     if (!window._ws || window._ws.readyState !== WebSocket.OPEN) return;
+    // Spectators have no input — the server ignores it anyway, but blocking
+    // it client-side makes the intent explicit and avoids unnecessary traffic.
+    if (window._isSpectator) return;
 
     window._ws.send(JSON.stringify({
         type:       'input',

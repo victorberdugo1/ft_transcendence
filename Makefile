@@ -1,4 +1,4 @@
-.PHONY: up down build logs clean re setup shell-% wasm
+.PHONY: up down build logs clean destroy delete re setup shell-% wasm
 
 wasm:
 	docker compose build frontend
@@ -26,6 +26,12 @@ logs-%:
 
 clean:
 	docker compose down -v --rmi all
+
+destroy:
+	docker compose down -v
+	docker system prune -a -f
+
+delete: destroy
 
 setup:
 	@if [ ! -f .env ]; then \

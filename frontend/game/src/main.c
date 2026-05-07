@@ -6,6 +6,7 @@
  *   • Initialises / frees animated character objects per player.
  *   • Advances animation, applies physics-driven visual transforms, draws the scene.
  *   • Renders a HUD with stocks and a colour-coded voltage bar.
+ *   • Supports spectator mode (no local player — camera follows action centroid).
  */
 
 #include "raylib.h"
@@ -131,9 +132,10 @@ typedef struct {
 //  GLOBAL STATE
 // ─────────────────────────────────────────────────────────────────────────────
 static Player players[MAX_PLAYERS];
-static int    my_id      = -1;
-static bool   game_ready = false;
-static bool   debug_mode = false;
+static int    my_id        = -1;
+static bool   is_spectator = false;   /* FIX: track spectator mode */
+static bool   game_ready   = false;
+static bool   debug_mode   = false;
 
 /* Deferred player-init queue — one InitPlayer per frame to avoid hitches. */
 #define MAX_PENDING 8
@@ -160,6 +162,12 @@ EM_JS(int, js_canvas_height, (void), {
 EM_JS(int, ws_get_my_id, (void), {
     return (window._myClientId > 0) ? (window._myClientId | 0) : -1;
 });
+
+/* FIX: new bridge — returns 1 if the local client is a spectator */
+EM_JS(int, ws_is_spectator, (void), {
+    return window._isSpectator ? 1 : 0;
+});
+
 EM_JS(float, ws_get_attack_range, (void), {
     return (window._gameConfig && window._gameConfig.attackRange)
         ? window._gameConfig.attackRange : 0.525;
@@ -541,7 +549,9 @@ static int ParsePlayer(const char *buf,
 //  STATE FETCH  (called every frame before Draw)
 // ─────────────────────────────────────────────────────────────────────────────
 static void FetchState(void) {
-    if (my_id < 0) return;
+    /* FIX: Los espectadores siempre pueden procesar el estado,
+             los jugadores necesitan un my_id válido */
+    if (!is_spectator && my_id < 0) return;
 
     int  count = ws_player_count();
     char buf[256];
@@ -558,7 +568,10 @@ static void FetchState(void) {
                 &pstocks, &prespawning, &phitId, &pcrouching, &pjumpId,
                 &pvoltage, &pblocking, &pvoltageMaxed)) continue;
 
-        /* Find or allocate a slot for this player. */
+        /* Los espectadores nunca deben renderizarse a sí mismos (aunque my_id es -1, por seguridad) */
+        if (is_spectator && pid == my_id) continue;
+
+        /* Buscar o crear un slot para este jugador */
         int slot = -1;
         for (int s = 0; s < MAX_PLAYERS; s++)
             if (players[s].active && players[s].id == pid) { slot = s; break; }
@@ -567,7 +580,7 @@ static void FetchState(void) {
                 if (!players[s].active) { slot = s; break; }
         if (slot < 0) continue;
 
-        /* New player — queue asset load. */
+        /* Jugador nuevo → encolar carga de assets */
         if (!players[slot].active) {
             players[slot].id        = pid;
             players[slot].active    = 2;
@@ -578,7 +591,7 @@ static void FetchState(void) {
 
         seen[slot] = 1;
 
-        /* Update transform & game state. */
+        /* Actualizar transformación y estado del juego */
         players[slot].wx           = px;
         players[slot].wy           = py;
         players[slot].rotation     = prot;
@@ -590,7 +603,7 @@ static void FetchState(void) {
         players[slot].voltageMaxed = (bool)pvoltageMaxed;
         players[slot].blocking     = (bool)pblocking;
 
-        /* Priority: hurt > jump > general animation. */
+        /* Prioridad: hurt > jump > animación normal */
         if (phitId != players[slot].hitId) {
             players[slot].hitId = phitId;
             if (players[slot].character) {
@@ -616,7 +629,7 @@ static void FetchState(void) {
                 SetCharacterAutoPlay(players[slot].character, true);
                 players[slot].animIndex = ai;
             }
-            /* Show hit-flash when a new attack clip starts. */
+            /* Hit-flash cuando comienza un nuevo ataque */
             if (strncmp(panim, "attack", 6) == 0 &&
                     strncmp(players[slot].animation, "attack", 6) != 0) {
                 players[slot].attackFlashTimer  = 0.3f;
@@ -626,11 +639,11 @@ static void FetchState(void) {
         }
     }
 
-    /* Remove players that are no longer in the server snapshot. */
+    /* Eliminar jugadores que ya no están en la snapshot del servidor */
     for (int s = 0; s < MAX_PLAYERS; s++) {
         if (!players[s].active || seen[s]) continue;
 
-        /* Evict from pending queue first. */
+        /* Expulsar de la cola pendiente primero */
         for (int q = 0; q < pending_count; q++) {
             if (pending_ids[q] != players[s].id) continue;
             memmove(pending_ids + q, pending_ids + q + 1,
@@ -659,8 +672,7 @@ static Color LerpColor(Color a, Color b, float u) {
     };
 }
 
-/* Voltage bar colour stops — defined at file scope to avoid C99 aggregate
-   initialisation restrictions on static locals inside functions.          */
+/* Voltage bar colour stops */
 static const Color VOLTAGE_COL_BLUE   = { 20,  80, 255, 230 };
 static const Color VOLTAGE_COL_YELLOW = {255, 220,   0, 230 };
 static const Color VOLTAGE_COL_RED    = {255,   0,   0, 230 };
@@ -675,6 +687,32 @@ static Color VoltageBarColor(float t) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+//  SPECTATOR CAMERA HELPER
+//  FIX: when no local player exists, compute centroid of all active players
+//  and use that as the camera target so the view is never blank.
+// ─────────────────────────────────────────────────────────────────────────────
+static float SpectatorCamX(float currentCamX, float dt) {
+    float sumX = 0.0f;
+    int   n    = 0;
+    for (int s = 0; s < MAX_PLAYERS; s++) {
+        if (players[s].active == 1 && !players[s].respawning) {
+            sumX += players[s].wx;
+            n++;
+        }
+    }
+    /* If nobody is in the game yet, stay centered. */
+    float targetX = (n > 0) ? (sumX / (float)n) : 0.0f;
+
+    /* Smooth follow — slightly slower than player cam for a broadcast feel. */
+    float newX = currentCamX + (targetX - currentCamX) * 0.05f;
+
+    const float CAM_HALF_W = 5.0f;
+    if (newX - CAM_HALF_W < STAGE_LEFT)  newX = STAGE_LEFT  + CAM_HALF_W;
+    if (newX + CAM_HALF_W > STAGE_RIGHT) newX = STAGE_RIGHT - CAM_HALF_W;
+    return newX;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 //  DRAW
 // ─────────────────────────────────────────────────────────────────────────────
 static void DrawGame(void) {
@@ -684,15 +722,21 @@ static void DrawGame(void) {
 
     const float dt = GetFrameTime();
 
-    /* ── Camera: smooth follow of local player, clamped to stage edges. ── */
-    for (int s = 0; s < MAX_PLAYERS; s++) {
-        if (!players[s].active || players[s].id != my_id) continue;
-        camX += (players[s].wx - camX) * 0.08f;
-        break;
+    /* ── Camera ── */
+    if (is_spectator) {
+        /* FIX: spectator camera follows centroid of all players */
+        camX = SpectatorCamX(camX, dt);
+    } else {
+        /* Player camera: smooth follow of local player, clamped to stage. */
+        for (int s = 0; s < MAX_PLAYERS; s++) {
+            if (!players[s].active || players[s].id != my_id) continue;
+            camX += (players[s].wx - camX) * 0.08f;
+            break;
+        }
+        const float CAM_HALF_W = 5.0f;
+        if (camX - CAM_HALF_W < STAGE_LEFT)  camX = STAGE_LEFT  + CAM_HALF_W;
+        if (camX + CAM_HALF_W > STAGE_RIGHT) camX = STAGE_RIGHT - CAM_HALF_W;
     }
-    const float CAM_HALF_W = 5.0f;
-    if (camX - CAM_HALF_W < STAGE_LEFT)  camX = STAGE_LEFT  + CAM_HALF_W;
-    if (camX + CAM_HALF_W > STAGE_RIGHT) camX = STAGE_RIGHT - CAM_HALF_W;
 
     scene_cam.position = (Vector3){ camX, 1.2f, 9.0f };
     scene_cam.target   = (Vector3){ camX, 1.2f, 0.0f };
@@ -822,7 +866,7 @@ static void DrawGame(void) {
         Player *p = &players[s];
         if (!p->active) continue;
 
-        const bool isMe    = (p->id == my_id);
+        const bool isMe    = (!is_spectator && p->id == my_id);
         const Color nameCol = isMe ? YELLOW : WHITE;
 
         /* Stocks label */
@@ -862,8 +906,10 @@ static void DrawGame(void) {
         hudY += BAR_H + 6;
     }
 
-    /* Player ID tag */
-    if (my_id > 0) {
+    /* FIX: Corner label — shows "SPECTATOR" badge or player ID */
+    if (is_spectator) {
+        DrawText("SPECTATOR", SCREEN_W - 90, 8, 12, (Color){ 80, 200, 255, 255 });
+    } else if (my_id > 0) {
         char txt[24];
         snprintf(txt, sizeof(txt), "Player %d", my_id);
         DrawText(txt, SCREEN_W - 80, 8, 12, YELLOW);
@@ -880,16 +926,24 @@ static void DrawGame(void) {
 static void MainLoop(void) {
     if (!game_ready) return;
 
-    /* Resolve client ID on first available frame. */
-    if (my_id < 0) {
+    /* FIX: Forzar lectura del estado de espectador cada frame,
+            y si es espectador, asegurar que my_id = -1 siempre */
+    is_spectator = (bool)ws_is_spectator();
+
+    if (is_spectator) {
+        /* Los espectadores no necesitan un ID real, lo dejamos en -1
+           para que FetchState no los bloquee (aunque la condición ya permite espectadores) */
+        my_id = -1;
+    } else if (my_id < 0) {
         my_id = ws_get_my_id();
         if (my_id > 0) {
+            /* Solo los jugadores necesitan la configuración de ataque */
             ATTACK_RANGE   = ws_get_attack_range();
             ATTACK_RANGE_Y = ws_get_attack_range_y();
         }
     }
 
-    /* Respond to canvas resize. */
+    /* Responder a cambio de tamaño del canvas */
     int newW = js_canvas_width();
     int newH = js_canvas_height();
     if (newW != SCREEN_W || newH != SCREEN_H) {
@@ -908,7 +962,8 @@ static void MainLoop(void) {
 // ─────────────────────────────────────────────────────────────────────────────
 int main(void) {
     memset(players, 0, sizeof(players));
-
+    
+    SetTraceLogLevel(LOG_NONE);
     InitWindow(SCREEN_W, SCREEN_H, "Voltage Fighter");
     SetTargetFPS(60);
 
