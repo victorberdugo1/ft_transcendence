@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="830" height="1052" viewBox="0 0 830 1052" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="830" height="1230" viewBox="0 0 830 1230" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif">
 <defs>
   <filter id="sh">
     <feDropShadow dx="0" dy="3" stdDeviation="6" flood-color="#000" flood-opacity="0.5"/>
@@ -10,7 +10,7 @@
     <path d="M1 2L8 5L1 8" fill="none" stroke="#7C6AFA" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
   </marker>
 </defs>
-<rect width="830" height="1052" fill="#0d0b1e"/>
+<rect width="830" height="1230" fill="#0d0b1e"/>
 <circle cx="0" cy="0" r="1" fill="#1a1733"/>
 <circle cx="0" cy="28" r="1" fill="#1a1733"/>
 <circle cx="0" cy="56" r="1" fill="#1a1733"/>
@@ -1152,7 +1152,7 @@
 <circle cx="812" cy="1008" r="1" fill="#1a1733"/>
 <circle cx="812" cy="1036" r="1" fill="#1a1733"/>
 <text x="40" y="48" font-size="19" font-weight="700" fill="#b0a8f8" letter-spacing="-0.4">ft_transcendence — ERD</text>
-<text x="40" y="66" font-size="11" fill="#7a75a8">PostgreSQL · 12 tables · generated from database/init.sql</text>
+<text x="40" y="66" font-size="11" fill="#7a75a8">PostgreSQL · 13 tables · generated from database/init.sql</text>
 <path d="M520,244 C600,244 -40,172 40,172" fill="none" stroke="#7C6AFA" stroke-width="1.5" opacity="0.4" stroke-dasharray="5 3" marker-start="url(#dot)" marker-end="url(#arr)"/>
 <path d="M310,244 C230,244 330,374 250,374" fill="none" stroke="#7C6AFA" stroke-width="1.5" opacity="0.4" stroke-dasharray="5 3" marker-start="url(#dot)" marker-end="url(#arr)"/>
 <path d="M310,244 C230,244 330,600 250,600" fill="none" stroke="#7C6AFA" stroke-width="1.5" opacity="0.4" stroke-dasharray="5 3" marker-start="url(#dot)" marker-end="url(#arr)"/>
@@ -1172,7 +1172,7 @@
 <rect x="310" y="100" width="4" height="38" rx="2" fill="#7C6AFA"/>
 <text x="326" y="124" font-size="13" font-weight="700" fill="#e0ddff">users</text>
 <rect x="488" y="111" width="24" height="16" rx="8" fill="#7C6AFA" opacity="0.2"/>
-<text x="500" y="123" font-size="10" font-weight="600" fill="#7C6AFA" text-anchor="middle">10</text>
+<text x="500" y="123" font-size="10" font-weight="600" fill="#7C6AFA" text-anchor="middle">1</text>
 <line x1="310" y1="138" x2="520" y2="138" stroke="#2e2a52" stroke-width="0.5"/>
 <rect x="311" y="138" width="208" height="24" fill="#1b1735"/>
 <circle cx="324" cy="150" r="5" fill="#F59E42"/>
@@ -1213,7 +1213,7 @@
 <rect x="40" y="100" width="4" height="38" rx="2" fill="#7C6AFA"/>
 <text x="56" y="124" font-size="13" font-weight="700" fill="#e0ddff">sessions</text>
 <rect x="218" y="111" width="24" height="16" rx="8" fill="#7C6AFA" opacity="0.2"/>
-<text x="230" y="123" font-size="10" font-weight="600" fill="#7C6AFA" text-anchor="middle">4</text>
+<text x="230" y="123" font-size="10" font-weight="600" fill="#7C6AFA" text-anchor="middle">2</text>
 <line x1="40" y1="138" x2="250" y2="138" stroke="#2e2a52" stroke-width="0.5"/>
 <rect x="41" y="138" width="208" height="24" fill="#1b1735"/>
 <circle cx="54" cy="150" r="5" fill="#F59E42"/>
@@ -1237,7 +1237,7 @@
 <rect x="40" y="290" width="4" height="38" rx="2" fill="#7C6AFA"/>
 <text x="56" y="314" font-size="13" font-weight="700" fill="#e0ddff">friendships</text>
 <rect x="218" y="301" width="24" height="16" rx="8" fill="#7C6AFA" opacity="0.2"/>
-<text x="230" y="313" font-size="10" font-weight="600" fill="#7C6AFA" text-anchor="middle">5</text>
+<text x="230" y="313" font-size="10" font-weight="600" fill="#7C6AFA" text-anchor="middle">4</text>
 <line x1="40" y1="328" x2="250" y2="328" stroke="#2e2a52" stroke-width="0.5"/>
 <rect x="41" y="328" width="208" height="24" fill="#1b1735"/>
 <circle cx="54" cy="340" r="5" fill="#F59E42"/>
@@ -1265,7 +1265,7 @@
 <rect x="40" y="504" width="4" height="38" rx="2" fill="#7C6AFA"/>
 <text x="56" y="528" font-size="13" font-weight="700" fill="#e0ddff">messages</text>
 <rect x="218" y="515" width="24" height="16" rx="8" fill="#7C6AFA" opacity="0.2"/>
-<text x="230" y="527" font-size="10" font-weight="600" fill="#7C6AFA" text-anchor="middle">6</text>
+<text x="230" y="527" font-size="10" font-weight="600" fill="#7C6AFA" text-anchor="middle">7</text>
 <line x1="40" y1="542" x2="250" y2="542" stroke="#2e2a52" stroke-width="0.5"/>
 <rect x="41" y="542" width="208" height="24" fill="#1b1735"/>
 <circle cx="54" cy="554" r="5" fill="#F59E42"/>
@@ -1296,7 +1296,7 @@
 <rect x="40" y="742" width="4" height="38" rx="2" fill="#7C6AFA"/>
 <text x="56" y="766" font-size="13" font-weight="700" fill="#e0ddff">matches</text>
 <rect x="218" y="753" width="24" height="16" rx="8" fill="#7C6AFA" opacity="0.2"/>
-<text x="230" y="765" font-size="10" font-weight="600" fill="#7C6AFA" text-anchor="middle">8</text>
+<text x="230" y="765" font-size="10" font-weight="600" fill="#7C6AFA" text-anchor="middle">10</text>
 <line x1="40" y1="780" x2="250" y2="780" stroke="#2e2a52" stroke-width="0.5"/>
 <rect x="41" y="780" width="208" height="24" fill="#1b1735"/>
 <circle cx="54" cy="792" r="5" fill="#F59E42"/>
@@ -1334,7 +1334,7 @@
 <rect x="580" y="100" width="4" height="38" rx="2" fill="#7C6AFA"/>
 <text x="596" y="124" font-size="13" font-weight="700" fill="#e0ddff">user_stats</text>
 <rect x="758" y="111" width="24" height="16" rx="8" fill="#7C6AFA" opacity="0.2"/>
-<text x="770" y="123" font-size="10" font-weight="600" fill="#7C6AFA" text-anchor="middle">6</text>
+<text x="770" y="123" font-size="10" font-weight="600" fill="#7C6AFA" text-anchor="middle">3</text>
 <line x1="580" y1="138" x2="790" y2="138" stroke="#2e2a52" stroke-width="0.5"/>
 <rect x="581" y="138" width="208" height="24" fill="#1b1735"/>
 <circle cx="594" cy="150" r="5" fill="#F59E42"/>
@@ -1390,7 +1390,7 @@
 <rect x="580" y="552" width="4" height="38" rx="2" fill="#7C6AFA"/>
 <text x="596" y="576" font-size="13" font-weight="700" fill="#e0ddff">tournament_players</text>
 <rect x="758" y="563" width="24" height="16" rx="8" fill="#7C6AFA" opacity="0.2"/>
-<text x="770" y="575" font-size="10" font-weight="600" fill="#7C6AFA" text-anchor="middle">3</text>
+<text x="770" y="575" font-size="10" font-weight="600" fill="#7C6AFA" text-anchor="middle">8</text>
 <line x1="580" y1="590" x2="790" y2="590" stroke="#2e2a52" stroke-width="0.5"/>
 <rect x="581" y="590" width="208" height="24" fill="#1b1735"/>
 <circle cx="594" cy="602" r="5" fill="#F59E42"/>
@@ -1411,7 +1411,7 @@
 <rect x="580" y="718" width="4" height="38" rx="2" fill="#7C6AFA"/>
 <text x="596" y="742" font-size="13" font-weight="700" fill="#e0ddff">tournament_matches</text>
 <rect x="758" y="729" width="24" height="16" rx="8" fill="#7C6AFA" opacity="0.2"/>
-<text x="770" y="741" font-size="10" font-weight="600" fill="#7C6AFA" text-anchor="middle">4</text>
+<text x="770" y="741" font-size="10" font-weight="600" fill="#7C6AFA" text-anchor="middle">11</text>
 <line x1="580" y1="756" x2="790" y2="756" stroke="#2e2a52" stroke-width="0.5"/>
 <rect x="581" y="756" width="208" height="24" fill="#1b1735"/>
 <circle cx="594" cy="768" r="5" fill="#F59E42"/>
@@ -1436,7 +1436,7 @@
 <rect x="310" y="838" width="4" height="38" rx="2" fill="#7C6AFA"/>
 <text x="326" y="862" font-size="13" font-weight="700" fill="#e0ddff">achievements</text>
 <rect x="488" y="849" width="24" height="16" rx="8" fill="#7C6AFA" opacity="0.2"/>
-<text x="500" y="861" font-size="10" font-weight="600" fill="#7C6AFA" text-anchor="middle">4</text>
+<text x="500" y="861" font-size="10" font-weight="600" fill="#7C6AFA" text-anchor="middle">12</text>
 <line x1="310" y1="876" x2="520" y2="876" stroke="#2e2a52" stroke-width="0.5"/>
 <rect x="311" y="876" width="208" height="24" fill="#1b1735"/>
 <circle cx="324" cy="888" r="5" fill="#F59E42"/>
@@ -1459,7 +1459,7 @@
 <rect x="310" y="672" width="4" height="38" rx="2" fill="#7C6AFA"/>
 <text x="326" y="696" font-size="13" font-weight="700" fill="#e0ddff">user_achievements</text>
 <rect x="488" y="683" width="24" height="16" rx="8" fill="#7C6AFA" opacity="0.2"/>
-<text x="500" y="695" font-size="10" font-weight="600" fill="#7C6AFA" text-anchor="middle">3</text>
+<text x="500" y="695" font-size="10" font-weight="600" fill="#7C6AFA" text-anchor="middle">9</text>
 <line x1="310" y1="710" x2="520" y2="710" stroke="#2e2a52" stroke-width="0.5"/>
 <rect x="311" y="710" width="208" height="24" fill="#1b1735"/>
 <circle cx="324" cy="722" r="5" fill="#F59E42"/>
@@ -1504,14 +1504,52 @@
 <circle cx="324" cy="604" r="2.5" fill="#2e2a52"/>
 <text x="337" y="609" font-size="12" font-weight="400" fill="#ccc8f0">created_at</text>
 <rect x="310" y="434" width="210" height="192" rx="10" fill="none" stroke="#2e2a52" stroke-width="0.8"/>
-<rect x="40" y="1014" width="272" height="28" rx="7" fill="#15122b" stroke="#2e2a52" stroke-width="0.8"/>
-<circle cx="56" cy="1028" r="5" fill="#F59E42"/>
-<text x="56" y="1032" font-size="7" font-weight="800" fill="#1a0a00" text-anchor="middle">PK</text>
-<text x="68" y="1032" font-size="11" fill="#7a75a8">Primary key</text>
-<circle cx="152" cy="1028" r="5" fill="#7C6AFA" opacity="0.75"/>
-<text x="152" y="1032" font-size="7" font-weight="800" fill="white" text-anchor="middle">FK</text>
-<text x="164" y="1032" font-size="11" fill="#7a75a8">Foreign key</text>
-<line x1="248" y1="1028" x2="268" y2="1028" stroke="#7C6AFA" stroke-width="1.5" stroke-dasharray="4 2" opacity="0.7"/>
-<circle cx="248" cy="1028" r="3" fill="#7C6AFA" opacity="0.8"/>
-<text x="274" y="1032" font-size="11" fill="#7a75a8">Relation</text>
+<!-- ─── spectators table ──────────────────────────────────── -->
+<rect x="310" y="1014" width="210" height="168" rx="10" fill="#15122b" filter="url(#sh)"/>
+<rect x="310" y="1014" width="210" height="38" rx="10" fill="#1a1640"/>
+<rect x="310" y="1042" width="210" height="10" fill="#1a1640"/>
+<rect x="310" y="1014" width="4" height="38" rx="2" fill="#7C6AFA"/>
+<text x="326" y="1038" font-size="13" font-weight="700" fill="#e0ddff">spectators</text>
+<rect x="488" y="1025" width="24" height="16" rx="8" fill="#7C6AFA" opacity="0.2"/>
+<text x="500" y="1037" font-size="10" font-weight="600" fill="#7C6AFA" text-anchor="middle">13</text>
+<line x1="310" y1="1052" x2="520" y2="1052" stroke="#2e2a52" stroke-width="0.5"/>
+<rect x="311" y="1052" width="208" height="24" fill="#1b1735"/>
+<circle cx="324" cy="1064" r="5" fill="#F59E42"/>
+<text x="324" y="1068" font-size="7" font-weight="800" fill="#1a0a00" text-anchor="middle">PK</text>
+<text x="337" y="1069" font-size="12" font-weight="600" fill="#F59E42">id</text>
+<rect x="311" y="1076" width="208" height="24" fill="#15122b"/>
+<circle cx="324" cy="1088" r="5" fill="#7C6AFA" opacity="0.75"/>
+<text x="324" y="1092" font-size="7" font-weight="800" fill="white" text-anchor="middle">FK</text>
+<text x="337" y="1093" font-size="12" font-weight="500" fill="#7C6AFA">user_id</text>
+<rect x="311" y="1100" width="208" height="24" fill="#1b1735"/>
+<circle cx="324" cy="1112" r="2.5" fill="#2e2a52"/>
+<text x="337" y="1117" font-size="12" font-weight="400" fill="#ccc8f0">session_id</text>
+<rect x="311" y="1124" width="208" height="24" fill="#15122b"/>
+<circle cx="324" cy="1136" r="5" fill="#7C6AFA" opacity="0.75"/>
+<text x="324" y="1140" font-size="7" font-weight="800" fill="white" text-anchor="middle">FK</text>
+<text x="337" y="1141" font-size="12" font-weight="500" fill="#7C6AFA">tournament_id</text>
+<rect x="311" y="1148" width="208" height="24" fill="#1b1735"/>
+<circle cx="324" cy="1160" r="2.5" fill="#2e2a52"/>
+<text x="337" y="1165" font-size="12" font-weight="400" fill="#ccc8f0">mode</text>
+<rect x="311" y="1172" width="208" height="10" fill="#15122b"/>
+<circle cx="324" cy="1180" r="2.5" fill="#2e2a52"/>
+<text x="337" y="1177" font-size="12" font-weight="400" fill="#ccc8f0">joined_at / left_at</text>
+<rect x="310" y="1014" width="210" height="168" rx="10" fill="none" stroke="#7C6AFA" stroke-width="0.8" opacity="0.5"/>
+<!-- spectators → users -->
+<path d="M310,1088 C230,1088 230,244 310,244" fill="none" stroke="#7C6AFA" stroke-width="1.5" opacity="0.4" stroke-dasharray="5 3" marker-start="url(#dot)" marker-end="url(#arr)"/>
+<!-- spectators → tournaments -->
+<path d="M520,1136 C600,1136 600,422 790,422" fill="none" stroke="#7C6AFA" stroke-width="1.5" opacity="0.35" stroke-dasharray="5 3" marker-start="url(#dot)" marker-end="url(#arr)"/>
+
+<!-- ─── legend (moved down) ──────────────────────────────── -->
+<rect x="40" y="1192" width="340" height="28" rx="7" fill="#15122b" stroke="#2e2a52" stroke-width="0.8"/>
+<circle cx="56" cy="1206" r="5" fill="#F59E42"/>
+<text x="56" y="1210" font-size="7" font-weight="800" fill="#1a0a00" text-anchor="middle">PK</text>
+<text x="68" y="1210" font-size="11" fill="#7a75a8">Primary key</text>
+<circle cx="152" cy="1206" r="5" fill="#7C6AFA" opacity="0.75"/>
+<text x="152" y="1210" font-size="7" font-weight="800" fill="white" text-anchor="middle">FK</text>
+<text x="164" y="1210" font-size="11" fill="#7a75a8">Foreign key</text>
+<line x1="248" y1="1206" x2="268" y2="1206" stroke="#7C6AFA" stroke-width="1.5" stroke-dasharray="4 2" opacity="0.7"/>
+<circle cx="248" cy="1206" r="3" fill="#7C6AFA" opacity="0.8"/>
+<text x="274" y="1210" font-size="11" fill="#7a75a8">Relation</text>
+
 </svg>

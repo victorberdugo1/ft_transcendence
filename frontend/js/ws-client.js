@@ -154,8 +154,14 @@ setInterval(() => {
 
     ws.addEventListener('open', () => {
         setStatus('⬤ Connected');
-        const savedId = sessionStorage.getItem('clientId');
-        if (savedId) {
+        const savedId      = sessionStorage.getItem('clientId');
+        const wasSpectator = sessionStorage.getItem('isSpectator') === '1';
+        const watchTarget  = sessionStorage.getItem('watchSession') ?? null;
+
+        if (wasSpectator) {
+            // Rejoin as spectator watching the same session (or lobby)
+            ws.send(JSON.stringify({ type: 'watch', sessionId: watchTarget }));
+        } else if (savedId) {
             ws.send(JSON.stringify({ type: 'rejoin', clientId: parseInt(savedId, 10) }));
         }
     });
@@ -168,16 +174,65 @@ setInterval(() => {
             window._myClientId = msg.clientId;
             window._gameConfig = msg.config;
             sessionStorage.setItem('clientId', msg.clientId);
+            window._isSpectator = false;
+
+        } else if (msg.type === 'spectator_mode') {
+            // Server placed us (or we chose) into spectator mode
+            window._myClientId  = msg.clientId;
+            window._isSpectator = true;
+            window._spectatorMode = {
+                mode:             msg.mode,              // 'overflow' | 'voluntary'
+                watchingSession:  msg.watchingSession,   // sessionId or null (lobby)
+                activeSessions:   msg.activeSessions,    // array of session summaries
+            };
+            sessionStorage.setItem('clientId', msg.clientId);
+            sessionStorage.setItem('isSpectator', '1');
+            window.dispatchEvent(new CustomEvent('spectator_mode', { detail: window._spectatorMode }));
+
+        } else if (msg.type === 'spectator_session_changed') {
+            if (window._spectatorMode) {
+                window._spectatorMode.watchingSession = msg.watchingSession;
+            }
+            window.dispatchEvent(new CustomEvent('spectator_session_changed', { detail: msg }));
+
         } else if (msg.type === 'state') {
             window._gameState = msg;
             try { sessionStorage.setItem('gameState', JSON.stringify(msg)); } catch { /* quota */ }
+
+        } else if (msg.type === 'match_start') {
+            window._matchSession = {
+                sessionId:    msg.sessionId,
+                mode:         msg.mode,
+                tournamentId: msg.tournamentId ?? null,
+                round:        msg.round ?? null,
+            };
+            // Dispatch to React / HUD
+            window.dispatchEvent(new CustomEvent('match_start', { detail: window._matchSession }));
+
+        } else if (msg.type === 'match_end') {
+            const isWinner = msg.winner === window._myClientId;
+            window._lastMatchResult = { winner: msg.winner, loser: msg.loser, isWinner, matchId: msg.matchId };
+            window.dispatchEvent(new CustomEvent('match_end', { detail: window._lastMatchResult }));
+            window._matchSession = null;
+
+        } else if (msg.type === 'player_eliminated') {
+            window.dispatchEvent(new CustomEvent('player_eliminated', { detail: { clientId: msg.clientId } }));
+
+        } else if (msg.type === 'tournament_waiting') {
+            window.dispatchEvent(new CustomEvent('tournament_waiting', { detail: msg }));
+
+        } else if (msg.type === 'tournament_end') {
+            window._tournamentResult = msg;
+            window.dispatchEvent(new CustomEvent('tournament_end', { detail: msg }));
+
         } else {
             window._gameState = msg;
         }
     });
 
     ws.addEventListener('close', () => {
-        window._myClientId = -1;
+        window._myClientId  = -1;
+        window._isSpectator = false;
         setStatus('⬤ Disconnected — reconnecting…');
         setTimeout(connectWS, 2000);
     });
@@ -214,3 +269,38 @@ function sendInput(frame) {
 // Expose for legacy callers (Emscripten EM_JS bridge).
 window._sendInput = (moveX, jump, attack, dash, dashDir, crouch, block, dashAttack) =>
     sendInput({ moveX, jump, attack, dash, dashDir, crouch, block, dashAttack });
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  SPECTATOR API
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Switch to spectator mode voluntarily, optionally watching a specific session.
+ * Call this from the lobby / match-browser UI.
+ *
+ * @param {string|null} sessionId  – the sessionId to watch, or null for lobby view
+ *
+ * Usage examples:
+ *   watchSession('3');           // watch session 3
+ *   watchSession(null);          // lobby — see all sessions overview
+ */
+function watchSession(sessionId) {
+    if (!window._ws || window._ws.readyState !== WebSocket.OPEN) return;
+    window._ws.send(JSON.stringify({ type: 'watch', sessionId: sessionId ?? null }));
+}
+
+window.watchSession = watchSession;
+
+/**
+ * Fetch the list of active sessions from the REST API.
+ * Returns a Promise resolving to { sessions, lobbySpectators, totalSpectators }.
+ *
+ * Usage: const { sessions } = await fetchActiveSessions();
+ */
+async function fetchActiveSessions() {
+    const res = await fetch('/api/sessions');
+    if (!res.ok) throw new Error(`fetchActiveSessions: ${res.status}`);
+    return res.json();
+}
+
+window.fetchActiveSessions = fetchActiveSessions;

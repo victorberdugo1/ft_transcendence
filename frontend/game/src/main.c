@@ -174,6 +174,33 @@ EM_JS(int, ws_player_count, (void), {
 });
 
 /**
+ * Returns match overlay state:
+ *  0 = none  1 = winner (I won)  2 = loser (I lost)  3 = waiting for next match
+ * Writes a short message into buf (max len bytes).
+ */
+EM_JS(int, ws_get_match_overlay, (char *buf, int len), {
+    buf = buf | 0;
+    if (window._lastMatchResult && !window._matchResultConsumed) {
+        const r = window._lastMatchResult;
+        const msg = r.isWinner ? 'YOU WIN!' : 'YOU LOSE';
+        stringToUTF8(msg, buf, len);
+        return r.isWinner ? 1 : 2;
+    }
+    if (window._waitingForNextMatch) {
+        stringToUTF8('Waiting for next match...', buf, len);
+        return 3;
+    }
+    stringToUTF8('', buf, len);
+    return 0;
+});
+
+EM_JS(void, ws_consume_match_result, (void), {
+    window._lastMatchResult        = null;
+    window._matchResultConsumed    = true;
+    window._waitingForNextMatch    = false;
+});
+
+/**
  * Serialises player[idx] from the JS game-state into a pipe-delimited string.
  * Fields: id|x|y|rotation|animation|stocks|respawning|hitId|crouching|jumpId
  *        |voltage|blocking|voltageMaxed

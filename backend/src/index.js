@@ -37,12 +37,12 @@ const BCRYPT_ROUNDS   = 10;
 const SESSION_DAYS    = 7;
 const SESSION_COOKIE  = 'sid';
 
-/** Genera un token de sesión seguro (hex de 64 bytes = 128 caracteres). */
+/** Generates a secure session token (64-byte hex = 128 characters). */
 function generateToken() {
     return crypto.randomBytes(64).toString('hex');
 }
 
-/** Parsea la cookie sid de la cabecera Cookie. */
+/** Parses the sid cookie from the Cookie header. */
 function parseSidCookie(req) {
     const header = req.headers.cookie || '';
     for (const part of header.split(';')) {
@@ -53,8 +53,8 @@ function parseSidCookie(req) {
 }
 
 /**
- * Middleware: adjunta req.user si la cookie de sesión es válida.
- * No rechaza; las rutas protegidas llaman a requireAuth().
+ * Middleware: attaches req.user if the session cookie is valid.
+ * Does not reject; protected routes call requireAuth().
  */
 async function loadSession(req, res, next) {
     try {
@@ -75,7 +75,7 @@ async function loadSession(req, res, next) {
     next();
 }
 
-/** Middleware: rechaza con 401 si no hay sesión válida. */
+/** Middleware: rejects with 401 if there is no valid session. */
 function requireAuth(req, res, next) {
     if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
     next();
@@ -87,15 +87,15 @@ app.use(loadSession);
 //  AUTH ROUTES
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** POST /api/register – Registro de nuevo usuario. */
+/** POST /api/register – Register a new user. */
 app.post('/api/register', async (req, res) => {
     const { username, email, password } = req.body ?? {};
 
     if (!username || !email || !password)
-        return res.status(400).json({ error: 'username, email y password son obligatorios' });
+        return res.status(400).json({ error: 'username, email and password are required' });
 
     if (password.length < 8)
-        return res.status(400).json({ error: 'La contraseña debe tener al menos 8 caracteres' });
+        return res.status(400).json({ error: 'Password must be at least 8 characters' });
 
     try {
         const hash = await bcrypt.hash(password, BCRYPT_ROUNDS);
@@ -107,13 +107,13 @@ app.post('/api/register', async (req, res) => {
             [username.trim(), email.trim().toLowerCase(), hash]
         );
 
-        // Crear estadísticas vacías
+        // Create empty stats row for new user
         await db.query(
             'INSERT INTO user_stats (user_id) VALUES ($1) ON CONFLICT DO NOTHING',
             [rows[0].id]
         );
 
-        // Crear sesión automáticamente tras el registro
+        // Automatically create a session after registration
         const token     = generateToken();
         const expiresAt = new Date(Date.now() + SESSION_DAYS * 86_400_000);
         await db.query(
@@ -132,18 +132,18 @@ app.post('/api/register', async (req, res) => {
 
     } catch (err) {
         if (err.code === '23505') // unique_violation
-            return res.status(409).json({ error: 'Usuario o email ya existe' });
+            return res.status(409).json({ error: 'Username or email already exists' });
         console.error('[AUTH] register error:', err.message);
-        res.status(500).json({ error: 'Error interno' });
+        res.status(500).json({ error: 'Internal error' });
     }
 });
 
-/** POST /api/login – Inicio de sesión. */
+/** POST /api/login – Sign in. */
 app.post('/api/login', async (req, res) => {
     const { email, password } = req.body ?? {};
 
     if (!email || !password)
-        return res.status(400).json({ error: 'email y password son obligatorios' });
+        return res.status(400).json({ error: 'email and password are required' });
 
     try {
         const { rows } = await db.query(
@@ -152,10 +152,10 @@ app.post('/api/login', async (req, res) => {
         );
 
         const user = rows[0];
-        if (!user) return res.status(401).json({ error: 'Credenciales incorrectas' });
+        if (!user) return res.status(401).json({ error: 'Invalid credentials' });
 
         const match = await bcrypt.compare(password, user.password_hash);
-        if (!match)  return res.status(401).json({ error: 'Credenciales incorrectas' });
+        if (!match)  return res.status(401).json({ error: 'Invalid credentials' });
 
         const token     = generateToken();
         const expiresAt = new Date(Date.now() + SESSION_DAYS * 86_400_000);
@@ -164,7 +164,7 @@ app.post('/api/login', async (req, res) => {
             [token, user.id, expiresAt]
         );
 
-        // Marcar usuario como online
+        // Mark user as online
         await db.query('UPDATE users SET is_online = TRUE WHERE id = $1', [user.id]);
 
         res.cookie(SESSION_COOKIE, token, {
@@ -186,11 +186,11 @@ app.post('/api/login', async (req, res) => {
 
     } catch (err) {
         console.error('[AUTH] login error:', err.message);
-        res.status(500).json({ error: 'Error interno' });
+        res.status(500).json({ error: 'Internal error' });
     }
 });
 
-/** POST /api/logout – Cierra la sesión. */
+/** POST /api/logout – End the session. */
 app.post('/api/logout', requireAuth, async (req, res) => {
     const token = parseSidCookie(req);
     try {
@@ -203,13 +203,13 @@ app.post('/api/logout', requireAuth, async (req, res) => {
     res.json({ ok: true });
 });
 
-/** GET /api/me – Devuelve el usuario actual. */
+/** GET /api/me – Returns the current user. */
 app.get('/api/me', requireAuth, (req, res) => {
     res.json({ user: req.user });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  SIMULACIÓN CONSTANTS  (sin cambios)
+//  SIMULATION CONSTANTS
 // ─────────────────────────────────────────────────────────────────────────────
 const TICK_RATE = 60;
 const TICK_DT   = 1 / TICK_RATE;
@@ -299,9 +299,24 @@ const PLAYER_HEIGHT = 0.72;
 // ─────────────────────────────────────────────────────────────────────────────
 //  PLAYER REGISTRY
 // ─────────────────────────────────────────────────────────────────────────────
+const MAX_PLAYERS = 8;   // connections beyond this become spectators
+
 let nextClientId = 1;
 const players   = {};
 const lastState = {};
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  SPECTATOR REGISTRY
+// ─────────────────────────────────────────────────────────────────────────────
+/**
+ * spectators[clientId] = {
+ *   id, dbUserId, ws,
+ *   watchingSession: string|null,  // sessionId being watched (null = lobby mode)
+ *   mode: 'overflow'|'voluntary',
+ *   dbRowId: number|null,          // spectators table PK for updating left_at
+ * }
+ */
+const spectators = {};
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  WEBSOCKET UPGRADE
@@ -317,60 +332,172 @@ server.on('upgrade', (req, socket, head) => {
 // ─────────────────────────────────────────────────────────────────────────────
 //  CONNECTION HANDLER
 // ─────────────────────────────────────────────────────────────────────────────
-wss.on('connection', (ws) => {
-    let clientId = null;
+wss.on('connection', async (ws, req) => {
+    let clientId  = null;
+    let dbUserId  = null;
+    let isSpectator = false;
 
-    ws.once('message', (raw) => {
+    // Resolve DB user from session cookie on the upgrade request
+    try {
+        const cookieHeader = req.headers.cookie || '';
+        let token = null;
+        for (const part of cookieHeader.split(';')) {
+            const [k, v] = part.trim().split('=');
+            if (k === SESSION_COOKIE) { token = v; break; }
+        }
+        if (token) {
+            const { rows } = await db.query(
+                `SELECT user_id FROM sessions WHERE token = $1 AND expires_at > NOW()`,
+                [token]
+            );
+            if (rows.length) dbUserId = rows[0].user_id;
+        }
+    } catch (err) {
+        console.error('[WS] session resolve error:', err.message);
+    }
+
+    ws.once('message', async (raw) => {
         let msg;
         try { msg = JSON.parse(raw); } catch { msg = {}; }
 
-        if (msg.type === 'rejoin' && msg.clientId && !players[msg.clientId]) {
+        // ── Assign clientId ───────────────────────────────────────────────────
+        if (msg.type === 'rejoin' && msg.clientId && !players[msg.clientId] && !spectators[msg.clientId]) {
             clientId = msg.clientId;
             if (clientId >= nextClientId) nextClientId = clientId + 1;
         } else {
             clientId = nextClientId++;
         }
 
-        const saved = lastState[clientId];
-        if (saved) clearTimeout(saved.timer);
+        // ── Decide: player or spectator ───────────────────────────────────────
+        // Voluntary spectator: client sends { type: 'watch', sessionId? }
+        // Overflow spectator: no room for more players (> MAX_PLAYERS)
+        const activePlayers   = Object.keys(players).length;
+        const voluntaryWatch  = msg.type === 'watch';
+        isSpectator = voluntaryWatch || activePlayers >= MAX_PLAYERS;
 
-        players[clientId] = createPlayer(clientId, saved, ws);
-        delete lastState[clientId];
+        if (isSpectator) {
+            // ── SPECTATOR PATH ────────────────────────────────────────────────
+            const mode            = voluntaryWatch ? 'voluntary' : 'overflow';
+            const watchingSession = (voluntaryWatch && msg.sessionId)
+                ? msg.sessionId
+                : null;   // null = lobby (will receive all broadcasts)
 
-        ws.send(JSON.stringify({
-            type:     'init',
-            clientId,
-            config: {
-                attackRange:     ATTACK_RANGE,
-                attackRangeY:    ATTACK_RANGE_Y,
-                dashAttackRange: DASH_ATTACK_RANGE_X,
-            },
-        }));
+            spectators[clientId] = {
+                id: clientId,
+                dbUserId,
+                ws,
+                watchingSession,
+                mode,
+                dbRowId: null,
+            };
 
-        broadcastState();
-        console.log(`[SERVER] Player ${clientId} connected`);
+            // Persist to DB (best-effort)
+            try {
+                const sessionForDb = watchingSession ?? null;
+                const tournamentId = watchingSession
+                    ? (gameSessions.get(watchingSession)?.tournamentId ?? null)
+                    : null;
 
-        ws.on('message', (raw) => {
-            let msg;
-            try { msg = JSON.parse(raw); } catch { return; }
-            if (msg.type !== 'input') return;
+                const { rows: dbRows } = await db.query(
+                    `INSERT INTO spectators (user_id, session_id, tournament_id, mode)
+                     VALUES ($1, $2, $3, $4) RETURNING id`,
+                    [dbUserId, sessionForDb ?? 'lobby', tournamentId, mode]
+                );
+                spectators[clientId].dbRowId = dbRows[0]?.id ?? null;
+            } catch (err) {
+                console.error('[SPECTATOR] DB insert error:', err.message);
+            }
 
-            const p = players[clientId];
-            if (!p) return;
+            // Tell the client it's in spectator mode + send current state
+            ws.send(JSON.stringify({
+                type:     'spectator_mode',
+                clientId,
+                mode,
+                watchingSession,
+                activeSessions: listActiveSessions(),
+            }));
 
-            p.input.moveX      = msg.moveX      ?? 0;
-            p.input.jump       = !!msg.jump;
-            p.input.attack     = !!msg.attack;
-            p.input.dash       = !!msg.dash;
-            p.input.dashDir    = msg.dashDir     ?? 0;
-            p.input.crouch     = !!msg.crouch;
-            p.input.block      = !!msg.block;
-            p.input.dashAttack = !!msg.dashAttack;
-        });
+            // Send current game state immediately so the view isn't blank
+            sendStateToSpectator(spectators[clientId]);
+
+            console.log(`[SPECTATOR] Client ${clientId} connected as ${mode} spectator` +
+                        (watchingSession ? ` watching session ${watchingSession}` : ' (lobby)'));
+
+            // ── Spectator message loop ────────────────────────────────────────
+            ws.on('message', (raw2) => {
+                let m2;
+                try { m2 = JSON.parse(raw2); } catch { return; }
+
+                // Allow spectator to switch the session they're watching
+                if (m2.type === 'watch' && spectators[clientId]) {
+                    spectators[clientId].watchingSession = m2.sessionId ?? null;
+                    ws.send(JSON.stringify({
+                        type:     'spectator_session_changed',
+                        watchingSession: spectators[clientId].watchingSession,
+                    }));
+                    sendStateToSpectator(spectators[clientId]);
+                }
+                // All other messages (input, etc.) are silently ignored
+            });
+
+        } else {
+            // ── PLAYER PATH (original behaviour) ─────────────────────────────
+            const saved = lastState[clientId];
+            if (saved) clearTimeout(saved.timer);
+
+            players[clientId] = createPlayer(clientId, saved, ws);
+            players[clientId].dbUserId = dbUserId;
+            delete lastState[clientId];
+
+            ws.send(JSON.stringify({
+                type:     'init',
+                clientId,
+                config: {
+                    attackRange:     ATTACK_RANGE,
+                    attackRangeY:    ATTACK_RANGE_Y,
+                    dashAttackRange: DASH_ATTACK_RANGE_X,
+                },
+            }));
+
+            broadcastState();
+            console.log(`[SERVER] Player ${clientId} connected (${activePlayers + 1}/${MAX_PLAYERS})`);
+
+            ws.on('message', (raw2) => {
+                let m2;
+                try { m2 = JSON.parse(raw2); } catch { return; }
+                if (m2.type !== 'input') return;
+
+                const p = players[clientId];
+                if (!p) return;
+
+                p.input.moveX      = m2.moveX      ?? 0;
+                p.input.jump       = !!m2.jump;
+                p.input.attack     = !!m2.attack;
+                p.input.dash       = !!m2.dash;
+                p.input.dashDir    = m2.dashDir     ?? 0;
+                p.input.crouch     = !!m2.crouch;
+                p.input.block      = !!m2.block;
+                p.input.dashAttack = !!m2.dashAttack;
+            });
+        }
     });
 
-    ws.on('close', () => {
-        if (clientId === null || !players[clientId]) return;
+    ws.on('close', async () => {
+        if (clientId === null) return;
+
+        if (isSpectator && spectators[clientId]) {
+            const spec = spectators[clientId];
+            // Update left_at in DB
+            if (spec.dbRowId) {
+                db.query(`UPDATE spectators SET left_at = NOW() WHERE id = $1`, [spec.dbRowId])
+                  .catch(err => console.error('[SPECTATOR] left_at update error:', err.message));
+            }
+            delete spectators[clientId];
+            console.log(`[SPECTATOR] Client ${clientId} disconnected`);
+            return;
+        }
+
+        if (!players[clientId]) return;
 
         const p = players[clientId];
         lastState[clientId] = {
@@ -380,6 +507,7 @@ wss.on('connection', (ws) => {
             timer:    setTimeout(() => delete lastState[clientId], GHOST_TTL),
         };
         delete players[clientId];
+        playerSession.delete(clientId);
         console.log(`[SERVER] Player ${clientId} disconnected`);
         broadcastState();
     });
@@ -396,6 +524,7 @@ function createPlayer(id, saved, ws) {
 
     return {
         id,
+        dbUserId: null,    // set after createPlayer() by connection handler
         x:  saved ? saved.x : spawnX,
         y:  saved ? saved.y : GROUND_Y,
         vx: 0, vy: 0,
@@ -775,7 +904,11 @@ function tickPlatforms(alive) {
 
         if (outOfBounds) {
             p.stocks = Math.max(0, p.stocks - 1);
-            if (p.stocks === 0) p.stocks = 3;   // TODO: game-over logic
+
+            if (p.stocks === 0) {
+                handleElimination(p);
+                return;   // player removed from game — skip respawn
+            }
 
             Object.assign(p, {
                 respawning:   true,
@@ -811,6 +944,72 @@ function decideAnim(p) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+//  SPECTATOR HELPERS
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Returns a summary of all active game sessions (for the spectator lobby). */
+function listActiveSessions() {
+    const result = [];
+    for (const [id, sess] of gameSessions.entries()) {
+        const spectatorCount = Object.values(spectators)
+            .filter(s => s.watchingSession === id).length;
+        result.push({
+            sessionId:    id,
+            mode:         sess.mode,
+            tournamentId: sess.tournamentId ?? null,
+            round:        sess.round        ?? null,
+            playerIds:    [...sess.playerIds],
+            startedAt:    sess.startedAt,
+            spectators:   spectatorCount,
+        });
+    }
+    return result;
+}
+
+/**
+ * Send the current game state to a single spectator.
+ * If they're watching a specific session, only send that session's players;
+ * otherwise send all players (lobby/overview mode).
+ */
+function sendStateToSpectator(spec) {
+    if (!spec.ws || spec.ws.readyState !== WebSocket.OPEN) return;
+
+    const snapshot = {};
+    const sessionIds = spec.watchingSession
+        ? new Set(gameSessions.get(spec.watchingSession)?.playerIds ?? [])
+        : null;   // null = send everyone
+
+    for (const [id, p] of Object.entries(players)) {
+        if (sessionIds && !sessionIds.has(Number(id))) continue;
+        snapshot[id] = {
+            id:           p.id,
+            x:            +p.x.toFixed(3),
+            y:            +p.y.toFixed(3),
+            rotation:     p.facing === -1 ? Math.PI : 0,
+            animation:    p.animation,
+            onGround:     p.onGround,
+            stocks:       p.stocks,
+            respawning:   p.respawning,
+            crouching:    p.crouching,
+            hitId:        p.hitId,
+            jumpId:       p.jumpId,
+            voltage:      +p.voltage.toFixed(1),
+            voltageMaxed: p.voltageMaxed,
+            blocking:     p.blocking,
+        };
+    }
+
+    spec.ws.send(JSON.stringify({ type: 'state', players: snapshot }));
+}
+
+/** Broadcast state updates to all spectators as well as players. */
+function broadcastStateToSpectators() {
+    for (const spec of Object.values(spectators)) {
+        sendStateToSpectator(spec);
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 //  STATE BROADCAST
 // ─────────────────────────────────────────────────────────────────────────────
 function broadcastState() {
@@ -836,10 +1035,599 @@ function broadcastState() {
     }
 
     const msg = JSON.stringify({ type: 'state', players: snapshot });
+
+    // Send to active players
     for (const p of Object.values(players)) {
         if (p.ws.readyState === WebSocket.OPEN) p.ws.send(msg);
     }
+
+    // Send to spectators (filtered per session)
+    broadcastStateToSpectators();
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  GAME MODES
+// ─────────────────────────────────────────────────────────────────────────────
+/**
+ * Active game sessions. Key = sessionId (string).
+ * Each session:
+ *   { id, mode: '1v1'|'tournament', playerIds: Set<clientId>,
+ *     eliminated: Set<clientId>,
+ *     tournamentId: number|null,
+ *     round: number,
+ *     matchDbId: number|null,
+ *     startedAt: Date }
+ */
+const gameSessions = new Map();
+let nextSessionId = 1;
+
+/**
+ * Maps clientId → sessionId so a player can be looked up quickly.
+ */
+const playerSession = new Map();
+
+// ─── 1v1 ─────────────────────────────────────────────────────────────────────
+
+/** Start a 1v1 match between two connected clientIds. */
+function startDuel(clientId1, clientId2) {
+    const id = String(nextSessionId++);
+    const session = {
+        id,
+        mode: '1v1',
+        playerIds: new Set([clientId1, clientId2]),
+        eliminated: new Set(),
+        tournamentId: null,
+        round: null,
+        matchDbId: null,
+        startedAt: new Date(),
+    };
+    gameSessions.set(id, session);
+    playerSession.set(clientId1, id);
+    playerSession.set(clientId2, id);
+
+    // Reset both players to full stocks
+    for (const cid of [clientId1, clientId2]) {
+        const p = players[cid];
+        if (p) p.stocks = 3;
+    }
+
+    broadcastToSession(session, { type: 'match_start', mode: '1v1', sessionId: id });
+    console.log(`[GAME] 1v1 started: session ${id} — players ${clientId1} vs ${clientId2}`);
+    return session;
+}
+
+// ─── TOURNAMENT ───────────────────────────────────────────────────────────────
+
+/**
+ * Create a tournament in the DB and kick off round 1.
+ * @param {number[]} clientIds   – exactly 8 (or 4, or 2) connected clientIds
+ * @param {number}   creatorDbId – users.id of the creator
+ */
+async function startTournament(clientIds, creatorDbId) {
+    if (clientIds.length < 2) throw new Error('Need at least 2 players for a tournament');
+
+    // Power-of-2 bracket only
+    const sizes = [2, 4, 8];
+    const bracketSize = sizes.find(s => s >= clientIds.length) ?? 8;
+
+    const { rows } = await db.query(
+        `INSERT INTO tournaments (name, status, created_by)
+         VALUES ($1, 'ongoing', $2) RETURNING id`,
+        [`Tournament #${nextSessionId}`, creatorDbId]
+    );
+    const tournamentId = rows[0].id;
+
+    // Register all participants
+    for (const cid of clientIds) {
+        const p = players[cid];
+        if (p?.dbUserId) {
+            await db.query(
+                `INSERT INTO tournament_players (tournament_id, user_id)
+                 VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+                [tournamentId, p.dbUserId]
+            );
+        }
+    }
+
+    // Shuffle and pair for round 1
+    const shuffled = [...clientIds].sort(() => Math.random() - 0.5);
+    const pairs     = [];
+    for (let i = 0; i < shuffled.length - 1; i += 2) {
+        pairs.push([shuffled[i], shuffled[i + 1]]);
+    }
+
+    console.log(`[TOURNAMENT] id=${tournamentId} — ${pairs.length} matches in round 1`);
+
+    for (const [a, b] of pairs) {
+        const sess = await startTournamentMatch(a, b, tournamentId, 1);
+        console.log(`[TOURNAMENT] Round 1 match: ${a} vs ${b} → session ${sess.id}`);
+    }
+
+    return tournamentId;
+}
+
+/** Start a single tournament match between two players. */
+async function startTournamentMatch(clientId1, clientId2, tournamentId, round) {
+    const id = String(nextSessionId++);
+    const session = {
+        id,
+        mode: 'tournament',
+        playerIds: new Set([clientId1, clientId2]),
+        eliminated: new Set(),
+        tournamentId,
+        round,
+        matchDbId: null,
+        startedAt: new Date(),
+    };
+    gameSessions.set(id, session);
+    playerSession.set(clientId1, id);
+    playerSession.set(clientId2, id);
+
+    for (const cid of [clientId1, clientId2]) {
+        const p = players[cid];
+        if (p) p.stocks = 3;
+    }
+
+    broadcastToSession(session, {
+        type: 'match_start',
+        mode: 'tournament',
+        sessionId: id,
+        tournamentId,
+        round,
+    });
+
+    return session;
+}
+
+// ─── ELIMINATION ─────────────────────────────────────────────────────────────
+
+/**
+ * Called when a player reaches 0 stocks.
+ * Handles session bookkeeping, DB writes, and tournament advancement.
+ */
+function handleElimination(loser) {
+    const sessionId = playerSession.get(loser.id);
+    const session   = sessionId ? gameSessions.get(sessionId) : null;
+
+    // Snapshot the loser's DB identity and remaining stocks BEFORE removing from players[].
+    // resolveMatchWinner() needs these after the player object is gone.
+    if (session) {
+        session.eliminated.add(loser.id);
+        session.loserDbId    = loser.dbUserId ?? null;
+        session.loserStocks  = loser.stocks   ?? 0;
+    }
+    delete players[loser.id];
+    playerSession.delete(loser.id);
+
+    broadcastState();
+    broadcastToAll({ type: 'player_eliminated', clientId: loser.id });
+
+    if (!session) return;
+
+    const remaining = [...session.playerIds].filter(id => !session.eliminated.has(id));
+
+    if (remaining.length === 1) {
+        // We have a winner for this match
+        const winnerId = remaining[0];
+        resolveMatchWinner(session, winnerId, loser.id);
+    }
+}
+
+/** Persist the match result and, for tournaments, advance the bracket. */
+async function resolveMatchWinner(session, winnerClientId, loserClientId) {
+    const winner     = players[winnerClientId];
+    const winnerDbId = winner?.dbUserId ?? null;
+    // loserDbId and loserStocks were captured by handleElimination() before
+    // the loser was removed from players[], so they are always available here.
+    const loserDbId   = session.loserDbId   ?? null;
+    const loserStocks = session.loserStocks  ?? 0;
+
+    try {
+        // ── Persist match to DB ─────────────────────────────────────────────
+        const { rows } = await db.query(
+            `INSERT INTO matches
+               (player1_id, player2_id, winner_id, score1, score2, game_type)
+             VALUES ($1, $2, $3, $4, $5, $6)
+             RETURNING id`,
+            [winnerDbId, loserDbId, winnerDbId,
+             winner?.stocks ?? 0, loserStocks,
+             session.mode === 'tournament' ? 'tournament' : 'brawler']
+        );
+        session.matchDbId = rows[0].id;
+
+        // ── Link to tournament_matches if applicable ────────────────────────
+        if (session.tournamentId && session.matchDbId) {
+            await db.query(
+                `INSERT INTO tournament_matches (tournament_id, match_id, round)
+                 VALUES ($1, $2, $3)`,
+                [session.tournamentId, session.matchDbId, session.round]
+            );
+        }
+
+        // ── Update user_stats ───────────────────────────────────────────────
+        if (winnerDbId) {
+            await db.query(
+                `UPDATE user_stats
+                 SET wins  = wins + 1,
+                     xp    = xp + 100,
+                     level = GREATEST(level, FLOOR(SQRT((xp + 100) / 50.0))::int),
+                     updated_at = NOW()
+                 WHERE user_id = $1`,
+                [winnerDbId]
+            );
+            await checkAndGrantAchievements(winnerDbId);
+        }
+        if (loserDbId) {
+            await db.query(
+                `UPDATE user_stats
+                 SET losses = losses + 1,
+                     updated_at = NOW()
+                 WHERE user_id = $1`,
+                [loserDbId]
+            );
+        }
+
+    } catch (err) {
+        console.error('[GAME] DB write error on match resolve:', err.message);
+    }
+
+    // ── Notify clients ───────────────────────────────────────────────────────
+    broadcastToSession(session, {
+        type:     'match_end',
+        winner:   winnerClientId,
+        loser:    loserClientId,
+        matchId:  session.matchDbId,
+        mode:     session.mode,
+    });
+
+    console.log(`[GAME] Match resolved — winner: ${winnerClientId}, session: ${session.id}`);
+
+    // ── Tournament bracket advancement ───────────────────────────────────────
+    if (session.mode === 'tournament') {
+        advanceTournament(session.tournamentId, winnerClientId);
+    }
+
+    // Clean up session
+    gameSessions.delete(session.id);
+}
+
+/**
+ * Check if there are enough tournament winners waiting for the next round,
+ * and start the next round's matches when ready.
+ */
+async function advanceTournament(tournamentId, newWinnerId) {
+    // Collect winners waiting for next round (not yet in a session)
+    if (!tournamentWaitingWinners) tournamentWaitingWinners = {};
+    if (!tournamentWaitingWinners[tournamentId]) {
+        tournamentWaitingWinners[tournamentId] = [];
+    }
+    tournamentWaitingWinners[tournamentId].push(newWinnerId);
+
+    const waiting = tournamentWaitingWinners[tournamentId];
+
+    if (waiting.length < 2) {
+        // Not enough winners yet to form a new match
+        broadcastToAll({
+            type: 'tournament_waiting',
+            tournamentId,
+            waitingCount: waiting.length,
+        });
+        return;
+    }
+
+    // Determine round number from DB
+    const { rows: roundRows } = await db.query(
+        `SELECT MAX(round) AS max_round FROM tournament_matches WHERE tournament_id = $1`,
+        [tournamentId]
+    );
+    const nextRound = (roundRows[0].max_round ?? 0) + 1;
+
+    // Pair waiting winners into new matches
+    while (waiting.length >= 2) {
+        const [a, b] = waiting.splice(0, 2);
+        const sess   = await startTournamentMatch(a, b, tournamentId, nextRound);
+        console.log(`[TOURNAMENT] Round ${nextRound}: ${a} vs ${b} → session ${sess.id}`);
+    }
+
+    // If exactly 1 winner remains it's the tournament champion
+    if (waiting.length === 1) {
+        const champion = waiting.splice(0, 1)[0];
+        await finalizeTournament(tournamentId, champion);
+    }
+}
+
+/** A single player remains — mark tournament finished. */
+async function finalizeTournament(tournamentId, championClientId) {
+    const champion = players[championClientId];
+    try {
+        await db.query(
+            `UPDATE tournaments SET status = 'finished' WHERE id = $1`,
+            [tournamentId]
+        );
+        if (champion?.dbUserId) {
+            // Grant extra XP for winning the tournament
+            await db.query(
+                `UPDATE user_stats
+                 SET xp = xp + 500,
+                     level = GREATEST(level, FLOOR(SQRT((xp + 500) / 50))::int),
+                     updated_at = NOW()
+                 WHERE user_id = $1`,
+                [champion.dbUserId]
+            );
+        }
+    } catch (err) {
+        console.error('[TOURNAMENT] finalize error:', err.message);
+    }
+
+    broadcastToAll({
+        type:            'tournament_end',
+        tournamentId,
+        champion:        championClientId,
+        championDbId:    champion?.dbUserId ?? null,
+    });
+
+    delete tournamentWaitingWinners[tournamentId];
+    console.log(`[TOURNAMENT] ${tournamentId} finished — champion: ${championClientId}`);
+}
+
+// Keyed by tournamentId → array of clientIds waiting for their next match
+let tournamentWaitingWinners = {};
+
+// ─── ACHIEVEMENTS ─────────────────────────────────────────────────────────────
+
+async function checkAndGrantAchievements(dbUserId) {
+    try {
+        const { rows: stats } = await db.query(
+            'SELECT wins FROM user_stats WHERE user_id = $1',
+            [dbUserId]
+        );
+        if (!stats.length) return;
+        const { wins } = stats[0];
+
+        const toGrant = [];
+        if (wins >= 1)  toGrant.push('first_win');
+        if (wins >= 10) toGrant.push('veteran');
+
+        for (const key of toGrant) {
+            await db.query(
+                `INSERT INTO user_achievements (user_id, achievement_id)
+                 SELECT $1, id FROM achievements WHERE key = $2
+                 ON CONFLICT DO NOTHING`,
+                [dbUserId, key]
+            );
+        }
+    } catch (err) {
+        console.error('[ACH] error:', err.message);
+    }
+}
+
+// ─── BROADCAST HELPERS ────────────────────────────────────────────────────────
+
+function broadcastToSession(session, msg) {
+    const raw = JSON.stringify(msg);
+    // Send to players in the session
+    for (const cid of session.playerIds) {
+        const p = players[cid];
+        if (p?.ws?.readyState === WebSocket.OPEN) p.ws.send(raw);
+    }
+    // Also send to spectators watching this session
+    for (const spec of Object.values(spectators)) {
+        if (spec.watchingSession === session.id && spec.ws.readyState === WebSocket.OPEN) {
+            spec.ws.send(raw);
+        }
+    }
+}
+
+function broadcastToAll(msg) {
+    const raw = JSON.stringify(msg);
+    for (const p of Object.values(players)) {
+        if (p.ws?.readyState === WebSocket.OPEN) p.ws.send(raw);
+    }
+    // Spectators also get global events (eliminations, tournament updates)
+    for (const spec of Object.values(spectators)) {
+        if (spec.ws?.readyState === WebSocket.OPEN) spec.ws.send(raw);
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  GAME MODE REST ENDPOINTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** POST /api/duel  – Start a 1v1 between two clientIds.
+ *  Body: { clientId1: number, clientId2: number }
+ */
+app.post('/api/duel', requireAuth, (req, res) => {
+    const { clientId1, clientId2 } = req.body ?? {};
+    if (!clientId1 || !clientId2 || clientId1 === clientId2)
+        return res.status(400).json({ error: 'Two distinct clientIds are required' });
+    if (!players[clientId1] || !players[clientId2])
+        return res.status(404).json({ error: 'One or both players are not connected' });
+
+    const session = startDuel(clientId1, clientId2);
+    res.json({ sessionId: session.id });
+});
+
+/** POST /api/tournament – Start a tournament.
+ *  Body: { clientIds: number[] }  (2, 4 or 8 elements)
+ */
+app.post('/api/tournament', requireAuth, async (req, res) => {
+    const { clientIds } = req.body ?? {};
+    if (!Array.isArray(clientIds) || clientIds.length < 2)
+        return res.status(400).json({ error: 'At least 2 players are required' });
+    for (const cid of clientIds) {
+        if (!players[cid])
+            return res.status(404).json({ error: `Player ${cid} is not connected` });
+    }
+
+    try {
+        const tournamentId = await startTournament(clientIds, req.user.user_id);
+        res.json({ tournamentId });
+    } catch (err) {
+        console.error('[API] tournament error:', err.message);
+        res.status(500).json({ error: 'Internal error creating tournament' });
+    }
+});
+
+/** GET /api/tournament/:id – Get bracket status. */
+app.get('/api/tournament/:id', requireAuth, async (req, res) => {
+    const id = parseInt(req.params.id);
+    try {
+        const { rows: tournament } = await db.query(
+            'SELECT * FROM tournaments WHERE id = $1', [id]
+        );
+        if (!tournament.length) return res.status(404).json({ error: 'Tournament not found' });
+
+        const { rows: participants } = await db.query(
+            `SELECT tp.user_id, tp.eliminated, u.username, u.avatar_url
+             FROM tournament_players tp
+             JOIN users u ON u.id = tp.user_id
+             WHERE tp.tournament_id = $1`, [id]
+        );
+        const { rows: tMatches } = await db.query(
+            `SELECT tm.round, tm.match_id, m.winner_id, m.score1, m.score2,
+                    m.player1_id, m.player2_id
+             FROM tournament_matches tm
+             JOIN matches m ON m.id = tm.match_id
+             WHERE tm.tournament_id = $1
+             ORDER BY tm.round, tm.id`, [id]
+        );
+
+        res.json({ tournament: tournament[0], participants, matches: tMatches });
+    } catch (err) {
+        console.error('[API] tournament fetch error:', err.message);
+        res.status(500).json({ error: 'Internal error' });
+    }
+});
+
+/** GET /api/leaderboard – Top 10 by wins. */
+app.get('/api/leaderboard', async (req, res) => {
+    try {
+        const { rows } = await db.query(
+            `SELECT u.username, u.avatar_url, s.wins, s.losses, s.xp, s.level
+             FROM user_stats s
+             JOIN users u ON u.id = s.user_id
+             ORDER BY s.wins DESC, s.xp DESC
+             LIMIT 10`
+        );
+        res.json({ leaderboard: rows });
+    } catch (err) {
+        res.status(500).json({ error: 'Internal error' });
+    }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  DEV HELPERS  — remove or gate behind NODE_ENV before going to production
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * GET /api/players
+ * Returns the list of currently connected WebSocket clients.
+ * Useful for picking clientIds to pass to /api/duel or /api/tournament.
+ *
+ * Response: { players: [ { clientId, dbUserId, inSession } ], spectatorCount }
+ */
+app.get('/api/players', (req, res) => {
+    const list = Object.values(players).map(p => ({
+        clientId:  p.id,
+        dbUserId:  p.dbUserId ?? null,
+        inSession: playerSession.has(p.id),
+    }));
+    res.json({ players: list, spectatorCount: Object.keys(spectators).length });
+});
+
+/**
+ * GET /api/sessions
+ * Lists all active game sessions — used by the spectator lobby UI.
+ * Public — no auth required.
+ *
+ * Response: { sessions: [...], lobbySpectators: number, totalSpectators: number }
+ */
+app.get('/api/sessions', (req, res) => {
+    const lobbySpectators = Object.values(spectators)
+        .filter(s => s.watchingSession === null).length;
+
+    res.json({
+        sessions:        listActiveSessions(),
+        lobbySpectators,
+        totalSpectators: Object.keys(spectators).length,
+    });
+});
+
+/**
+ * GET /api/spectators/:sessionId
+ * Returns the DB history of who watched a specific session (past + current).
+ * Requires auth.
+ *
+ * Response: { spectators: [...] }
+ */
+app.get('/api/spectators/:sessionId', requireAuth, async (req, res) => {
+    const { sessionId } = req.params;
+    try {
+        const { rows } = await db.query(
+            `SELECT sp.id, sp.user_id, u.username, u.avatar_url,
+                    sp.mode, sp.joined_at, sp.left_at
+             FROM spectators sp
+             LEFT JOIN users u ON u.id = sp.user_id
+             WHERE sp.session_id = $1
+             ORDER BY sp.joined_at`,
+            [sessionId]
+        );
+        res.json({ spectators: rows });
+    } catch (err) {
+        console.error('[API] spectators fetch error:', err.message);
+        res.status(500).json({ error: 'Internal error' });
+    }
+});
+
+/**
+ * POST /api/dev/duel
+ * Starts a 1v1 between ALL connected players that are not already in a session.
+ * Pairs them in connection order; any leftover player waits.
+ * No auth required — for local development only.
+ *
+ * Response: { sessions: [ sessionId, ... ] }
+ */
+app.post('/api/dev/duel', (req, res) => {
+    const free = Object.values(players)
+        .filter(p => !playerSession.has(p.id))
+        .map(p => p.id);
+
+    if (free.length < 2)
+        return res.status(400).json({ error: 'Need at least 2 players not already in a session' });
+
+    const sessions = [];
+    for (let i = 0; i + 1 < free.length; i += 2) {
+        const sess = startDuel(free[i], free[i + 1]);
+        sessions.push(sess.id);
+    }
+    res.json({ sessions });
+});
+
+/**
+ * POST /api/dev/tournament
+ * Starts a tournament with ALL connected players that are not already in a session.
+ * No auth required — for local development only.
+ *
+ * Response: { tournamentId }
+ */
+app.post('/api/dev/tournament', async (req, res) => {
+    const free = Object.values(players)
+        .filter(p => !playerSession.has(p.id))
+        .map(p => p.id);
+
+    if (free.length < 2)
+        return res.status(400).json({ error: 'Need at least 2 players not already in a session' });
+
+    try {
+        // Use id=0 as the creator when no authenticated user is present
+        const creatorDbId = req.user?.user_id ?? null;
+        const tournamentId = await startTournament(free, creatorDbId);
+        res.json({ tournamentId });
+    } catch (err) {
+        console.error('[DEV] tournament error:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  HTTP SERVER

@@ -112,6 +112,22 @@ CREATE TABLE IF NOT EXISTS user_achievements (
     PRIMARY KEY (user_id, achievement_id)
 );
 
+-- ─── Espectadores ─────────────────────────────────────────
+-- Registra quién está viendo qué sesión de juego y cómo llegó
+-- (overflow = llegó tarde y fue redirigido; voluntary = eligió ver)
+CREATE TABLE IF NOT EXISTS spectators (
+    id            SERIAL PRIMARY KEY,
+    user_id       INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    session_id    VARCHAR(50) NOT NULL,          -- gameSessions key (string)
+    tournament_id INTEGER REFERENCES tournaments(id) ON DELETE SET NULL,
+    mode          VARCHAR(20) DEFAULT 'overflow',-- 'overflow' | 'voluntary'
+    joined_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    left_at       TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_spectators_session ON spectators(session_id);
+CREATE INDEX IF NOT EXISTS idx_spectators_user    ON spectators(user_id);
+
 -- ─── Notificaciones ───────────────────────────────────────
 CREATE TABLE IF NOT EXISTS notifications (
     id         SERIAL PRIMARY KEY,

@@ -9,8 +9,8 @@
 <!-- TODO: brief description of the project -->
 
 Key features:
-- Web-based game built with Raylib compiled to WebAssembly
-- Real-time multiplayer via WebSocket
+- Web-based brawler game ("Voltage Fighter") built with Raylib compiled to WebAssembly
+- Real-time multiplayer via WebSocket (60 Hz authoritative server loop)
 - React frontend + Express backend + PostgreSQL database
 - Fully containerized with Docker
 
@@ -31,7 +31,7 @@ make setup      # Creates .env from .env.example — edit it before continuing
 make wasm       # First time only: ~15 min (compiles Raylib → WASM, then starts everything)
 ```
 
-Open https://localhost in browser and accept the self-signed certificate.
+Open https://localhost in your browser and accept the self-signed certificate.
 
 ### Make commands
 
@@ -55,7 +55,7 @@ Open https://localhost in browser and accept the self-signed certificate.
 
 **Frontend** — React 18 (Vite), with Raylib compiled to WebAssembly via Emscripten. React handles all UI (menus, routing, HUD). The game runs inside a `<canvas>` element rendered by React. The canvas resolution is calculated from the actual viewport size at load time, and a debounced resize listener reloads the page to recalculate it. Changes to React components do not require recompilation. Changes to `main.c` require `make wasm`. Changes to `ws-client.js` or any file under `frontend/js/` and `backend/src/` are served live via Docker volume mounts — `make up` is enough.
 
-**Backend** — Node.js with Express. Handles the game loop, physics, WebSocket connections, and all REST endpoints under `/api/*`. Authentication uses `bcrypt` (password hashing, 10 rounds) and opaque session tokens stored in PostgreSQL. Nodemon reloads the server automatically on file save.
+**Backend** — Node.js with Express. Runs the authoritative game loop at 60 Hz, handling physics, WebSocket connections, and all REST endpoints under `/api/*`. Authentication uses `bcrypt` (password hashing, 10 rounds) and opaque session tokens stored in PostgreSQL. Nodemon reloads the server automatically on file save.
 
 **Database** — PostgreSQL. Schema defined in `database/init.sql`, applied on first volume creation. To reset: `make clean && make wasm`.
 
@@ -80,11 +80,11 @@ nginx :443 (HTTPS/TLS termination)
                   PostgreSQL
 ```
 
-The backend is the source of truth. React mounts the UI and the game canvas. The WASM module only renders and sends inputs.
+The backend is the source of truth. React mounts the UI and the game canvas. The WASM module only renders and forwards inputs.
 
 ```
 Backend (Express)             Frontend (React + Raylib WASM)
-  game loop                     React renders the canvas
+  game loop (60 Hz)             React renders the canvas
   physics calculation ──WS──▶   ws-client.js receives state
   sends state         ◀──WS──   sends keyboard input
 ```
@@ -140,20 +140,21 @@ Full ERD with all relationships:
 
 | Table | Purpose | Key columns |
 |---|---|---|
-| `users` | Cuenta de usuario | `id`, `username`, `email`, `password_hash` (bcrypt), `role`, `is_online` |
-| `sessions` | Tokens de sesión (auth) | `token` PK, `user_id` FK, `expires_at` (7 días) |
-| `user_stats` | Estadísticas de juego | `user_id` PK, `wins`, `losses`, `xp`, `level` |
-| `friendships` | Sistema de amigos | `user_id`, `friend_id`, `status` (`pending`/`accepted`/`blocked`) |
-| `messages` | Chat directo | `sender_id`, `receiver_id`, `content`, `is_read` |
-| `matches` | Historial de partidas | `player1_id`, `player2_id`, `winner_id`, `score1`, `score2` |
-| `tournaments` | Torneos | `name`, `status` (`open`/`ongoing`/`finished`), `created_by` |
-| `tournament_players` | Participantes de torneo | `tournament_id`, `user_id`, `eliminated` |
-| `tournament_matches` | Partidas de torneo | `tournament_id`, `match_id`, `round` |
-| `achievements` | Catálogo de logros | `key`, `name`, `description` |
-| `user_achievements` | Logros desbloqueados | `user_id`, `achievement_id`, `earned_at` |
-| `notifications` | Notificaciones in-app | `user_id`, `type`, `payload` (JSONB), `is_read` |
+| `users` | User accounts | `id`, `username`, `email`, `password_hash` (bcrypt), `role`, `is_online` |
+| `sessions` | Session tokens (auth) | `token` PK, `user_id` FK, `expires_at` (7 days) |
+| `user_stats` | Game statistics | `user_id` PK, `wins`, `losses`, `xp`, `level` |
+| `friendships` | Friends system | `user_id`, `friend_id`, `status` (`pending`/`accepted`/`blocked`) |
+| `messages` | Direct chat | `sender_id`, `receiver_id`, `content`, `is_read` |
+| `matches` | Match history | `player1_id`, `player2_id`, `winner_id`, `score1`, `score2` |
+| `tournaments` | Tournaments | `name`, `status` (`open`/`ongoing`/`finished`), `created_by` |
+| `tournament_players` | Tournament participants | `tournament_id`, `user_id`, `eliminated` |
+| `tournament_matches` | Tournament rounds | `tournament_id`, `match_id`, `round` |
+| `achievements` | Achievement catalogue | `key`, `name`, `description` |
+| `user_achievements` | Unlocked achievements | `user_id`, `achievement_id`, `earned_at` |
+| `notifications` | In-app notifications | `user_id`, `type`, `payload` (JSONB), `is_read` |
+| `spectators` | Spectator sessions | `user_id` FK, `session_id`, `tournament_id` FK, `mode` (`overflow`/`voluntary`), `joined_at`, `left_at` |
 
-**Relaciones principales:** `users` es la tabla central — `sessions`, `user_stats`, `friendships`, `messages`, `matches`, `notifications` y `user_achievements` todas referencian a `users`. Los torneos se componen de `tournaments` → `tournament_players` (quién participa) y `tournament_matches` (qué partidas pertenecen a cada ronda).
+**Key relationships:** `users` is the central table — `sessions`, `user_stats`, `friendships`, `messages`, `matches`, `notifications`, `user_achievements`, and `spectators` all reference it. Tournaments are composed of `tournaments` → `tournament_players` (who participates) and `tournament_matches` (which matches belong to each round). The `spectators` table tracks both overflow connections (slot limit reached) and voluntary viewers who choose to watch a live match.
 
 ---
 
@@ -165,8 +166,8 @@ Four ready-to-use endpoints. Sessions are stored in the `sessions` table and del
 |---|---|---|---|
 | POST | `/api/register` | No | Creates user + starts session |
 | POST | `/api/login` | No | Validates password + starts session |
-| POST | `/api/logout` | Yes | Deletes session + marks offline |
-| GET | `/api/me` | Yes | Returns current user object |
+| POST | `/api/logout` | Yes | Deletes session + marks user offline |
+| GET | `/api/me` | Yes | Returns the current user object |
 
 **Register / Login body:**
 ```json
@@ -177,6 +178,73 @@ Four ready-to-use endpoints. Sessions are stored in the `sessions` table and del
 ```json
 { "user": { "id": 1, "username": "alice", "email": "...", "avatar_url": "...", "role": "user" } }
 ```
+
+---
+
+## Game Modes API
+
+Two additional endpoints manage matches and tournaments. Both require authentication.
+
+| Method | Route | Auth required | Description |
+|---|---|---|---|
+| POST | `/api/duel` | Yes | Starts a 1v1 match between two connected clients |
+| POST | `/api/tournament` | Yes | Creates and starts a tournament bracket |
+| GET | `/api/tournament/:id` | Yes | Returns bracket status, participants, and round results |
+| GET | `/api/leaderboard` | No | Returns the top 10 players by wins |
+| GET | `/api/sessions` | No | Lists all active game sessions (used by the spectator lobby) |
+| GET | `/api/spectators/:sessionId` | Yes | Returns the history of who watched a given session |
+
+**Duel body:**
+```json
+{ "clientId1": 1, "clientId2": 2 }
+```
+
+**Tournament body:**
+```json
+{ "clientIds": [1, 2, 3, 4] }
+```
+Accepts 2, 4, or 8 players. The bracket is single-elimination with randomised seeding.
+
+---
+
+## Spectator Mode
+
+The server supports up to **8 simultaneous active players**. Any connection beyond that is automatically placed in spectator mode. Users can also voluntarily choose to watch a live match from the lobby.
+
+**How it works:**
+
+- Connections #9+ receive a `spectator_mode` WebSocket message instead of `init`. Their input frames are received but silently discarded by the server.
+- Voluntary spectators send `{ type: "watch", sessionId: "3" }` at connect time (or any time during the session to switch the viewed match).
+- All spectators continue receiving `state` broadcast at 60 Hz, filtered to the players in their watched session. Spectators watching `null` (lobby mode) receive the full state of all active players.
+- Match lifecycle events (`match_start`, `match_end`, `player_eliminated`, tournament events) are forwarded to spectators of the relevant session.
+
+**Client API** (exposed on `window` by `ws-client.js`):
+
+```js
+// Switch to watching a specific session (or null for lobby overview)
+watchSession('3');
+watchSession(null);
+
+// Fetch the live session list via REST (no WebSocket needed)
+const { sessions, totalSpectators } = await fetchActiveSessions();
+```
+
+**Spectator session log** — every spectator connection is persisted in the `spectators` table with `joined_at` and `left_at`, enabling post-match analytics and moderation.
+
+---
+
+## Game Controls
+
+| Key | Action |
+|---|---|
+| `A` / `←` | Move left |
+| `D` / `→` | Move right |
+| `W` / `↑` | Jump (up to 2 jumps) |
+| `S` / `↓` | Crouch |
+| `Space` or `G` (tap) | Attack / Dash-attack (within 180 ms after a dash) |
+| `Space` or `G` (hold) | Block |
+| Double-tap `A`/`D` | Dash |
+| `U` | Toggle debug overlay |
 
 ---
 
