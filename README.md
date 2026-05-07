@@ -9,7 +9,7 @@
 <!-- TODO: brief description of the project -->
 
 Key features:
-- Web-based brawler game ("Voltage Fighter") built with Raylib compiled to WebAssembly
+- Web-based brawler game ("Enuma Fighter") built with Raylib compiled to WebAssembly
 - Real-time multiplayer via WebSocket (60 Hz authoritative server loop)
 - React frontend + Express backend + PostgreSQL database
 - Fully containerized with Docker
@@ -28,10 +28,10 @@ Key features:
 
 ```bash
 make setup      # Creates .env from .env.example — edit it before continuing
-make wasm       # First time only: ~15 min (compiles Raylib → WASM, then starts everything)
+make            # First time only: ~15 min (compiles Raylib → WASM, then starts everything)
 ```
 
-Open https://localhost in your browser and accept the self-signed certificate.
+Open https://localhost:8443 in your browser and accept the self-signed certificate.
 
 ### Make commands
 
