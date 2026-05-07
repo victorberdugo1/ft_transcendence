@@ -970,14 +970,33 @@ function listActiveSessions() {
  * Send the current game state to a single spectator.
  * If they're watching a specific session, only send that session's players;
  * otherwise send all players (lobby/overview mode).
+ *
+ * Edge case: if the watched session has already ended, fall back to lobby
+ * mode and notify the client so it can update its UI accordingly.
  */
 function sendStateToSpectator(spec) {
     if (!spec.ws || spec.ws.readyState !== WebSocket.OPEN) return;
 
     const snapshot = {};
-    const sessionIds = spec.watchingSession
-        ? new Set(gameSessions.get(spec.watchingSession)?.playerIds ?? [])
-        : null;   // null = send everyone
+    let sessionIds = null;   // null → send everyone (lobby mode)
+
+    if (spec.watchingSession) {
+        const sess = gameSessions.get(spec.watchingSession);
+        if (sess) {
+            // Session is still alive → filter to its players only.
+            sessionIds = new Set(sess.playerIds);
+        } else {
+            // Session ended while the spectator was still watching it.
+            // Reset to lobby mode and tell the client so it can react (e.g.
+            // show the session list again).  sessionIds stays null so the
+            // snapshot includes all current players instead of being empty.
+            spec.watchingSession = null;
+            spec.ws.send(JSON.stringify({
+                type:            'spectator_session_changed',
+                watchingSession: null,
+            }));
+        }
+    }
 
     for (const [id, p] of Object.entries(players)) {
         if (sessionIds && !sessionIds.has(Number(id))) continue;

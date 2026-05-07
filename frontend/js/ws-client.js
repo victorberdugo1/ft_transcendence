@@ -163,6 +163,12 @@ setInterval(() => {
             ws.send(JSON.stringify({ type: 'watch', sessionId: watchTarget }));
         } else if (savedId) {
             ws.send(JSON.stringify({ type: 'rejoin', clientId: parseInt(savedId, 10) }));
+        } else {
+            // First-time connection: the server uses ws.once('message') to assign
+            // a clientId, so we must always send something — even if we have no
+            // saved state yet.  Any non-'rejoin' type is fine; the server will
+            // assign a fresh clientId and decide player vs spectator.
+            ws.send(JSON.stringify({ type: 'join' }));
         }
     });
 
@@ -185,14 +191,19 @@ setInterval(() => {
                 watchingSession:  msg.watchingSession,   // sessionId or null (lobby)
                 activeSessions:   msg.activeSessions,    // array of session summaries
             };
-            sessionStorage.setItem('clientId', msg.clientId);
-            sessionStorage.setItem('isSpectator', '1');
+            sessionStorage.setItem('clientId',     msg.clientId);
+            sessionStorage.setItem('isSpectator',  '1');
+            // Persist the watched session so we can rejoin it after a page refresh.
+            // Store empty string for lobby mode (null is not valid for sessionStorage).
+            sessionStorage.setItem('watchSession', msg.watchingSession ?? '');
             window.dispatchEvent(new CustomEvent('spectator_mode', { detail: window._spectatorMode }));
 
         } else if (msg.type === 'spectator_session_changed') {
             if (window._spectatorMode) {
                 window._spectatorMode.watchingSession = msg.watchingSession;
             }
+            // Keep sessionStorage in sync so a page refresh returns to the right session.
+            sessionStorage.setItem('watchSession', msg.watchingSession ?? '');
             window.dispatchEvent(new CustomEvent('spectator_session_changed', { detail: msg }));
 
         } else if (msg.type === 'state') {
