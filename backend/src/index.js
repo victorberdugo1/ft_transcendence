@@ -1,8 +1,5 @@
 'use strict';
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  DEPENDENCIES
-// ─────────────────────────────────────────────────────────────────────────────
 const http      = require('http');
 const WebSocket = require('ws');
 const express   = require('express');
@@ -267,15 +264,15 @@ const DASH_ATTACK_RANGE_X = 1.65;
 // ─────────────────────────────────────────────────────────────────────────────
 const ANIM_DURATIONS = {
     attack_air:     0.5,
-    attack_crouch:   0.5,
-    attack_combo_1:  0.35,
-    attack_combo_2:  0.35,
-    attack_combo_3:  0.5,
-    attack_dash:     0.4,
-    dash:            0.15,
-    hurt:            0.4,
-    jump:            0.15,
-    block:           0.0,
+    attack_crouch:  0.5,
+    attack_combo_1: 0.35,
+    attack_combo_2: 0.35,
+    attack_combo_3: 0.5,
+    attack_dash:    0.4,
+    dash:           0.15,
+    hurt:           0.4,
+    jump:           0.15,
+    block:          0.0,
 };
 
 const COMBO_WINDOW = 0.25;
@@ -541,6 +538,19 @@ wss.on('connection', async (ws, req) => {
 
         if (players[clientId]) return;
 
+        // -------------------------
+        //  FIX: LIMIT 8 PLAYERS
+        // -------------------------
+        if (Object.keys(players).length >= MAX_PLAYERS) {
+            // Auto-assign the first active session so the overflow spectator
+            // immediately watches real gameplay instead of an empty lobby.
+            const firstSession = gameSessions.size > 0
+                ? gameSessions.keys().next().value
+                : null;
+            await ensureSpectatorReady('overflow', firstSession);
+            return;
+        }
+
         if (spectators[clientId]) {
             const spec = spectators[clientId];
             if (spec.dbRowId) {
@@ -588,12 +598,20 @@ wss.on('connection', async (ws, req) => {
 
         broadcastState();
         console.log(`[SERVER] Player ${clientId} connected (${Object.keys(players).length}/${MAX_PLAYERS})`);
+
+        // Intentar arrancar partida si ya hay ≥2 jugadores libres
+        tryAutoMatch();
     }
 
     autoSpectatorTimer = setTimeout(async () => {
         if (firstMessageSeen) return;
         if (players[clientId] || spectators[clientId]) return;
-        await ensureSpectatorReady('overflow', null);
+        // Auto-assign the first active session so the spectator watches
+        // real gameplay immediately instead of an empty lobby.
+        const firstSession = gameSessions.size > 0
+            ? gameSessions.keys().next().value
+            : null;
+        await ensureSpectatorReady('overflow', firstSession);
     }, 120);
 
     ws.on('message', async (raw) => {
@@ -610,22 +628,74 @@ wss.on('connection', async (ws, req) => {
             autoSpectatorTimer = null;
         }
 
-        if (msg.type === 'rejoin' && msg.clientId && !players[msg.clientId] && !spectators[msg.clientId]) {
-            if (clientId !== null && clientId !== msg.clientId) {
-                if (spectators[clientId]) {
-                    spectators[msg.clientId] = spectators[clientId];
-                    spectators[msg.clientId].id = msg.clientId;
-                    delete spectators[clientId];
-                } else if (players[clientId]) {
-                    players[msg.clientId] = players[clientId];
-                    players[msg.clientId].id = msg.clientId;
-                    delete players[clientId];
-                    playerSession.set(msg.clientId, playerSession.get(clientId));
-                    playerSession.delete(clientId);
+        // Primer mensaje del cliente: decidir inmediatamente jugador vs espectador.
+        // Evita la carrera entre el timeout de 120ms y el loop de input de 60Hz.
+        if (msg.type === 'join') {
+            if (Object.keys(players).length >= MAX_PLAYERS) {
+                if (clientId === null) {
+                    clientId = nextClientId++;
+                    if (clientId >= nextClientId) nextClientId = clientId + 1;
                 }
+                // Auto-assign the first active session so the spectator
+                // immediately watches real gameplay instead of an empty lobby.
+                const firstSession = gameSessions.size > 0
+                    ? gameSessions.keys().next().value
+                    : null;
+                await ensureSpectatorReady('overflow', firstSession);
+            } else {
+                await promoteToPlayer(null);
+            }
+            return;
+        }
+
+        if (msg.type === 'rejoin' && msg.clientId) {
+            // Caso 1: jugador sigue en memoria — reconectar WS y reenviar init
+            if (players[msg.clientId]) {
+                clientId = msg.clientId;
+                if (clientId >= nextClientId) nextClientId = clientId + 1;
+                players[clientId].ws = ws;
+                isSpectator = false;
+                mode = 'player';
+                ws.send(JSON.stringify({
+                    type: 'init',
+                    clientId,
+                    config: {
+                        attackRange:     ATTACK_RANGE,
+                        attackRangeY:    ATTACK_RANGE_Y,
+                        dashAttackRange: DASH_ATTACK_RANGE_X,
+                    },
+                }));
+                return;
+            }
+
+            // Caso 2: espectador sigue en memoria — reconectar WS
+            if (spectators[msg.clientId]) {
+                clientId = msg.clientId;
+                if (clientId >= nextClientId) nextClientId = clientId + 1;
+                spectators[clientId].ws = ws;
+                isSpectator = true;
+                mode = spectators[clientId].mode;
+                sendSpectatorWelcome(mode, spectators[clientId].watchingSession);
+                return;
+            }
+
+            // Caso 3: ya no está en memoria — tratar como join nuevo
+            if (clientId !== null && clientId !== msg.clientId) {
+                delete spectators[clientId];
+                delete players[clientId];
             }
             clientId = msg.clientId;
             if (clientId >= nextClientId) nextClientId = clientId + 1;
+
+            if (Object.keys(players).length < MAX_PLAYERS) {
+                await promoteToPlayer(null);
+            } else {
+                const firstSession = gameSessions.size > 0
+                    ? gameSessions.keys().next().value
+                    : null;
+                await ensureSpectatorReady('overflow', firstSession);
+            }
+            return;
         }
 
         if (msg.type === 'watch') {
@@ -657,6 +727,9 @@ wss.on('connection', async (ws, req) => {
         }
 
         if (msg.type === 'input') {
+            // Prevent spectators from being promoted by input when room is full
+            if (spectators[clientId]) return;
+
             if (!players[clientId]) {
                 await promoteToPlayer(msg);
                 return;
@@ -673,13 +746,12 @@ wss.on('connection', async (ws, req) => {
             p.input.crouch     = !!msg.crouch;
             p.input.block      = !!msg.block;
             p.input.dashAttack = !!msg.dashAttack;
+
             return;
         }
 
-        if (spectators[clientId]) {
-            if (msg.type === 'spectator_ping') {
-                sendStateToSpectator(spectators[clientId]);
-            }
+        if (spectators[clientId] && msg.type === 'spectator_ping') {
+            sendStateToSpectator(spectators[clientId]);
         }
     });
 
@@ -779,7 +851,16 @@ function createPlayer(id, saved, ws) {
 setInterval(tick, 1000 / TICK_RATE);
 
 function tick() {
-    const alive = Object.values(players).filter(p => !p.respawning);
+    // Jugadores en sesiones FINISHED (pantalla de victoria) se congelan:
+    // seguimos enviando estado para que se renderice la animación, pero no
+    // ejecutamos física ni detección de golpes.
+    const frozenIds = new Set();
+    for (const [cid, sid] of playerSession.entries()) {
+        const sess = gameSessions.get(sid);
+        if (sess?.finished) frozenIds.add(cid);
+    }
+
+    const alive = Object.values(players).filter(p => !p.respawning && !frozenIds.has(p.id));
 
     tickRespawn();
     for (const p of alive) tickPlayer(p);
@@ -825,25 +906,15 @@ function tickPlayer(p) {
 
 function tickBlock(p, moveX, attack, dash, dashAttack, block, crouch) {
     if (p.blockLockout > 0) p.blockLockout -= TICK_DT;
-
     const blockAllowed =
-        p.onGround
-        && !p.dashing
-        && !p.attacking
-        && !attack
-        && !dashAttack
-        && p.blockLockout   <= 0
-        && p.dashEndWindow  <= 0
-        && !p.voltageMaxed;
-
+        p.onGround && !p.dashing && !p.attacking && !attack && !dashAttack
+        && p.blockLockout  <= 0 && p.dashEndWindow <= 0 && !p.voltageMaxed;
     if (block && blockAllowed) {
         p.blockHoldTicks++;
     } else {
         p.blockHoldTicks = 0;
     }
-
     p.blocking = p.blockHoldTicks >= BLOCK_HOLD_TICKS;
-
     if (p.blocking && !p.voltageMaxed) {
         p.voltage = Math.max(0, p.voltage - VOLTAGE_DRAIN_BLOCK * TICK_DT);
     }
@@ -852,7 +923,6 @@ function tickBlock(p, moveX, attack, dash, dashAttack, block, crouch) {
 function tickDash(p, dash, dashDir, moveX, block, crouch) {
     if (p.dashEndWindow > 0) p.dashEndWindow -= TICK_DT;
     if (p.dashCooldown  > 0) p.dashCooldown  -= TICK_DT;
-
     if (dash && !p.dashing && p.dashCooldown <= 0 && !p.blocking) {
         p.dashing      = true;
         p.dashTimer    = DASH_DURATION;
@@ -863,11 +933,9 @@ function tickDash(p, dash, dashDir, moveX, block, crouch) {
         p.animation    = 'dash';
         p.animTimer    = ANIM_DURATIONS.dash;
     }
-
     if (p.dashing) {
         p.dashTimer -= TICK_DT;
         p.vx         = p.dashDir * DASH_SPEED;
-
         if (p.dashTimer <= 0) {
             p.dashing        = false;
             p.vx             = 0;
@@ -891,9 +959,7 @@ function tickMovement(p, moveX, jump, crouch) {
             p.vx = 0;
         }
     }
-
     p.crouching = p.onGround && !p.dashing && !p.attacking && !p.blocking && crouch;
-
     if (jump && p.jumpsLeft > 0 && !p.blocking) {
         p.vy        = JUMP_FORCE;
         p.onGround  = false;
@@ -911,27 +977,21 @@ function tickMovement(p, moveX, jump, crouch) {
 function tickAttack(p, attack, dashAttack, crouch) {
     if (p.attackCooldown > 0) p.attackCooldown -= TICK_DT;
     if (p.comboWindow    > 0) p.comboWindow    -= TICK_DT;
-
     const isDashAttack = (attack || dashAttack) && p.dashEndWindow > 0;
     const canAttack    = (attack || (dashAttack && p.dashEndWindow > 0))
-                         && !p.attacking
-                         && p.attackCooldown <= 0;
-
+                         && !p.attacking && p.attackCooldown <= 0;
     if (canAttack) {
         p.attacking     = true;
         p.attackTimer   = ATTACK_DURATION;
         p._isDashAttack = isDashAttack;
-
-        const animName = resolveAttackAnim(p, isDashAttack, crouch);
+        const animName      = resolveAttackAnim(p, isDashAttack, crouch);
         p.animation      = animName;
         p.animTimer      = ANIM_DURATIONS[animName];
         p.comboWindow    = p.animTimer + COMBO_WINDOW;
         p.attackCooldown = p.comboStep > 0 ? 0.1 : ATTACK_COOLDOWN;
         p.hitTargets     = new Set();
-
         if (isDashAttack) p.dashEndWindow = 0;
     }
-
     if (p.attackTimer > 0) {
         p.attackTimer -= TICK_DT;
         resolveHits(p);
@@ -957,25 +1017,20 @@ function resolveAttackAnim(p, isDashAttack, crouch) {
 function resolveHits(p) {
     const alive  = Object.values(players).filter(t => !t.respawning);
     const rangeX = p._isDashAttack ? DASH_ATTACK_RANGE_X : ATTACK_RANGE;
-
-    const hbCX = p.x + p.facing * (rangeX / 2);
-    const hbCY = p.y + 0.5;
-    const hbHW = rangeX / 2;
-    const hbHH = ATTACK_RANGE_Y / 2;
+    const hbCX   = p.x + p.facing * (rangeX / 2);
+    const hbCY   = p.y + 0.5;
+    const hbHW   = rangeX / 2;
+    const hbHH   = ATTACK_RANGE_Y / 2;
     const hurtHW = 0.24;
     const hurtHH = 0.36;
-
     for (const target of alive) {
         if (target.id === p.id) continue;
         if (p.hitTargets.has(target.id)) continue;
-
-        const tCX = target.x;
-        const tCY = target.y + 0.36;
-
+        const tCX     = target.x;
+        const tCY     = target.y + 0.36;
         const overlapX = Math.abs(hbCX - tCX) < (hbHW + hurtHW);
         const overlapY = Math.abs(hbCY - tCY) < (hbHH + hurtHH);
         if (!overlapX || !overlapY) continue;
-
         applyHit(p, target);
     }
 }
@@ -986,12 +1041,9 @@ function applyHit(attacker, target) {
     const defenderMult = voltageMultiplier(target.voltage)   * VOLTAGE_SCALE_DEFEND;
     const dashMult     = attacker._isDashAttack ? DASH_ATTACK_KB_MULT : 1.0;
     const totalMult    = attackerMult * defenderMult * dashMult;
-
     let kbx = dir * ATTACK_KNOCKBACK * totalMult;
     let kby = ATTACK_KB_UP           * totalMult;
-
     const isBlocking = target.blocking && target.voltage < VOLTAGE_MAX;
-
     if (isBlocking) {
         kbx *= BLOCK_KB_MULTIPLIER;
         kby *= BLOCK_KB_MULTIPLIER;
@@ -999,16 +1051,13 @@ function applyHit(attacker, target) {
     } else {
         target.voltage = Math.min(VOLTAGE_MAX, target.voltage + VOLTAGE_PER_HIT);
     }
-
     if (target.voltage >= VOLTAGE_MAX) {
         target.voltage      = VOLTAGE_MAX;
         target.voltageMaxed = true;
     }
-
     target.kbx += kbx;
     target.kby += kby;
     target.hitId++;
-
     if (!isBlocking) {
         Object.assign(target, {
             animation: 'hurt',
@@ -1018,21 +1067,17 @@ function applyHit(attacker, target) {
             onGround:  false,
         });
     }
-
     attacker.hitTargets.add(target.id);
 }
 
 function tickPhysics(alive) {
     const decayFactor = Math.pow(KNOCKBACK_DECAY, TICK_DT * TICK_RATE);
-
     for (const p of alive) {
         p.kbx *= decayFactor;
         p.kby *= decayFactor;
         if (Math.abs(p.kbx) < MIN_KNOCKBACK) p.kbx = 0;
         if (Math.abs(p.kby) < MIN_KNOCKBACK) p.kby = 0;
-
         if (!p.onGround) p.vy += GRAVITY * TICK_DT;
-
         p.prevY = p.y;
         p.x += (p.vx + p.kbx) * TICK_DT;
         p.y += (p.vy + p.kby) * TICK_DT;
@@ -1052,16 +1097,13 @@ function resolvePlayerCollision(a, b) {
     const dy = b.y - a.y;
     const overlapX = 2 * PLAYER_RADIUS - Math.abs(dx);
     const overlapY = PLAYER_HEIGHT - Math.abs(dy);
-
     if (overlapX <= 0 || overlapY <= 0) return;
-
     const dir      = dx >= 0 ? 1 : -1;
     const va       = a.vx + a.kbx;
     const vb       = b.vx + b.kbx;
     const aMoving  = Math.abs(a.vx) > 0.1 || Math.abs(a.kbx) > 0.5;
     const bMoving  = Math.abs(b.vx) > 0.1 || Math.abs(b.kbx) > 0.5;
     const opposite = Math.sign(va) !== Math.sign(vb) && aMoving && bMoving;
-
     if (opposite) {
         a.kbx -= dir * 1.5;
         b.kbx += dir * 1.5;
@@ -1070,7 +1112,6 @@ function resolvePlayerCollision(a, b) {
     } else if (bMoving && !aMoving) {
         a.kbx -= dir * Math.abs(vb) * 0.5;
     }
-
     const sep = overlapX * 0.5 + 0.01;
     a.x -= dir * sep;
     b.x += dir * sep;
@@ -1079,12 +1120,10 @@ function resolvePlayerCollision(a, b) {
 function tickPlatforms(alive) {
     for (const p of alive) {
         let landed = false;
-
         for (const plat of PLATFORMS) {
             const inRange  = Math.abs(p.x - plat.x) <= plat.hw;
             const wasAbove = p.prevY >= plat.y - PLAYER_HEIGHT;
             const crossed  = p.y <= plat.y && (p.vy + p.kby) <= 0;
-
             if (inRange && wasAbove && crossed) {
                 p.y         = plat.y;
                 p.vy        = 0;
@@ -1092,7 +1131,6 @@ function tickPlatforms(alive) {
                 p.onGround  = true;
                 p.jumpsLeft = 2;
                 landed      = true;
-
                 if (p.animation === 'jump') {
                     p.animTimer = 0;
                     p.animation = decideAnim(p);
@@ -1100,22 +1138,17 @@ function tickPlatforms(alive) {
                 break;
             }
         }
-
         if (!landed) p.onGround = false;
-
         const outOfBounds =
             p.y < STAGE_BOTTOM
             || p.x < STAGE_LEFT  - 2
             || p.x > STAGE_RIGHT + 2;
-
         if (outOfBounds) {
             p.stocks = Math.max(0, p.stocks - 1);
-
             if (p.stocks === 0) {
                 handleElimination(p);
                 return;
             }
-
             Object.assign(p, {
                 respawning:   true,
                 respawnTimer: 1.5,
@@ -1130,7 +1163,6 @@ function tickPlatforms(alive) {
 function tickAnimations(alive) {
     for (const p of alive) {
         if (p.respawning) continue;
-
         if (p.animTimer > 0) {
             p.animTimer -= TICK_DT;
             if (p.animTimer <= 0) p.animation = decideAnim(p);
@@ -1152,9 +1184,114 @@ function decideAnim(p) {
 // ─────────────────────────────────────────────────────────────────────────────
 //  GAME MODES
 // ─────────────────────────────────────────────────────────────────────────────
+//
+//  TODO (frontend): cuando se implemente el lobby, los modos de batalla,
+//  el chat, las invitaciones y los torneos, esta sección se expandirá con:
+//
+//    · startDuel(id1, id2)          — 1v1 ranked/unranked
+//    · startTournament(ids, dbId)   — bracket con 2/4/8 jugadores
+//    · startBrawl(ids)              — todos contra todos (ya implementado abajo)
+//
+//  El flujo previsto es:
+//    1. Jugadores en lobby ven lista de salas/invitaciones (React UI).
+//    2. El host o un admin llama a la ruta REST correspondiente.
+//    3. El servidor crea la sesión y notifica a todos con 'match_start'.
+//    4. Los espectadores reciben 'spectator_session_changed' automáticamente.
+//
+//  Por ahora solo existe el modo DEBUG (auto-matchmaking) que mete a todos
+//  los jugadores libres en una sola sesión brawl de hasta 8 jugadores.
+//
+// ─────────────────────────────────────────────────────────────────────────────
+
 const gameSessions = new Map();
 let nextSessionId = 1;
 const playerSession = new Map();
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  ⚠️  DEBUG AUTO-MATCHMAKING — ELIMINAR CUANDO SE IMPLEMENTE EL LOBBY
+//
+//  Cada 2 segundos, si hay ≥2 jugadores libres y ninguna sesión activa,
+//  los mete a todos en una sola sesión brawl (hasta MAX_PLAYERS jugadores).
+//  Así los espectadores siempre tienen algo que ver sin necesitar lobby.
+// ─────────────────────────────────────────────────────────────────────────────
+let DEBUG_AUTO_MATCH = true;
+
+/**
+ * Intenta iniciar una sesión brawl con todos los jugadores libres.
+ * Se llama reactivamente cada vez que un jugador se une o termina una partida.
+ * No hace nada si ya hay una sesión activa (no FINISHED) o si hay <2 jugadores libres.
+ */
+function tryAutoMatch() {
+    if (!DEBUG_AUTO_MATCH) return;
+
+    // Ignorar sesiones en estado FINISHED — ya no cuentan como "activas"
+    const activeSessions = [...gameSessions.values()].filter(s => !s.finished);
+    if (activeSessions.length > 0) return;
+
+    const free = Object.values(players)
+        .filter(p => !playerSession.has(p.id))
+        .map(p => p.id);
+
+    if (free.length < 2) return;
+
+    const sess = startBrawl(free);
+    console.log(`[AUTO-MATCH] Sesión brawl ${sess.id} con jugadores: ${[...sess.playerIds].join(', ')}`);
+}
+// ─────────────────────────────────────────────────────────────────────────────
+//  FIN DEBUG AUTO-MATCHMAKING
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Inicia una sesión brawl (todos contra todos) con los clientIds dados.
+ * Soporta de 2 a MAX_PLAYERS jugadores en la misma sesión.
+ * Es el modo base hasta que el lobby gestione los modos de batalla.
+ */
+function startBrawl(clientIds) {
+    const id = String(nextSessionId++);
+    const session = {
+        id,
+        mode:         'brawl',
+        playerIds:    new Set(clientIds),
+        eliminated:   new Set(),
+        tournamentId: null,
+        round:        null,
+        matchDbId:    null,
+        startedAt:    new Date(),
+        finished:     false,   // true durante la pantalla de victoria — nadie puede unirse
+    };
+    gameSessions.set(id, session);
+
+    for (const cid of clientIds) {
+        playerSession.set(cid, id);
+        const p = players[cid];
+        if (p) p.stocks = 3;
+    }
+
+    broadcastToSession(session, {
+        type:      'match_start',
+        mode:      'brawl',
+        sessionId: id,
+        players:   clientIds,
+        countdown: true,
+    });
+
+    // Notificar a espectadores sin sesión asignada para que vean esta
+    for (const spec of Object.values(spectators)) {
+        if (spec.watchingSession !== null) continue;
+        spec.watchingSession = id;
+        if (spec.ws.readyState === WebSocket.OPEN) {
+            spec.ws.send(JSON.stringify({
+                type:            'spectator_session_changed',
+                watchingSession: id,
+                activeSessions:  listActiveSessions(),
+            }));
+            sendStateToSpectator(spec);
+        }
+    }
+
+    console.log(`[GAME] Brawl iniciado: sesión ${id} — ${clientIds.length} jugadores`);
+    return session;
+}
 
 /** Start a 1v1 match between two connected clientIds. */
 function startDuel(clientId1, clientId2) {
@@ -1168,6 +1305,7 @@ function startDuel(clientId1, clientId2) {
         round: null,
         matchDbId: null,
         startedAt: new Date(),
+        finished: false,
     };
     gameSessions.set(id, session);
     playerSession.set(clientId1, id);
@@ -1178,7 +1316,7 @@ function startDuel(clientId1, clientId2) {
         if (p) p.stocks = 3;
     }
 
-    broadcastToSession(session, { type: 'match_start', mode: '1v1', sessionId: id });
+    broadcastToSession(session, { type: 'match_start', mode: '1v1', sessionId: id, countdown: true });
     console.log(`[GAME] 1v1 started: session ${id} — players ${clientId1} vs ${clientId2}`);
     return session;
 }
@@ -1240,6 +1378,7 @@ async function startTournamentMatch(clientId1, clientId2, tournamentId, round) {
         round,
         matchDbId: null,
         startedAt: new Date(),
+        finished: false,
     };
     gameSessions.set(id, session);
     playerSession.set(clientId1, id);
@@ -1274,11 +1413,39 @@ function handleElimination(loser) {
         session.loserDbId    = loser.dbUserId ?? null;
         session.loserStocks  = loser.stocks ?? 0;
     }
-    delete players[loser.id];
-    playerSession.delete(loser.id);
+
+    // Convertir al jugador eliminado en espectador de su propia sesión
+    const eliminatedWs     = loser.ws;
+    const eliminatedId     = loser.id;
+    const eliminatedDbId   = loser.dbUserId ?? null;
+
+    delete players[eliminatedId];
+    playerSession.delete(eliminatedId);
+
+    if (eliminatedWs && eliminatedWs.readyState === WebSocket.OPEN) {
+        spectators[eliminatedId] = {
+            id:              eliminatedId,
+            dbUserId:        eliminatedDbId,
+            ws:              eliminatedWs,
+            watchingSession: sessionId ?? null,
+            mode:            'overflow',
+            dbRowId:         null,
+        };
+
+        eliminatedWs.send(JSON.stringify({
+            type:            'spectator_mode',
+            clientId:        eliminatedId,
+            mode:            'overflow',
+            watchingSession: sessionId ?? null,
+            activeSessions:  listActiveSessions(),
+            eliminated:      true,   // el cliente puede mostrar "eliminado" en la UI
+        }));
+
+        console.log(`[GAME] Player ${eliminatedId} eliminated → spectator watching session ${sessionId}`);
+    }
 
     broadcastState();
-    broadcastToAll({ type: 'player_eliminated', clientId: loser.id });
+    broadcastToAll({ type: 'player_eliminated', clientId: eliminatedId });
 
     if (!session) return;
 
@@ -1286,17 +1453,49 @@ function handleElimination(loser) {
 
     if (remaining.length === 1) {
         const winnerId = remaining[0];
-        resolveMatchWinner(session, winnerId, loser.id);
+        resolveMatchWinner(session, winnerId, eliminatedId);
     }
 }
 
 /** Persist the match result and, for tournaments, advance the bracket. */
 async function resolveMatchWinner(session, winnerClientId, loserClientId) {
+    // ── Marcar la sesión como terminada INMEDIATAMENTE ──────────────────────
+    // Esto evita que nuevos jugadores libres arranquen otra partida en esta sesión
+    // y que el tick siga procesando colisiones para los jugadores eliminados.
+    session.finished = true;
+
     const winner     = players[winnerClientId];
     const winnerDbId = winner?.dbUserId ?? null;
     const loserDbId   = session.loserDbId ?? null;
     const loserStocks = session.loserStocks ?? 0;
 
+    // ── Emitir VICTORY a todos los presentes en la sesión ───────────────────
+    // El cliente reproducirá la animación 'victory' y la congelará en el último frame.
+    // El ganador recibirá isWinner=true; los demás (espectadores/eliminados) isWinner=false.
+    broadcastToSession(session, {
+        type:     'victory',
+        winner:   winnerClientId,
+        loser:    loserClientId,
+        // El ganador necesita hacer reload para entrar en la próxima partida
+        reloadRequired: true,
+    });
+
+    // También notificar a los espectadores que miraban esta sesión
+    const raw = JSON.stringify({
+        type:     'victory',
+        winner:   winnerClientId,
+        loser:    loserClientId,
+        reloadRequired: true,
+    });
+    for (const spec of Object.values(spectators)) {
+        if (spec.watchingSession === session.id && spec.ws.readyState === WebSocket.OPEN) {
+            spec.ws.send(raw);
+        }
+    }
+
+    console.log(`[GAME] Victory — ganador: ${winnerClientId}, sesión: ${session.id}`);
+
+    // ── Escribir en BD (async, no bloquea la pantalla de victoria) ──────────
     try {
         const { rows } = await db.query(
             `INSERT INTO matches
@@ -1343,6 +1542,7 @@ async function resolveMatchWinner(session, winnerClientId, loserClientId) {
         console.error('[GAME] DB write error on match resolve:', err.message);
     }
 
+    // match_end también se envía (para compatibilidad con HUD / torneos)
     broadcastToSession(session, {
         type:     'match_end',
         winner:   winnerClientId,
@@ -1351,13 +1551,37 @@ async function resolveMatchWinner(session, winnerClientId, loserClientId) {
         mode:     session.mode,
     });
 
-    console.log(`[GAME] Match resolved — winner: ${winnerClientId}, session: ${session.id}`);
-
     if (session.mode === 'tournament') {
         advanceTournament(session.tournamentId, winnerClientId);
     }
 
-    gameSessions.delete(session.id);
+    // ── Esperar la duración de la pantalla de victoria antes de limpiar ─────
+    // Durante este tiempo la sesión sigue en gameSessions con finished=true.
+    // Cualquier nuevo jugador que se conecte irá a una sesión NUEVA aparte.
+    const VICTORY_DISPLAY_MS = 6000;   // 6 s — tiempo suficiente para ver la animación
+
+    setTimeout(() => {
+        gameSessions.delete(session.id);
+
+        // Reasignar espectadores que miraban esta sesión
+        const nextSession = [...gameSessions.values()].find(s => !s.finished)?.id ?? null;
+        for (const spec of Object.values(spectators)) {
+            if (spec.watchingSession !== session.id) continue;
+            spec.watchingSession = nextSession;
+            if (spec.ws.readyState === WebSocket.OPEN) {
+                spec.ws.send(JSON.stringify({
+                    type:            'spectator_session_changed',
+                    watchingSession: nextSession,
+                    activeSessions:  listActiveSessions(),
+                }));
+                if (nextSession) sendStateToSpectator(spec);
+            }
+        }
+
+        // Intentar arrancar una nueva partida con los jugadores que esperan
+        tryAutoMatch();
+
+    }, VICTORY_DISPLAY_MS);
 }
 
 /**

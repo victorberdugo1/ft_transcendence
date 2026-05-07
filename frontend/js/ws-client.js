@@ -154,23 +154,22 @@ setInterval(() => {
 
     ws.addEventListener('open', () => {
         setStatus('⬤ Connected');
-        const savedId       = sessionStorage.getItem('clientId');
-        const wasSpectator  = sessionStorage.getItem('isSpectator') === '1';
-        const spectatorMode = sessionStorage.getItem('spectatorMode'); // 'voluntary' | 'overflow'
-        const watchTarget   = sessionStorage.getItem('watchSession') ?? null;
+        const savedId = sessionStorage.getItem('clientId');
 
-        if (wasSpectator && spectatorMode === 'voluntary') {
-            // Only rejoin as spectator if the user *chose* to watch.
-            // Overflow spectators should try to reconnect as players — the server
-            // will demote them to spectator again if the room is still full.
-            ws.send(JSON.stringify({ type: 'watch', sessionId: watchTarget }));
-        } else if (savedId) {
+        // Clear any stale game state from the previous session so C doesn't
+        // try to render an inconsistent snapshot while we wait for the server.
+        window._gameState     = { type: 'state', frameId: 0, players: {} };
+        window._isSpectator   = false;
+        window._spectatorMode = null;
+
+        // The server always decides whether this client is a player or spectator
+        // based on how many players are currently connected.  We never force
+        // spectator mode from the client — if we were an overflow spectator last
+        // time, we try to rejoin as a player now (the server will push us back to
+        // spectator_mode if the room is still full).
+        if (savedId) {
             ws.send(JSON.stringify({ type: 'rejoin', clientId: parseInt(savedId, 10) }));
         } else {
-            // First-time connection: the server uses ws.once('message') to assign
-            // a clientId, so we must always send something — even if we have no
-            // saved state yet.  Any non-'rejoin' type is fine; the server will
-            // assign a fresh clientId and decide player vs spectator.
             ws.send(JSON.stringify({ type: 'join' }));
         }
     });
@@ -186,48 +185,101 @@ setInterval(() => {
             window._isSpectator = false;
 
         } else if (msg.type === 'spectator_mode') {
-            // Server placed us (or we chose) into spectator mode
             window._myClientId  = msg.clientId;
             window._isSpectator = true;
             window._spectatorMode = {
-                mode:             msg.mode,              // 'overflow' | 'voluntary'
-                watchingSession:  msg.watchingSession,   // sessionId or null (lobby)
-                activeSessions:   msg.activeSessions,    // array of session summaries
+                mode:            msg.mode,
+                watchingSession: msg.watchingSession,
+                activeSessions:  msg.activeSessions,
+                eliminated:      msg.eliminated ?? false,
             };
-            sessionStorage.setItem('clientId',      msg.clientId);
-            sessionStorage.setItem('isSpectator',   '1');
-            sessionStorage.setItem('spectatorMode', msg.mode); // persist 'voluntary' | 'overflow'
-            // Persist the watched session so we can rejoin it after a page refresh.
-            // Store empty string for lobby mode (null is not valid for sessionStorage).
-            sessionStorage.setItem('watchSession', msg.watchingSession ?? '');
+            sessionStorage.setItem('clientId', msg.clientId);
+            if (!window._gameState || !window._gameState.players) {
+                window._gameState = { type: 'state', frameId: 0, players: {} };
+            }
+            // IMPORTANTE: NO tocar _victoryState aquí.
+            // Si este cliente acaba de ser eliminado, puede llegar spectator_mode
+            // justo después del victory — el C todavía no lo ha leído.
             window.dispatchEvent(new CustomEvent('spectator_mode', { detail: window._spectatorMode }));
+
+            if (!msg.watchingSession) {
+                _spectatorAutoWatch();
+            }
 
         } else if (msg.type === 'spectator_session_changed') {
             if (window._spectatorMode) {
                 window._spectatorMode.watchingSession = msg.watchingSession;
             }
-            // Keep sessionStorage in sync so a page refresh returns to the right session.
+            if (msg.activeSessions && window._spectatorMode) {
+                window._spectatorMode.activeSessions = msg.activeSessions;
+            }
             sessionStorage.setItem('watchSession', msg.watchingSession ?? '');
+            if (!msg.watchingSession) {
+                _spectatorAutoWatch();
+            } else {
+                if (window._spectatorAutoWatchTimer) {
+                    clearTimeout(window._spectatorAutoWatchTimer);
+                    window._spectatorAutoWatchTimer = null;
+                }
+            }
             window.dispatchEvent(new CustomEvent('spectator_session_changed', { detail: msg }));
 
         } else if (msg.type === 'state') {
-            // Server sends slot-indexed snapshot (keys 0..MAX_PLAYERS-1)
             window._gameState = msg;
             try { sessionStorage.setItem('gameState', JSON.stringify(msg)); } catch { /* quota */ }
 
         } else if (msg.type === 'match_start') {
+            // Nueva partida — limpiar cualquier victoria anterior
+            window._victoryState    = null;
+            window._victoryConsumed = false;
             window._matchSession = {
                 sessionId:    msg.sessionId,
                 mode:         msg.mode,
                 tournamentId: msg.tournamentId ?? null,
                 round:        msg.round ?? null,
             };
-            // Dispatch to React / HUD
+            if (msg.countdown) {
+                window._countdownStart = performance.now();
+                window._countdownDone  = false;
+            } else {
+                window._countdownStart = null;
+                window._countdownDone  = true;
+            }
             window.dispatchEvent(new CustomEvent('match_start', { detail: window._matchSession }));
 
+        } else if (msg.type === 'victory') {
+            // Guardamos en una variable separada que el C lee vía EM_JS.
+            // Usamos _victoryWinner (int) y _victoryIsWinner (bool) para
+            // evitar la dependencia de setValue/punteros en EM_JS.
+            const isWinner = (msg.winner === window._myClientId);
+            window._victoryWinner   = msg.winner | 0;
+            window._victoryIsWinner = isWinner;
+            window._victoryActive   = true;   // el C comprueba este flag
+            window._victoryConsumed = false;
+
+            // También mantener el objeto para el HUD/React
+            window._victoryState = {
+                winner:         msg.winner,
+                loser:          msg.loser,
+                isWinner,
+                reloadRequired: msg.reloadRequired ?? true,
+            };
+
+            // Forzar animación 'victory' en el snapshot para el renderer
+            if (window._gameState && window._gameState.players) {
+                const wp = window._gameState.players[msg.winner];
+                if (wp) {
+                    wp.animation = 'victory';
+                    wp.frozen    = true;
+                }
+            }
+
+            window.dispatchEvent(new CustomEvent('victory', { detail: window._victoryState }));
+            if (isWinner) console.log('[GAME] Victory! Reload para la próxima partida.');
+
         } else if (msg.type === 'match_end') {
-            const isWinner = msg.winner === window._myClientId;
-            window._lastMatchResult = { winner: msg.winner, loser: msg.loser, isWinner, matchId: msg.matchId };
+            const isWinnerMe = msg.winner === window._myClientId;
+            window._lastMatchResult = { winner: msg.winner, loser: msg.loser, isWinner: isWinnerMe, matchId: msg.matchId };
             window.dispatchEvent(new CustomEvent('match_end', { detail: window._lastMatchResult }));
             window._matchSession = null;
 
@@ -247,16 +299,9 @@ setInterval(() => {
     });
 
     ws.addEventListener('close', () => {
-        window._myClientId  = -1;
-        window._isSpectator = false;
-        // Clear overflow-spectator flags so a reconnect always tries to join
-        // as a player first. Voluntary-spectator flag is preserved because the
-        // user explicitly chose to watch and should land back in spectator mode.
-        if (sessionStorage.getItem('spectatorMode') !== 'voluntary') {
-            sessionStorage.removeItem('isSpectator');
-            sessionStorage.removeItem('spectatorMode');
-            sessionStorage.removeItem('watchSession');
-        }
+        window._myClientId    = -1;
+        window._isSpectator   = false;
+        window._spectatorMode = null;
         setStatus('⬤ Disconnected — reconnecting…');
         setTimeout(connectWS, 2000);
     });
@@ -276,9 +321,12 @@ setInterval(() => {
  */
 function sendInput(frame) {
     if (!window._ws || window._ws.readyState !== WebSocket.OPEN) return;
-    // Spectators have no input — the server ignores it anyway, but blocking
-    // it client-side makes the intent explicit and avoids unnecessary traffic.
+    // Espectadores no mandan input
     if (window._isSpectator) return;
+    // Partida terminada — ninguna tecla debe llegar al servidor
+    if (window._victoryState && !window._victoryConsumed) return;
+    // Durante el countdown tampoco se manda input
+    if (window._countdownStart && !window._countdownDone) return;
 
     window._ws.send(JSON.stringify({
         type:       'input',
@@ -296,6 +344,38 @@ function sendInput(frame) {
 // Expose for legacy callers (Emscripten EM_JS bridge).
 window._sendInput = (moveX, jump, attack, dash, dashDir, crouch, block, dashAttack) =>
     sendInput({ moveX, jump, attack, dash, dashDir, crouch, block, dashAttack });
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  SPECTATOR AUTO-WATCH
+//  Busca sesiones activas cada segundo hasta encontrar una y unirse.
+//  Se cancela cuando llega spectator_session_changed con sesión válida.
+// ─────────────────────────────────────────────────────────────────────────────
+window._spectatorAutoWatchTimer = null;
+
+function _spectatorAutoWatch() {
+    if (window._spectatorMode?.watchingSession) return;
+    if (window._spectatorAutoWatchTimer) {
+        clearTimeout(window._spectatorAutoWatchTimer);
+        window._spectatorAutoWatchTimer = null;
+    }
+
+    async function attempt() {
+        if (window._spectatorMode?.watchingSession) return;
+        if (!window._isSpectator) return;
+        try {
+            const { sessions } = await fetchActiveSessions();
+            if (sessions && sessions.length > 0) {
+                watchSession(sessions[0].sessionId);
+                return;
+            }
+        } catch (e) { /* red caída, reintentar */ }
+        window._spectatorAutoWatchTimer = setTimeout(attempt, 1000);
+    }
+
+    window._spectatorAutoWatchTimer = setTimeout(attempt, 500);
+}
+
+window._spectatorAutoWatch = _spectatorAutoWatch;
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  SPECTATOR API

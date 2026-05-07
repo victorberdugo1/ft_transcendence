@@ -36,15 +36,22 @@ export default function App() {
     script.onerror = () => setStatus("Error cargando game.js");
     document.body.appendChild(script);
 
-    // Mostrar el canvas solo cuando el jugador ya tiene posición correcta en el estado
+    // Mostrar el canvas cuando el jugador tiene posición en el estado,
+    // o cuando somos espectador confirmado con clientId asignado.
     const poll = setInterval(() => {
+      // Caso espectador: _isSpectator=true y ya tenemos clientId
+      if (window._isSpectator && window._myClientId > 0) {
+        setVisible(true);
+        clearInterval(poll);
+        return;
+      }
+      // Caso jugador: esperar a que nuestra entrada aparezca en el gameState
       const id = window._myClientId;
       if (id <= 0) return;
       const state = window._gameState;
       if (!state || !state.players) return;
       const me = state.players[id];
       if (!me) return;
-      // La posición ya está en el estado del servidor: mostrar
       setVisible(true);
       clearInterval(poll);
     }, 50);

@@ -23,7 +23,7 @@
 //  COMPILE-TIME CONSTANTS
 // ─────────────────────────────────────────────────────────────────────────────
 #define MAX_PLAYERS  8
-#define ANIM_COUNT   14
+#define ANIM_COUNT   15
 
 #define STAGE_LEFT   -8.0f
 #define STAGE_RIGHT   8.0f
@@ -61,6 +61,7 @@ static const char *ANIM_JSON[ANIM_COUNT] = {
 	"data/animations/hurt.json",
 	"data/animations/block.json",
 	"data/animations/attack_dash.json",
+	"data/animations/victory.json",      /* índice 14 */
 };
 
 static const char *ANIM_META[ANIM_COUNT] = {
@@ -78,6 +79,7 @@ static const char *ANIM_META[ANIM_COUNT] = {
 	"data/animations/hurt.anim",
 	"data/animations/block.anim",
 	"data/animations/attack_dash.anim",
+	"data/animations/victory.anim",      /* índice 14 */
 };
 
 static const char *ANIM_NAME[ANIM_COUNT] = {
@@ -85,6 +87,7 @@ static const char *ANIM_NAME[ANIM_COUNT] = {
 	"attack_air", "attack_combo_1", "attack_combo_2", "attack_combo_3",
 	"attack_crouch", "dash", "crouch", "crouch_loop",
 	"hurt", "block", "attack_dash",
+	"victory",                            /* índice 14 */
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -132,10 +135,19 @@ typedef struct {
 //  GLOBAL STATE
 // ─────────────────────────────────────────────────────────────────────────────
 static Player players[MAX_PLAYERS];
-static int    my_id        = -1;
-static bool   is_spectator = false;   /* FIX: track spectator mode */
-static bool   game_ready   = false;
-static bool   debug_mode   = false;
+static int    my_id            = -1;
+static bool   is_spectator     = false;
+static bool   game_ready       = false;
+static bool   debug_mode       = false;
+/* Cuenta frames sin ID — si supera el umbral y hay jugadores en gameState,
+   forzamos modo espectador para no quedarnos en "Connecting..." eternamente */
+static int    no_id_frames     = 0;
+#define NO_ID_SPECTATOR_FRAMES 180   /* ~3 segundos a 60fps */
+
+/* Estado de fin de partida */
+static bool   match_over          = false;
+static int    winner_id           = -1;
+static char   winner_message[80]  = {0};
 
 /* Deferred player-init queue — one InitPlayer per frame to avoid hitches. */
 #define MAX_PENDING 8
@@ -150,6 +162,13 @@ static void FreePlayer(Player *p);
 static void FetchState(void);
 static void DrawGame(void);
 
+/* EM_JS forward declarations */
+int   ws_get_victory_state(void);
+int   ws_get_victory_winner(void);
+void  ws_consume_victory(void);
+int   ws_get_countdown(void);
+float ws_get_countdown_elapsed(void);
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  JAVASCRIPT BRIDGE  (EM_JS — inline JS called from C)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -163,9 +182,11 @@ EM_JS(int, ws_get_my_id, (void), {
 		return (window._myClientId > 0) ? (window._myClientId | 0) : -1;
 		});
 
-/* FIX: new bridge — returns 1 if the local client is a spectator */
+/* FIX: returns 1 if the local client is confirmed as spectator.
+   Requires both _isSpectator=true AND _myClientId to be set,
+   so we don't flip to spectator before the handshake completes. */
 EM_JS(int, ws_is_spectator, (void), {
-		return window._isSpectator ? 1 : 0;
+		return (window._isSpectator && window._myClientId > 0) ? 1 : 0;
 		});
 
 EM_JS(float, ws_get_attack_range, (void), {
@@ -182,9 +203,52 @@ EM_JS(int, ws_player_count, (void), {
 		});
 
 /**
- * Returns match overlay state:
- *  0 = none  1 = winner (I won)  2 = loser (I lost)  3 = waiting for next match
- * Writes a short message into buf (max len bytes).
+ * Lee el estado de victoria desde variables JS planas (sin punteros).
+ * Devuelve:
+ *   0  → sin victoria
+ *   1  → yo gané
+ *   2  → yo perdí / espectador
+ */
+EM_JS(int, ws_get_victory_state, (void), {
+    if (!window._victoryActive || window._victoryConsumed) return 0;
+    return window._victoryIsWinner ? 1 : 2;
+});
+
+/** Devuelve el clientId del ganador, o -1 si no hay victoria activa. */
+EM_JS(int, ws_get_victory_winner, (void), {
+    if (!window._victoryActive || window._victoryConsumed) return -1;
+    return window._victoryWinner | 0;
+});
+
+EM_JS(void, ws_consume_victory, (void), {
+    window._victoryConsumed = true;
+});
+
+/**
+ * Devuelve la fase del countdown:
+ *   0 = sin countdown / terminado
+ *   1 = READY  (0 – 1.2 s)
+ *   2 = FIGHT  (1.2 – 2.2 s)
+ * Al superar 2.2 s marca _countdownDone = true automáticamente.
+ */
+EM_JS(int, ws_get_countdown, (void), {
+    if (!window._countdownStart || window._countdownDone) return 0;
+    var elapsed = (performance.now() - window._countdownStart) / 1000.0;
+    if (elapsed < 1.2) return 1;
+    if (elapsed < 2.2) return 2;
+    window._countdownDone = true;
+    return 0;
+});
+
+/** Devuelve el tiempo transcurrido en el countdown (segundos), o 0. */
+EM_JS(float, ws_get_countdown_elapsed, (void), {
+    if (!window._countdownStart || window._countdownDone) return 0.0;
+    return (performance.now() - window._countdownStart) / 1000.0;
+});
+
+/**
+ * Devuelve 1 si hay resultados de partida pendientes en la UI legacy
+ * (match_end — se mantiene por compatibilidad con HUD de torneos).
  */
 EM_JS(int, ws_get_match_overlay, (char *buf, int len), {
 		buf = buf | 0;
@@ -206,6 +270,22 @@ EM_JS(void, ws_consume_match_result, (void), {
 		window._lastMatchResult        = null;
 		window._matchResultConsumed    = true;
 		window._waitingForNextMatch    = false;
+		});
+
+/**
+ * Lee el mensaje match_winner del servidor.
+ * Devuelve el clientId del ganador (>0) o -1 si no hay ganador todavía.
+ * Escribe el mensaje en buf.
+ */
+EM_JS(int, ws_get_match_winner, (char *buf, int len), {
+		buf = buf | 0;
+		if (!window._lastMatchResult || window._matchResultConsumed) {
+		stringToUTF8('', buf, len);
+		return -1;
+		}
+		const msg = window._lastMatchResult.message || '';
+		stringToUTF8(msg, buf, len);
+		return (window._lastMatchResult.winner | 0);
 		});
 
 /**
@@ -549,9 +629,10 @@ static int ParsePlayer(const char *buf,
 //  STATE FETCH  (called every frame before Draw)
 // ─────────────────────────────────────────────────────────────────────────────
 static void FetchState(void) {
-	/* FIX: Los espectadores siempre pueden procesar el estado,
-	   los jugadores necesitan un my_id válido */
-	if (!is_spectator && my_id < 0) return;
+	/* Always process whatever state JS has — even during the connecting phase.
+	   Cached gameState from sessionStorage will render immediately on refresh
+	   while we wait for the server handshake.  The ghost guard below keeps
+	   stale slots from appearing. */
 
 	int  count = ws_player_count();
 	char buf[256];
@@ -568,8 +649,9 @@ static void FetchState(void) {
 					&pstocks, &prespawning, &phitId, &pcrouching, &pjumpId,
 					&pvoltage, &pblocking, &pvoltageMaxed)) continue;
 
-		/* Los espectadores nunca deben renderizarse a sí mismos (aunque my_id es -1, por seguridad) */
-		if (is_spectator && pid == my_id) continue;
+		/* Spectators must not instantiate a player object for their own
+		   clientId — they have no player entry on the server. */
+		if (is_spectator && my_id > 0 && pid == my_id) continue;
 
 		/* Buscar o crear un slot para este jugador */
 		int slot = -1;
@@ -766,6 +848,8 @@ static void DrawGame(void) {
 	for (int s = 0; s < MAX_PLAYERS; s++) {
 		Player *p = &players[s];
 		if (p->active != 1 || !p->character || p->respawning) continue;
+		/* Never render a ghost of our own clientId when we are a spectator. */
+		if (is_spectator && my_id > 0 && p->id == my_id) continue;
 
 		/* Guard against stale frame index. */
 		if (p->character->currentFrame < 0 ||
@@ -776,9 +860,16 @@ static void DrawGame(void) {
 
 		UpdateAnimatedCharacter(p->character, dt);
 
-		/* Handle end-of-clip: freeze on last frame (crouch/jump) or return to idle. */
+		/* Handle end-of-clip: freeze on last frame (crouch/jump/victory) or return to idle. */
 		if (p->character->animController && !p->character->animController->playing) {
-			if (p->animIndex == AnimIndex("crouch") || p->animIndex == AnimIndex("jump")) {
+			/* Ganador en victoria: congelar para siempre en el último frame */
+			if (match_over && p->id == winner_id) {
+				int last = p->character->animation.frameCount - 1;
+				if (last < 0) last = 0;
+				p->character->currentFrame = last;
+				p->character->forceUpdate  = true;
+				SetCharacterAutoPlay(p->character, false);
+			} else if (p->animIndex == AnimIndex("crouch") || p->animIndex == AnimIndex("jump")) {
 				int last = p->character->animation.frameCount - 1;
 				if (last < 0) last = 0;
 				p->character->currentFrame = last;
@@ -832,6 +923,7 @@ static void DrawGame(void) {
 		for (int s = 0; s < MAX_PLAYERS; s++) {
 			Player *p = &players[s];
 			if (p->active != 1 || p->respawning) continue;
+			if (is_spectator && my_id > 0 && p->id == my_id) continue; /* no ghost hitbox */
 
 			Vector3 wp = { p->wx, p->wy, 0.0f };
 			Color   cc = (p->id == my_id) ? (Color){ 0, 255, 100, 220 }
@@ -906,15 +998,133 @@ static void DrawGame(void) {
 		hudY += BAR_H + 6;
 	}
 
-	/* FIX: Corner label — shows "SPECTATOR" badge or player ID */
+	/* FIX: Corner label — shows "SPECTATOR" badge, player ID, or connecting state */
 	if (is_spectator) {
 		DrawText("SPECTATOR", SCREEN_W - 90, 8, 12, (Color){ 80, 200, 255, 255 });
 	} else if (my_id > 0) {
 		char txt[24];
 		snprintf(txt, sizeof(txt), "Player %d", my_id);
 		DrawText(txt, SCREEN_W - 80, 8, 12, YELLOW);
+	} else if (no_id_frames > 60) {
+		/* Ha pasado más de 1 segundo sin ID ni confirmación de espectador —
+		   mostrar estado de espera en lugar de nada */
+		DrawText("Connecting...", SCREEN_W - 100, 8, 12, (Color){ 220, 140, 40, 255 });
+		/* Si hay datos en gameState pero aún no tenemos rol, mostrar hint */
+		if (ws_player_count() > 0) {
+			DrawText("Waiting for server...", SCREEN_W / 2 - 80, SCREEN_H / 2, 16,
+					(Color){ 200, 200, 200, 180 });
+		}
 	} else {
 		DrawText("Connecting...", SCREEN_W - 100, 8, 12, (Color){ 220, 140, 40, 255 });
+	}
+
+	/* ── Overlay de VICTORIA ── */
+	if (match_over && winner_message[0] != '\0') {
+		const bool iWon = (!is_spectator && my_id == winner_id);
+
+		/* Fondo completo oscuro semitransparente */
+		DrawRectangle(0, 0, SCREEN_W, SCREEN_H, (Color){ 0, 0, 0, 180 });
+
+		/* Caja central grande */
+		const int BOX_W = 420;
+		const int BOX_H = iWon ? 160 : 130;
+		const int BOX_X = (SCREEN_W - BOX_W) / 2;
+		const int BOX_Y = (SCREEN_H - BOX_H) / 2;
+
+		Color borderCol = iWon
+			? (Color){ 255, 215,   0, 255 }   /* dorado para el ganador */
+			: (Color){  80, 200, 255, 255 };   /* azul para los demás   */
+		Color bgCol     = iWon
+			? (Color){  40,  30,   0, 240 }
+			: (Color){  20,  20,  40, 240 };
+
+		DrawRectangle    (BOX_X, BOX_Y, BOX_W, BOX_H, bgCol);
+		DrawRectangleLines(BOX_X, BOX_Y, BOX_W, BOX_H, borderCol);
+		/* Segundo borde interior para efecto de brillo */
+		DrawRectangleLines(BOX_X+2, BOX_Y+2, BOX_W-4, BOX_H-4,
+		                   (Color){ borderCol.r, borderCol.g, borderCol.b, 120 });
+
+		if (iWon) {
+			/* ── GANADOR ── */
+			const char *line1 = "*** VICTORY ***";
+			int l1w = MeasureText(line1, 36);
+			DrawText(line1, BOX_X + (BOX_W - l1w) / 2, BOX_Y + 16, 36,
+			         (Color){ 255, 215, 0, 255 });
+
+			const char *line2 = "¡Eres el último en pie!";
+			int l2w = MeasureText(line2, 18);
+			DrawText(line2, BOX_X + (BOX_W - l2w) / 2, BOX_Y + 64, 18, WHITE);
+
+			/* Parpadeo en el mensaje de reload */
+			static float blinkV = 0.0f;
+			blinkV += GetFrameTime() * 3.0f;
+			unsigned char alpha = (unsigned char)(180 + 75 * sinf(blinkV));
+			const char *line3 = "Recarga la página para volver a jugar";
+			int l3w = MeasureText(line3, 14);
+			DrawText(line3, BOX_X + (BOX_W - l3w) / 2, BOX_Y + 100, 14,
+			         (Color){ 255, 215, 0, alpha });
+
+			const char *line4 = "(F5 / Ctrl+R)";
+			int l4w = MeasureText(line4, 12);
+			DrawText(line4, BOX_X + (BOX_W - l4w) / 2, BOX_Y + 120, 12,
+			         (Color){ 200, 180, 80, 180 });
+
+		} else {
+			/* ── PERDEDOR / ESPECTADOR ── */
+			const char *line1 = is_spectator ? "FIN DE LA PARTIDA" : "DERROTA";
+			int fsize1 = is_spectator ? 26 : 34;
+			int l1w = MeasureText(line1, fsize1);
+			DrawText(line1, BOX_X + (BOX_W - l1w) / 2, BOX_Y + 16, fsize1,
+			         (Color){ 80, 200, 255, 255 });
+
+			/* Mostrar quién ganó */
+			char wline[48];
+			snprintf(wline, sizeof(wline), "Ganador: Player %d", winner_id);
+			int wlw = MeasureText(wline, 18);
+			DrawText(wline, BOX_X + (BOX_W - wlw) / 2, BOX_Y + 62, 18, YELLOW);
+
+			const char *line3 = "Recarga para jugar la próxima partida";
+			int l3w = MeasureText(line3, 13);
+			DrawText(line3, BOX_X + (BOX_W - l3w) / 2, BOX_Y + 96, 13,
+			         (Color){ 160, 160, 160, 200 });
+		}
+	}
+
+	/* ── Overlay READY / FIGHT ── */
+	if (!match_over) {
+		int   cd_phase   = ws_get_countdown();
+		float cd_elapsed = ws_get_countdown_elapsed();
+
+		if (cd_phase == 1 || cd_phase == 2) {
+			float phase_t = (cd_phase == 1)
+				? (cd_elapsed / 1.2f)
+				: ((cd_elapsed - 1.2f) / 1.0f);
+			if (phase_t > 1.0f) phase_t = 1.0f;
+
+			const char *word = (cd_phase == 1) ? "READY?" : "FIGHT!";
+
+			/* Escala: entra grande y se encoge */
+			float scale = 1.0f + 0.6f * (1.0f - phase_t);
+
+			/* Fade: aparece de golpe, desaparece al final */
+			float fade = (phase_t > 0.7f) ? (1.0f - (phase_t - 0.7f) / 0.3f) : 1.0f;
+			if (fade < 0.0f) fade = 0.0f;
+			unsigned char alpha = (unsigned char)(255.0f * fade);
+
+			int size = (int)(64.0f * scale);
+			int tw   = MeasureText(word, size);
+			int tx   = (SCREEN_W - tw) / 2;
+			int ty   = SCREEN_H / 2 - size / 2 - 30;
+
+			/* Sombra */
+			DrawText(word, tx + 4, ty + 4, size,
+			         (Color){ 0, 0, 0, (unsigned char)(alpha / 2) });
+
+			Color wordCol = (cd_phase == 1)
+				? (Color){ 255, 240, 80,  alpha }
+				: (Color){ 255,  60, 30,  alpha };
+			DrawText(word, tx, ty, size, wordCol);
+		}
 	}
 
 	EndDrawing();
@@ -926,20 +1136,33 @@ static void DrawGame(void) {
 static void MainLoop(void) {
 	if (!game_ready) return;
 
-	/* FIX: Forzar lectura del estado de espectador cada frame,
-	   y si es espectador, asegurar que my_id = -1 siempre */
+	/* Leer estado de espectador desde JS cada frame */
 	is_spectator = (bool)ws_is_spectator();
 
 	if (is_spectator) {
-		/* Los espectadores no necesitan un ID real, lo dejamos en -1
-		   para que FetchState no los bloquee (aunque la condición ya permite espectadores) */
-		my_id = -1;
-	} else if (my_id < 0) {
+		/* Espectador confirmado por JS — my_id no tiene sentido aquí */
+		my_id      = -1;
+		no_id_frames = 0;
+	} else if (my_id > 0) {
+		/* Ya tenemos ID de jugador — nada que hacer */
+		no_id_frames = 0;
+	} else {
+		/* Todavía sin ID — intentar obtenerlo */
 		my_id = ws_get_my_id();
 		if (my_id > 0) {
-			/* Solo los jugadores necesitan la configuración de ataque */
 			ATTACK_RANGE   = ws_get_attack_range();
 			ATTACK_RANGE_Y = ws_get_attack_range_y();
+			no_id_frames   = 0;
+		} else {
+			/* Sin ID y sin confirmación de espectador todavía.
+			   Si llevamos demasiados frames así Y hay jugadores en la snapshot,
+			   es porque somos espectador pero el mensaje WS llegó tarde.
+			   Forzar modo espectador para que el render arranque. */
+			no_id_frames++;
+			if (no_id_frames >= NO_ID_SPECTATOR_FRAMES && ws_player_count() > 0) {
+				is_spectator = true;
+				my_id        = -1;
+			}
 		}
 	}
 
@@ -954,6 +1177,47 @@ static void MainLoop(void) {
 
 	FetchState();
 	FlushOnePlayerInit();
+
+	/* ── Comprobar victoria (mensaje 'victory' del servidor) ── */
+	if (!match_over) {
+		int vstate = ws_get_victory_state();
+		if (vstate != 0) {
+			int wid = ws_get_victory_winner();
+			match_over = true;
+			winner_id  = wid;
+
+			if (vstate == 1)
+				snprintf(winner_message, sizeof(winner_message), "VICTORY");
+			else
+				snprintf(winner_message, sizeof(winner_message), "DERROTA");
+
+			ws_consume_victory();
+
+			/* Cargar animación 'victory' en el ganador y congelar en último frame */
+			int vi = AnimIndex("victory");
+			for (int s = 0; s < MAX_PLAYERS; s++) {
+				if (!players[s].active || players[s].id != winner_id) continue;
+				if (players[s].character) {
+					bool loaded = LoadAnimWithOffset(&players[s],
+					                                ANIM_JSON[vi], ANIM_META[vi]);
+					if (!loaded) {
+						vi = AnimIndex("idle");
+						LoadAnimWithOffset(&players[s], ANIM_JSON[0], ANIM_META[0]);
+					}
+					SetCharacterAutoPlay(players[s].character, false);
+					int last = players[s].character->animation.frameCount - 1;
+					if (last < 0) last = 0;
+					players[s].character->currentFrame = last;
+					players[s].character->forceUpdate  = true;
+				}
+				players[s].animIndex = vi;
+				strcpy_safe(players[s].animation, ANIM_NAME[vi],
+				            sizeof(players[s].animation));
+				break;
+			}
+		}
+	}
+
 	DrawGame();
 }
 
