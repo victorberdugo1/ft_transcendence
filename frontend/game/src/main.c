@@ -1452,7 +1452,7 @@ int main(void) {
 	memset(players, 0, sizeof(players));
 
 	SetTraceLogLevel(LOG_NONE);
-	InitWindow(SCREEN_W, SCREEN_H, "Voltage Fighter");
+	InitWindow(SCREEN_W, SCREEN_H, "Enuma Fighter");
 	SetTargetFPS(60);
 
 	scene_cam = (Camera){

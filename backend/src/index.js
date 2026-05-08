@@ -491,7 +491,7 @@ wss.on('connection', async (ws, req) => {
         sendStateToSpectator(spectators[clientId]);
     }
 
-    async function ensureSpectatorReady(specMode = 'overflow', watchingSession = null) {
+    async function ensureSpectatorReady(specMode = 'overflow', watchingSession = null, extraFlags = {}) {
         if (clientId === null) {
             clientId = nextClientId++;
             if (clientId >= nextClientId) nextClientId = clientId + 1;
@@ -505,6 +505,9 @@ wss.on('connection', async (ws, req) => {
                 watchingSession,
                 mode: specMode,
                 dbRowId: null,
+                // Carry over eliminated flag so the close handler writes the ghost correctly
+                // on every subsequent disconnect, not just the first one.
+                eliminated: extraFlags.eliminated ?? false,
             };
             isSpectator = true;
             mode = specMode;
@@ -518,6 +521,11 @@ wss.on('connection', async (ws, req) => {
         } else {
             spectators[clientId].watchingSession = watchingSession;
             spectators[clientId].mode = specMode;
+            // Preserve or upgrade the eliminated flag — never downgrade it to false
+            // once it has been set to true (player lost all stocks).
+            if (extraFlags.eliminated) {
+                spectators[clientId].eliminated = true;
+            }
             isSpectator = true;
             mode = specMode;
 
@@ -569,6 +577,15 @@ wss.on('connection', async (ws, req) => {
 
         const saved = lastState[clientId];
         if (saved) clearTimeout(saved.timer);
+
+        // Do not resurrect an eliminated or voluntary spectator — keep them as spectator.
+        if (saved?.spectator) {
+            delete lastState[clientId];
+            const watchSess = saved.watchingSession
+                ?? (gameSessions.size > 0 ? gameSessions.keys().next().value : null);
+            await ensureSpectatorReady(saved.mode ?? 'overflow', watchSess, { eliminated: saved.eliminated ?? false });
+            return;
+        }
 
         players[clientId] = createPlayer(clientId, saved, ws);
         players[clientId].dbUserId = dbUserId;
@@ -730,6 +747,18 @@ wss.on('connection', async (ws, req) => {
             clientId = msg.clientId;
             if (clientId >= nextClientId) nextClientId = clientId + 1;
 
+            // If this client was a spectator (eliminated or voluntary) before disconnecting,
+            // restore them as spectator instead of promoting to player.
+            const ghostState = lastState[clientId];
+            if (ghostState?.spectator) {
+                clearTimeout(ghostState.timer);
+                delete lastState[clientId];
+                const watchSess = ghostState.watchingSession
+                    ?? (gameSessions.size > 0 ? gameSessions.keys().next().value : null);
+                await ensureSpectatorReady(ghostState.mode ?? 'overflow', watchSess, { eliminated: ghostState.eliminated ?? false });
+                return;
+            }
+
             if (Object.keys(players).length < MAX_PLAYERS) {
                 await promoteToPlayer(null);
             } else {
@@ -848,6 +877,23 @@ wss.on('connection', async (ws, req) => {
                     [spec.dbRowId]
                 ).catch(err => console.error('[SPECTATOR] left_at update error:', err.message));
             }
+            // Preserve spectator ghost state so that on reconnect they are restored
+            // as spectator (not promoted to player).
+            // - eliminated: was a player who lost all stocks
+            // - voluntary:  explicitly chose to watch (sent 'watch' message)
+            // Both cases must NOT be promoted to player on reconnect.
+            if (spec.eliminated || spec.mode === 'voluntary') {
+                lastState[clientId] = {
+                    spectator:       true,
+                    eliminated:      spec.eliminated ?? false,
+                    watchingSession: spec.watchingSession ?? null,
+                    mode:            spec.mode,
+                    timer: setTimeout(() => {
+                        delete lastState[clientId];
+                        playerCharSelected.delete(clientId);
+                    }, GHOST_TTL),
+                };
+            }
             delete spectators[clientId];
             console.log(`[SPECTATOR] Client ${clientId} disconnected`);
             return;
@@ -857,12 +903,13 @@ wss.on('connection', async (ws, req) => {
 
         const p = players[clientId];
         lastState[clientId] = {
-            x:        p.x,
-            y:        p.y,
-            onGround: p.onGround,
-            stocks:   p.stocks,          // <-- preserve stocks across reconnects
+            x:         p.x,
+            y:         p.y,
+            onGround:  p.onGround,
+            stocks:    p.stocks,          // preserve stocks across reconnects
+            sessionId: playerSession.get(clientId) ?? null,  // track which session they belonged to
 
-            timer:    setTimeout(() => {
+            timer: setTimeout(() => {
                 delete lastState[clientId];
                 playerCharSelected.delete(clientId);
             }, GHOST_TTL),
@@ -935,6 +982,7 @@ function createPlayer(id, saved, ws) {
         animation:      'idle',
         animTimer:      0,
         stocks:         saved?.stocks ?? 3,
+        prevSessionId:  saved?.sessionId ?? null,  // session they belonged to before disconnect
         respawning:     false,
         respawnTimer:   0,
         voltage:        0,
@@ -1377,7 +1425,15 @@ function tryAutoMatch() {
             sess.playerIds.add(cid);
             playerSession.set(cid, sess.id);
             const p = players[cid];
-            if (p) p.stocks = 3;
+            if (p) {
+                // Only reset stocks if this is a brand-new player joining a session,
+                // not a reconnection to the same session they were already in.
+                // prevSessionId is set in createPlayer from lastState before lastState is deleted.
+                if (p.prevSessionId !== sess.id) {
+                    p.stocks = 3;
+                }
+                p.prevSessionId = null;  // consume it so future new sessions always reset
+            }
             console.log(`[AUTO-MATCH] Late-joiner ${cid} added to session ${sess.id}`);
         }
         // Notify everyone in the session of the new players
@@ -1577,6 +1633,7 @@ function handleElimination(loser) {
             watchingSession: sessionId ?? null,
             mode:            'overflow',
             dbRowId:         null,
+            eliminated:      true,
         };
 
         eliminatedWs.send(JSON.stringify({
