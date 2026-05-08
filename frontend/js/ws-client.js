@@ -266,6 +266,12 @@ setInterval(() => {
 
         } else if (msg.type === 'state') {
             window._gameState = msg;
+            // Re-apply victory animation patch so server state updates don't
+            // clobber the winner's animation while the victory sequence plays.
+            if (window._victoryActive && window._victoryWinner >= 0) {
+                const wp = window._gameState.players[window._victoryWinner];
+                if (wp) { wp.animation = 'victory'; wp.frozen = true; }
+            }
             try { sessionStorage.setItem('gameState', JSON.stringify(msg)); } catch {   }
 
         } else if (msg.type === 'match_start') {
@@ -296,26 +302,28 @@ setInterval(() => {
 
         } else if (msg.type === 'victory') {
             // If this client was eliminated earlier and is now watching as a spectator,
-            // we must NOT trigger the personal loss/victory screen. Instead we just
-            // dispatch the event so the frontend can show a "X wins!" overlay.
-            // Only activate _victoryState (which drives the reload/end-screen logic)
-            // once the whole match is truly over (handled by match_end below).
+            // show them the defeat/end overlay (same as any loser) and also dispatch
+            // the spectator event for the UI layer.
             if (window._isSpectator && window._eliminatedFromSession) {
-                // Broadcast a neutral victory notification for spectators/eliminated players
-                window.dispatchEvent(new CustomEvent('victory_spectator', { detail: {
-                    winner:   msg.winner,
-                    loser:    msg.loser,
-                    isWinner: false,
-                    spectating: true,
-                }}));
+                window._victoryWinner   = msg.winner | 0;
+                window._victoryIsWinner = false;
+                window._victoryActive   = true;
+                window._victoryConsumed = false;
+                window._victoryState = {
+                    winner:         msg.winner,
+                    loser:          msg.loser,
+                    isWinner:       false,
+                    reloadRequired: msg.reloadRequired ?? true,
+                };
                 // Freeze winner animation in local state so it renders correctly
                 if (window._gameState && window._gameState.players) {
                     const wp = window._gameState.players[msg.winner];
-                    if (wp) {
-                        wp.animation = 'victory';
-                        wp.frozen    = true;
-                    }
+                    if (wp) { wp.animation = 'victory'; wp.frozen = true; }
                 }
+                window.dispatchEvent(new CustomEvent('victory_spectator', { detail: {
+                    winner: msg.winner, loser: msg.loser, isWinner: false, spectating: true,
+                }}));
+                window.dispatchEvent(new CustomEvent('victory', { detail: window._victoryState }));
                 return;
             }
 
@@ -415,7 +423,9 @@ function sendInput(frame) {
     if (window._isSpectator) return;
 
 
-    if (window._victoryState && !window._victoryConsumed) return;
+    // Block all input from the moment victory is declared until the
+    // victory animation finishes and the overlay is consumed.
+    if (window._victoryActive) return;
 
 
     if (window._countdownStart && !window._countdownDone) return;

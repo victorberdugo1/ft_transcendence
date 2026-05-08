@@ -123,6 +123,7 @@ static int    no_id_frames     = 0;
 
 
 static bool   match_over          = false;
+static bool   victory_pending     = false;   // victory received, playing anim, overlay not yet shown
 static int    winner_id           = -1;
 static char   winner_message[80]  = {0};
 
@@ -929,7 +930,17 @@ static void DrawGame(void) {
 
 		if (p->character->animController && !p->character->animController->playing) {
 
-			if (match_over && p->id == winner_id) {
+			if (victory_pending && p->id == winner_id) {
+				// Victory animation just finished — now show the overlay
+				match_over      = true;
+				victory_pending = false;
+				ws_consume_victory();
+				int last = p->character->animation.frameCount - 1;
+				if (last < 0) last = 0;
+				p->character->currentFrame = last;
+				p->character->forceUpdate  = true;
+				SetCharacterAutoPlay(p->character, false);
+			} else if (match_over && p->id == winner_id) {
 				int last = p->character->animation.frameCount - 1;
 				if (last < 0) last = 0;
 				p->character->currentFrame = last;
@@ -1411,11 +1422,11 @@ static void MainLoop(void) {
 	FlushOnePlayerInit();
 
 
-	if (!match_over) {
+	if (!match_over && !victory_pending) {
 		int vstate = ws_get_victory_state();
 		if (vstate != 0) {
 			int wid = ws_get_victory_winner();
-			match_over = true;
+			victory_pending = true;
 			winner_id  = wid;
 
 			if (vstate == 1)
@@ -1423,18 +1434,16 @@ static void MainLoop(void) {
 			else
 				snprintf(winner_message, sizeof(winner_message), "DERROTA");
 
-			ws_consume_victory();
-
-
+			// Start victory animation from the beginning with autoplay.
+			// match_over and ws_consume_victory() are called only once
+			// the animation finishes (in the DrawGame animation loop).
 			int vi = AnimIndex("victory");
 			for (int s = 0; s < MAX_PLAYERS; s++) {
 				if (!players[s].active || players[s].id != winner_id) continue;
 				if (players[s].character) {
 					LoadPlayerAnim(&players[s], vi);
-					SetCharacterAutoPlay(players[s].character, false);
-					int last = players[s].character->animation.frameCount - 1;
-					if (last < 0) last = 0;
-					players[s].character->currentFrame = last;
+					SetCharacterAutoPlay(players[s].character, true);
+					players[s].character->currentFrame = 0;
 					players[s].character->forceUpdate  = true;
 				}
 				players[s].animIndex = vi;

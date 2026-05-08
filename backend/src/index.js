@@ -1831,6 +1831,13 @@ async function resolveMatchWinner(session, winnerClientId, loserClientId) {
         gameSessions.delete(session.id);
         delete hitstopBySession[session.id];
 
+        // Remove winner from active players so any client that reconnects
+        // after the session ends does not see a stale character on screen.
+        if (players[winnerClientId]) {
+            delete players[winnerClientId];
+            playerSession.delete(winnerClientId);
+        }
+
 
 
         const nextSession = [...gameSessions.values()].find(s => !s.finished)?.id ?? null;
