@@ -353,6 +353,23 @@ setInterval(() => {
             window.dispatchEvent(new CustomEvent('victory', { detail: window._victoryState }));
             if (isWinner) console.log('[GAME] Victory! Reload para la próxima partida.');
 
+        } else if (msg.type === 'match_finished') {
+            // The session is permanently over. Clear all persisted identity so that
+            // any reload (winner or spectator) starts a brand-new connection instead
+            // of trying to rejoin a session that no longer exists.
+            try {
+                sessionStorage.removeItem('clientId');
+                sessionStorage.removeItem('charSelectData');
+                sessionStorage.removeItem('pendingCharSelect');
+                sessionStorage.removeItem('watchSession');
+                sessionStorage.removeItem('gameState');
+            } catch(e) {}
+            window._myClientId         = -1;
+            window._charSelectData     = null;
+            window._charSelectConfirmed = false;
+            window._victoryConsumed    = true;
+            window.dispatchEvent(new CustomEvent('match_finished', { detail: { sessionId: msg.sessionId } }));
+
         } else if (msg.type === 'match_end') {
             const isWinnerMe = msg.winner === window._myClientId;
             window._lastMatchResult = { winner: msg.winner, loser: msg.loser, isWinner: isWinnerMe, matchId: msg.matchId };

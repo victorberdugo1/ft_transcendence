@@ -579,12 +579,23 @@ wss.on('connection', async (ws, req) => {
         if (saved) clearTimeout(saved.timer);
 
         // Do not resurrect an eliminated or voluntary spectator — keep them as spectator.
+        // Exception: if the session they were watching is already finished/gone,
+        // treat as fresh player so they join the next match.
         if (saved?.spectator) {
             delete lastState[clientId];
-            const watchSess = saved.watchingSession
-                ?? (gameSessions.size > 0 ? gameSessions.keys().next().value : null);
-            await ensureSpectatorReady(saved.mode ?? 'overflow', watchSess, { eliminated: saved.eliminated ?? false });
-            return;
+            const watchSess = saved.watchingSession ?? null;
+            const sessStillActive = watchSess && gameSessions.has(watchSess) && !gameSessions.get(watchSess).finished;
+            if (!sessStillActive && watchSess) {
+                // Session is over — join fresh as player
+                playerCharSelected.delete(clientId);
+                // fall through to createPlayer below
+            } else {
+                const resolvedSess = sessStillActive
+                    ? watchSess
+                    : (gameSessions.size > 0 ? gameSessions.keys().next().value : null);
+                await ensureSpectatorReady(saved.mode ?? 'overflow', resolvedSess, { eliminated: saved.eliminated ?? false });
+                return;
+            }
         }
 
         players[clientId] = createPlayer(clientId, saved, ws);
@@ -749,12 +760,29 @@ wss.on('connection', async (ws, req) => {
 
             // If this client was a spectator (eliminated or voluntary) before disconnecting,
             // restore them as spectator instead of promoting to player.
+            // Exception: if the session they were watching is already finished/gone,
+            // treat them as a fresh player so they join the next match.
             const ghostState = lastState[clientId];
             if (ghostState?.spectator) {
+                const watchSess = ghostState.watchingSession ?? null;
+                const sessStillActive = watchSess && gameSessions.has(watchSess) && !gameSessions.get(watchSess).finished;
+                if (!sessStillActive) {
+                    // Session is over — discard ghost and join fresh
+                    clearTimeout(ghostState.timer);
+                    delete lastState[clientId];
+                    playerCharSelected.delete(clientId);
+                    if (Object.keys(players).length < MAX_PLAYERS) {
+                        await promoteToPlayer(null);
+                    } else {
+                        const firstSession = gameSessions.size > 0
+                            ? gameSessions.keys().next().value
+                            : null;
+                        await ensureSpectatorReady('overflow', firstSession);
+                    }
+                    return;
+                }
                 clearTimeout(ghostState.timer);
                 delete lastState[clientId];
-                const watchSess = ghostState.watchingSession
-                    ?? (gameSessions.size > 0 ? gameSessions.keys().next().value : null);
                 await ensureSpectatorReady(ghostState.mode ?? 'overflow', watchSess, { eliminated: ghostState.eliminated ?? false });
                 return;
             }
@@ -1783,6 +1811,23 @@ async function resolveMatchWinner(session, winnerClientId, loserClientId) {
     const VICTORY_DISPLAY_MS = 6000;
 
     setTimeout(() => {
+        // Notify ALL participants (winner still in players + eliminated spectators)
+        // that this session is permanently finished — clients must clear sessionStorage
+        // and join as fresh players on reload.
+        broadcastToSession(session, {
+            type:      'match_finished',
+            sessionId: session.id,
+        });
+        // Also notify eliminated spectators watching this session
+        for (const spec of Object.values(spectators)) {
+            if (spec.watchingSession === session.id && spec.ws.readyState === WebSocket.OPEN) {
+                spec.ws.send(JSON.stringify({
+                    type:      'match_finished',
+                    sessionId: session.id,
+                }));
+            }
+        }
+
         gameSessions.delete(session.id);
         delete hitstopBySession[session.id];
 

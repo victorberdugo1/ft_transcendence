@@ -1,15 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 
+const GAME_RATIO = 800 / 600;
+
 function calcResolution() {
-  const ratio = 800 / 600;
   const vw = window.innerWidth;
   const vh = window.innerHeight;
-  if (vw / vh > ratio) {
+  if (vw / vh > GAME_RATIO) {
     const h = vh;
-    return { w: Math.round(h * ratio), h };
+    return { w: Math.round(h * GAME_RATIO), h };
   } else {
     const w = vw;
-    return { w, h: Math.round(w / ratio) };
+    return { w, h: Math.round(w / GAME_RATIO) };
   }
 }
 
@@ -36,35 +37,29 @@ export default function App() {
     script.onerror = () => setStatus("Error cargando game.js");
     document.body.appendChild(script);
 
-    // Mostrar el canvas cuando el jugador tiene posición en el estado,
-    // o cuando somos espectador confirmado con clientId asignado.
     const poll = setInterval(() => {
-      // Caso espectador: _isSpectator=true y ya tenemos clientId
       if (window._isSpectator && window._myClientId > 0) {
         setVisible(true);
         clearInterval(poll);
         return;
       }
-      // Caso jugador: esperar a que nuestra entrada aparezca en el gameState
       const id = window._myClientId;
       if (id <= 0) return;
       const state = window._gameState;
       if (!state || !state.players) return;
-      const me = state.players[id];
-      if (!me) return;
+      if (!state.players[id]) return;
       setVisible(true);
       clearInterval(poll);
     }, 50);
 
-    let resizeTimer;
     const onResize = () => {
-      clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(() => window.location.reload(), 500);
+      const { w, h } = calcResolution();
+      window._canvasWidth  = w;
+      window._canvasHeight = h;
     };
     window.addEventListener("resize", onResize);
 
     return () => {
-      clearTimeout(resizeTimer);
       clearInterval(poll);
       window.removeEventListener("resize", onResize);
       script.parentNode?.removeChild(script);
