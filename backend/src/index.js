@@ -7,9 +7,6 @@ const bcrypt    = require('bcrypt');
 const crypto    = require('crypto');
 const { Pool }  = require('pg');
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  DATABASE
-// ─────────────────────────────────────────────────────────────────────────────
 const db = new Pool({
     host:     process.env.PGHOST      || 'db',
     port:     process.env.PGPORT      || 5432,
@@ -18,28 +15,22 @@ const db = new Pool({
     password: process.env.PGPASSWORD  || 'postgres',
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  SERVER BOOTSTRAP
-// ─────────────────────────────────────────────────────────────────────────────
 const app    = express();
 const server = http.createServer(app);
 const wss    = new WebSocket.Server({ noServer: true });
 
 app.use(express.json());
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  AUTH HELPERS
-// ─────────────────────────────────────────────────────────────────────────────
 const BCRYPT_ROUNDS  = 10;
 const SESSION_DAYS    = 7;
 const SESSION_COOKIE  = 'sid';
 
-/** Generates a secure session token (64-byte hex = 128 characters). */
+
 function generateToken() {
     return crypto.randomBytes(64).toString('hex');
 }
 
-/** Parses the sid cookie from the Cookie header. */
+
 function parseSidCookie(req) {
     const header = req.headers.cookie || '';
     for (const part of header.split(';')) {
@@ -49,10 +40,7 @@ function parseSidCookie(req) {
     return null;
 }
 
-/**
- * Middleware: attaches req.user if the session cookie is valid.
- * Does not reject; protected routes call requireAuth().
- */
+
 async function loadSession(req, res, next) {
     try {
         const token = parseSidCookie(req);
@@ -72,7 +60,7 @@ async function loadSession(req, res, next) {
     next();
 }
 
-/** Middleware: rejects with 401 if there is no valid session. */
+
 function requireAuth(req, res, next) {
     if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
     next();
@@ -80,11 +68,7 @@ function requireAuth(req, res, next) {
 
 app.use(loadSession);
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  AUTH ROUTES
-// ─────────────────────────────────────────────────────────────────────────────
 
-/** POST /api/register – Register a new user. */
 app.post('/api/register', async (req, res) => {
     const { username, email, password } = req.body ?? {};
 
@@ -133,7 +117,7 @@ app.post('/api/register', async (req, res) => {
     }
 });
 
-/** POST /api/login – Sign in. */
+
 app.post('/api/login', async (req, res) => {
     const { email, password } = req.body ?? {};
 
@@ -184,7 +168,7 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
-/** POST /api/logout – End the session. */
+
 app.post('/api/logout', requireAuth, async (req, res) => {
     const token = parseSidCookie(req);
     try {
@@ -197,14 +181,11 @@ app.post('/api/logout', requireAuth, async (req, res) => {
     res.json({ ok: true });
 });
 
-/** GET /api/me – Returns the current user. */
+
 app.get('/api/me', requireAuth, (req, res) => {
     res.json({ user: req.user });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  SIMULATION CONSTANTS
-// ─────────────────────────────────────────────────────────────────────────────
 const TICK_RATE = 60;
 const TICK_DT   = 1 / TICK_RATE;
 const GHOST_TTL = 30_000;
@@ -230,34 +211,15 @@ const ATTACK_RANGE_Y   = 0.5;
 const ATTACK_KNOCKBACK = 14.0;
 const ATTACK_KB_UP     =  6.0;
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  VOLTAGE SYSTEM
-// ─────────────────────────────────────────────────────────────────────────────
 const VOLTAGE_MAX          = 200;
 const VOLTAGE_PER_HIT       =  12;
 const VOLTAGE_DRAIN_BLOCK   =   8;
-const VOLTAGE_SCALE_ATTACK  = 1.0;
-const VOLTAGE_SCALE_DEFEND  = 1.0;
 
 function voltageMultiplier(v) {
     if (v >= VOLTAGE_MAX) return 6.0;
     return 1.0 + Math.log(1 + v / 40) * 0.38;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  HITSTOP SYSTEM  (estilo Smash Bros / HAL Laboratory)
-//
-//  El hitstop es una PAUSA PURA: toda física e input se congela durante
-//  exactamente N frames.  No hay bullet-time parcial — el freeze es total
-//  y la salida explosiva.  La duración escala con el voltaje del atacante.
-//
-//  Duraciones (a 60 Hz):
-//    voltage <  30  →  3 frames  (~50 ms)  — micro-stop, apenas perceptible
-//    30 –  79       →  6 frames  (~100 ms) — golpe normal con peso
-//    80 – 149       → 10 frames  (~167 ms) — golpe fuerte, claramente visible
-//   150 – 199       → 15 frames  (~250 ms) — heavy, bullet time notable
-//    200 (maxed)    → 22 frames  (~367 ms) — ultra, espectacular
-// ─────────────────────────────────────────────────────────────────────────────
 function calcHitstop(attackerVoltage) {
     const v = attackerVoltage;
     if (v >= 200) {
@@ -276,28 +238,17 @@ function calcHitstop(attackerVoltage) {
     }
 }
 
-// Estado global de hitstop por sesión.
-// hitstopBySession[sessionId] = { framesLeft, tier } | null
 const hitstopBySession = {};
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  BLOCK SYSTEM
-// ─────────────────────────────────────────────────────────────────────────────
 const BLOCK_KB_MULTIPLIER = 0.15;
 const BLOCK_MOVE_FACTOR   = 0.05;
 const BLOCK_HOLD_TICKS    = 35;
 const BLOCK_DASH_LOCKOUT  = 0.6;
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  DASH ATTACK
-// ─────────────────────────────────────────────────────────────────────────────
 const DASH_ATTACK_WINDOW  = 0.18;
 const DASH_ATTACK_KB_MULT = 1.65;
 const DASH_ATTACK_RANGE_X = 1.65;
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  ANIMATION
-// ─────────────────────────────────────────────────────────────────────────────
 const ANIM_DURATIONS = {
     attack_air:     0.5,
     attack_crouch:  0.5,
@@ -313,9 +264,6 @@ const ANIM_DURATIONS = {
 
 const COMBO_WINDOW = 0.25;
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  STAGE GEOMETRY
-// ─────────────────────────────────────────────────────────────────────────────
 const PLATFORMS = [
     { x:  0, y: GROUND_Y, hw: (STAGE_RIGHT - STAGE_LEFT) / 2 },
     { x: -4, y: 1.6,      hw: 1.2 },
@@ -326,32 +274,15 @@ const PLATFORMS = [
 const PLAYER_RADIUS = 0.24;
 const PLAYER_HEIGHT = 0.72;
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  PLAYER REGISTRY
-// ─────────────────────────────────────────────────────────────────────────────
 const MAX_PLAYERS = 8;
 
 let nextClientId = 1;
 const players    = {};
 const lastState  = {};
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  SPECTATOR REGISTRY
-// ─────────────────────────────────────────────────────────────────────────────
-/**
- * spectators[clientId] = {
- *   id, dbUserId, ws,
- *   watchingSession: string|null,
- *   mode: 'overflow'|'voluntary',
- *   dbRowId: number|null
- * }
- */
+
 const spectators = {};
 let frameId = 0;
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  SPECTATOR HELPERS
-// ─────────────────────────────────────────────────────────────────────────────
 
 async function getLastWatchedSession(dbUserId) {
     if (!dbUserId) return null;
@@ -412,6 +343,7 @@ function sendStateToSpectator(spec) {
         if (sessionIds && !sessionIds.has(Number(id))) continue;
         snapshot[id] = {
             id:           p.id,
+            charId:       p.charId ?? 'eld',
             x:            +p.x.toFixed(3),
             y:            +p.y.toFixed(3),
             rotation:     p.facing === -1 ? Math.PI : 0,
@@ -441,14 +373,6 @@ function broadcastStateToSpectators() {
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ─────────────────────────────────────────────────────────────────────────────
-//  CHARACTER DEFINITIONS  (stats por personaje)
-//  moveSpeed      → velocidad de movimiento (base: 5.0)
-//  dashSpeed      → velocidad de dash (base: 14.0)
-//  attackKnockback→ fuerza de knockback (base: 14.0)
-//  attackRange    → alcance del ataque (base: 0.525)
-// ─────────────────────────────────────────────────────────────────────────────
 const CHARACTER_DEFS = {
     eld: { name: 'Eldwin',  moveSpeed: 4.5,  dashSpeed: 13.0, attackKnockback: 16.0, attackRange: 0.55  },
     hil: { name: 'Hilda',   moveSpeed: 5.5,  dashSpeed: 15.0, attackKnockback: 12.0, attackRange: 0.50  },
@@ -487,8 +411,6 @@ function buildCharSelectAck(selectorCharId, selectorClientId, stageId) {
     return { type: 'char_select_ack', charId: selectorCharId, selectorClient: selectorClientId, stageId, players: playersOut };
 }
 
-//  WEBSOCKET UPGRADE
-// ─────────────────────────────────────────────────────────────────────────────
 server.on('upgrade', (req, socket, head) => {
     if (req.url === '/ws') {
         wss.handleUpgrade(req, socket, head, ws => wss.emit('connection', ws, req));
@@ -497,9 +419,6 @@ server.on('upgrade', (req, socket, head) => {
     }
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  CONNECTION HANDLER
-// ─────────────────────────────────────────────────────────────────────────────
 wss.on('connection', async (ws, req) => {
     let clientId = null;
     let dbUserId = null;
@@ -619,12 +538,17 @@ wss.on('connection', async (ws, req) => {
 
         if (players[clientId]) return;
 
-        // -------------------------
-        //  FIX: LIMIT 8 PLAYERS
-        // -------------------------
+
+
+
+
+
+
         if (Object.keys(players).length >= MAX_PLAYERS) {
-            // Auto-assign the first active session so the overflow spectator
-            // immediately watches real gameplay instead of an empty lobby.
+
+
+
+
             const firstSession = gameSessions.size > 0
                 ? gameSessions.keys().next().value
                 : null;
@@ -650,7 +574,8 @@ wss.on('connection', async (ws, req) => {
         players[clientId].dbUserId = dbUserId;
         delete lastState[clientId];
 
-        // Restaurar personaje si ya lo había elegido antes (reconexión)
+
+
         const restoredChar = playerCharSelected.get(clientId);
         if (restoredChar) {
             const def = CHARACTER_DEFS[restoredChar] ?? CHARACTER_DEFS.eld;
@@ -674,8 +599,10 @@ wss.on('connection', async (ws, req) => {
             },
         }));
 
-        // Si ya tenía personaje elegido, reenviar el ack para que el cliente
-        // no muestre el selector de nuevo
+
+
+
+
         if (restoredChar) {
             const ack = buildCharSelectAck(restoredChar, clientId, 0);
             ws.send(JSON.stringify(ack));
@@ -698,15 +625,18 @@ wss.on('connection', async (ws, req) => {
         broadcastState();
         console.log(`[SERVER] Player ${clientId} connected (${Object.keys(players).length}/${MAX_PLAYERS})`);
 
-        // Intentar arrancar partida si ya hay ≥2 jugadores libres
+
+
         tryAutoMatch();
     }
 
     autoSpectatorTimer = setTimeout(async () => {
         if (firstMessageSeen) return;
         if (players[clientId] || spectators[clientId]) return;
-        // Auto-assign the first active session so the spectator watches
-        // real gameplay immediately instead of an empty lobby.
+
+
+
+
         const firstSession = gameSessions.size > 0
             ? gameSessions.keys().next().value
             : null;
@@ -727,16 +657,20 @@ wss.on('connection', async (ws, req) => {
             autoSpectatorTimer = null;
         }
 
-        // Primer mensaje del cliente: decidir inmediatamente jugador vs espectador.
-        // Evita la carrera entre el timeout de 120ms y el loop de input de 60Hz.
+
+
+
+
         if (msg.type === 'join') {
             if (Object.keys(players).length >= MAX_PLAYERS) {
                 if (clientId === null) {
                     clientId = nextClientId++;
                     if (clientId >= nextClientId) nextClientId = clientId + 1;
                 }
-                // Auto-assign the first active session so the spectator
-                // immediately watches real gameplay instead of an empty lobby.
+
+
+
+
                 const firstSession = gameSessions.size > 0
                     ? gameSessions.keys().next().value
                     : null;
@@ -748,7 +682,8 @@ wss.on('connection', async (ws, req) => {
         }
 
         if (msg.type === 'rejoin' && msg.clientId) {
-            // Caso 1: jugador sigue en memoria — reconectar WS y reenviar init
+
+
             if (players[msg.clientId]) {
                 clientId = msg.clientId;
                 if (clientId >= nextClientId) nextClientId = clientId + 1;
@@ -764,7 +699,8 @@ wss.on('connection', async (ws, req) => {
                         dashAttackRange: DASH_ATTACK_RANGE_X,
                     },
                 }));
-                // Reenviar char_select_ack si ya había elegido personaje
+
+
                 const savedChar = playerCharSelected.get(clientId);
                 if (savedChar) {
                     const ack = buildCharSelectAck(savedChar, clientId, 0);
@@ -773,7 +709,8 @@ wss.on('connection', async (ws, req) => {
                 return;
             }
 
-            // Caso 2: espectador sigue en memoria — reconectar WS
+
+
             if (spectators[msg.clientId]) {
                 clientId = msg.clientId;
                 if (clientId >= nextClientId) nextClientId = clientId + 1;
@@ -784,7 +721,8 @@ wss.on('connection', async (ws, req) => {
                 return;
             }
 
-            // Caso 3: ya no está en memoria — tratar como join nuevo
+
+
             if (clientId !== null && clientId !== msg.clientId) {
                 delete spectators[clientId];
                 delete players[clientId];
@@ -832,7 +770,8 @@ wss.on('connection', async (ws, req) => {
         }
 
         if (msg.type === 'input') {
-            // Prevent spectators from being promoted by input when room is full
+
+
             if (spectators[clientId]) return;
 
             if (!players[clientId]) {
@@ -863,7 +802,8 @@ wss.on('connection', async (ws, req) => {
             const charId  = CHAR_IDS.includes(msg.charId) ? msg.charId : 'eld';
             const stageId = (msg.stageId ?? 0) | 0;
 
-            // Aplicar stats al jugador que seleccionó
+
+
             const p = players[clientId];
             if (p) {
                 const def = CHARACTER_DEFS[charId] ?? CHARACTER_DEFS.eld;
@@ -874,17 +814,20 @@ wss.on('connection', async (ws, req) => {
                 p.attackRange     = def.attackRange;
             }
 
-            // Registrar personaje elegido (persiste para reconexiones)
+
+
             playerCharSelected.set(clientId, charId);
 
-            // Broadcast ack con assets a todos
+
+
             const ack = buildCharSelectAck(charId, clientId, stageId);
             const raw = JSON.stringify(ack);
             for (const pl   of Object.values(players))    if (pl.ws   && pl.ws.readyState   === WebSocket.OPEN) pl.ws.send(raw);
             for (const spec of Object.values(spectators)) if (spec.ws && spec.ws.readyState === WebSocket.OPEN) spec.ws.send(raw);
             console.log(`[CHAR_SELECT] client=${clientId} char=${charId} moveSpeed=${players[clientId]?.moveSpeed}`);
 
-            // Intentar arrancar combate si hay ≥2 jugadores libres con personaje elegido
+
+
             tryAutoMatch();
         }
     });
@@ -917,15 +860,33 @@ wss.on('connection', async (ws, req) => {
             x:        p.x,
             y:        p.y,
             onGround: p.onGround,
-            // Al expirar el ghost TTL, borrar también la selección de personaje
+            stocks:   p.stocks,          // <-- preserve stocks across reconnects
+
             timer:    setTimeout(() => {
                 delete lastState[clientId];
                 playerCharSelected.delete(clientId);
             }, GHOST_TTL),
         };
+
+        // If player was in a session, treat disconnect as elimination so victory
+        // logic works correctly and remaining players can still win normally.
+        const disconnectedSessionId = playerSession.get(clientId);
+        const disconnectedSession   = disconnectedSessionId ? gameSessions.get(disconnectedSessionId) : null;
+
         delete players[clientId];
         playerSession.delete(clientId);
-        // NO borramos playerCharSelected aquí — se conserva para reconexión (rejoin)
+
+        // Check if this disconnect resolves the session
+        if (disconnectedSession && !disconnectedSession.finished) {
+            disconnectedSession.eliminated.add(clientId);
+            const remaining = [...disconnectedSession.playerIds].filter(id => !disconnectedSession.eliminated.has(id));
+            if (remaining.length === 1) {
+                const winnerId = remaining[0];
+                resolveMatchWinner(disconnectedSession, winnerId, clientId);
+            }
+        }
+
+
         console.log(`[SERVER] Player ${clientId} disconnected`);
         broadcastState();
     });
@@ -933,9 +894,15 @@ wss.on('connection', async (ws, req) => {
     ws.on('error', () => ws.close());
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  PLAYER FACTORY
-// ─────────────────────────────────────────────────────────────────────────────
+function sendAllCharSelectsTo(ws) {
+    // Send one char_select_ack per known player so the receiver can build
+    // correct textures for every character already in the game.
+    for (const [cid, charId] of playerCharSelected.entries()) {
+        const ack = buildCharSelectAck(charId, cid, 0);
+        if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(ack));
+    }
+}
+
 function createPlayer(id, saved, ws) {
     const spawnX   = (Math.random() - 0.5) * 4;
     const onGround = saved ? (saved.onGround ?? true) : true;
@@ -967,7 +934,7 @@ function createPlayer(id, saved, ws) {
         crouching:      false,
         animation:      'idle',
         animTimer:      0,
-        stocks:         3,
+        stocks:         saved?.stocks ?? 3,
         respawning:     false,
         respawnTimer:   0,
         voltage:        0,
@@ -982,7 +949,7 @@ function createPlayer(id, saved, ws) {
             block: false, dashAttack: false,
         },
         ws,
-        /* Stats por personaje — sobreescritos por char_select */
+
         charId:          null,
         moveSpeed:       MOVE_SPEED,
         dashSpeed:       DASH_SPEED,
@@ -991,33 +958,39 @@ function createPlayer(id, saved, ws) {
     };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  GAME LOOP  (60 Hz)
 setInterval(tick, 1000 / TICK_RATE);
 
 function tick() {
-    // Jugadores en sesiones FINISHED (pantalla de victoria) se congelan:
-    // seguimos enviando estado para que se renderice la animación, pero no
-    // ejecutamos física ni detección de golpes.
+
+
+
+
+
+
     const frozenIds = new Set();
     for (const [cid, sid] of playerSession.entries()) {
         const sess = gameSessions.get(sid);
         if (sess?.finished) frozenIds.add(cid);
     }
 
-    // ── Pre-tick: limpiar hitstops expirados del tick anterior ───────────────
+
+
     for (const [sessId, hs] of Object.entries(hitstopBySession)) {
         if (!hs || hs.framesLeft <= 0) delete hitstopBySession[sessId];
     }
 
-    // Todos los jugadores vivos corren tickPlayer (incluye detección de golpes).
-    // Si un golpe ocurre aquí, applyHit() escribe en hitstopBySession ahora mismo.
+
+
+
+
     const aliveAll = Object.values(players).filter(p => !p.respawning && !frozenIds.has(p.id));
     tickRespawn();
     for (const p of aliveAll) tickPlayer(p);
 
-    // ── Post-tickPlayer: evaluar hitstop con los datos RECIÉN generados ───────
-    // Ahora sí sabemos qué sesiones acaban de recibir un golpe este tick.
+
+
+
+
     const hitstopFrozenIds = new Set();
     for (const [sessId, hs] of Object.entries(hitstopBySession)) {
         if (!hs || hs.framesLeft <= 0) { delete hitstopBySession[sessId]; continue; }
@@ -1029,7 +1002,8 @@ function tick() {
         if (hs.framesLeft <= 0) delete hitstopBySession[sessId];
     }
 
-    // alive para física = los que NO están congelados por hitstop
+
+
     const alive = aliveAll.filter(p => !hitstopFrozenIds.has(p.id));
     const aliveForAnim = Object.values(players).filter(p => !frozenIds.has(p.id));
     tickPhysics(alive);
@@ -1205,8 +1179,8 @@ function resolveHits(p) {
 
 function applyHit(attacker, target) {
     const dir          = target.x >= attacker.x ? 1 : -1;
-    const attackerMult = voltageMultiplier(attacker.voltage) * VOLTAGE_SCALE_ATTACK;
-    const defenderMult = voltageMultiplier(target.voltage)   * VOLTAGE_SCALE_DEFEND;
+    const attackerMult = voltageMultiplier(attacker.voltage);
+    const defenderMult = voltageMultiplier(target.voltage)  ;
     const dashMult     = attacker._isDashAttack ? DASH_ATTACK_KB_MULT : 1.0;
     const totalMult    = attackerMult * defenderMult * dashMult;
     let kbx = dir * (attacker.attackKnockback ?? ATTACK_KNOCKBACK) * totalMult;
@@ -1237,13 +1211,15 @@ function applyHit(attacker, target) {
     }
     attacker.hitTargets.add(target.id);
 
-    // ── Hitstop: calcular según voltaje del atacante ───────────────────────
+
+
     const hs = calcHitstop(attacker.voltage);
 
     const sessId = playerSession.get(attacker.id);
     if (sessId) {
         const existing = hitstopBySession[sessId];
-        // Solo sobreescribir si el nuevo hitstop es más largo
+
+
         if (!existing || hs.durationFrames > existing.framesLeft) {
             hitstopBySession[sessId] = {
                 framesLeft: hs.durationFrames,
@@ -1374,74 +1350,53 @@ function decideAnim(p) {
     return 'idle';
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  GAME MODES
-// ─────────────────────────────────────────────────────────────────────────────
-//
-//  TODO (frontend): cuando se implemente el lobby, los modos de batalla,
-//  el chat, las invitaciones y los torneos, esta sección se expandirá con:
-//
-//    · startDuel(id1, id2)          — 1v1 ranked/unranked
-//    · startTournament(ids, dbId)   — bracket con 2/4/8 jugadores
-//    · startBrawl(ids)              — todos contra todos (ya implementado abajo)
-//
-//  El flujo previsto es:
-//    1. Jugadores en lobby ven lista de salas/invitaciones (React UI).
-//    2. El host o un admin llama a la ruta REST correspondiente.
-//    3. El servidor crea la sesión y notifica a todos con 'match_start'.
-//    4. Los espectadores reciben 'spectator_session_changed' automáticamente.
-//
-//  Por ahora solo existe el modo DEBUG (auto-matchmaking) que mete a todos
-//  los jugadores libres en una sola sesión brawl de hasta 8 jugadores.
-//
-// ─────────────────────────────────────────────────────────────────────────────
-
 const gameSessions = new Map();
 let nextSessionId = 1;
 const playerSession = new Map();
-// clientIds que ya han elegido personaje (persiste entre reconexiones)
-const playerCharSelected = new Map(); // clientId → charId
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  ⚠️  DEBUG AUTO-MATCHMAKING — ELIMINAR CUANDO SE IMPLEMENTE EL LOBBY
-//
-//  Cada 2 segundos, si hay ≥2 jugadores libres y ninguna sesión activa,
-//  los mete a todos en una sola sesión brawl (hasta MAX_PLAYERS jugadores).
-//  Así los espectadores siempre tienen algo que ver sin necesitar lobby.
-// ─────────────────────────────────────────────────────────────────────────────
+const playerCharSelected = new Map();
+
 let DEBUG_AUTO_MATCH = true;
 
-/**
- * Intenta iniciar una sesión brawl con todos los jugadores libres.
- * Solo arranca si ≥2 jugadores libres YA eligieron personaje.
- * Se llama reactivamente al unirse/terminar partida/elegir personaje.
- */
+
 function tryAutoMatch() {
     if (!DEBUG_AUTO_MATCH) return;
 
-    // Ignorar sesiones en estado FINISHED — ya no cuentan como "activas"
-    const activeSessions = [...gameSessions.values()].filter(s => !s.finished);
-    if (activeSessions.length > 0) return;
-
-    // Solo jugadores libres que ya eligieron personaje
+    // Players who are ready (have selected a char) but not yet in any session
     const ready = Object.values(players)
         .filter(p => !playerSession.has(p.id) && playerCharSelected.has(p.id))
         .map(p => p.id);
+
+    // If there is already an active (non-finished) brawl session, add late-joiners to it
+    const activeSessions = [...gameSessions.values()].filter(s => !s.finished);
+    if (activeSessions.length > 0) {
+        if (ready.length === 0) return;
+        // Add each ready player to the first active session
+        const sess = activeSessions[0];
+        for (const cid of ready) {
+            sess.playerIds.add(cid);
+            playerSession.set(cid, sess.id);
+            const p = players[cid];
+            if (p) p.stocks = 3;
+            console.log(`[AUTO-MATCH] Late-joiner ${cid} added to session ${sess.id}`);
+        }
+        // Notify everyone in the session of the new players
+        broadcastToSession(sess, {
+            type:      'players_joined',
+            sessionId: sess.id,
+            newPlayers: ready,
+        });
+        broadcastState();
+        return;
+    }
 
     if (ready.length < 2) return;
 
     const sess = startBrawl(ready);
     console.log(`[AUTO-MATCH] Sesión brawl ${sess.id} con jugadores: ${[...sess.playerIds].join(', ')}`);
 }
-// ─────────────────────────────────────────────────────────────────────────────
-//  FIN DEBUG AUTO-MATCHMAKING
-// ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Inicia una sesión brawl (todos contra todos) con los clientIds dados.
- * Soporta de 2 a MAX_PLAYERS jugadores en la misma sesión.
- * Es el modo base hasta que el lobby gestione los modos de batalla.
- */
+
 function startBrawl(clientIds) {
     const id = String(nextSessionId++);
     const session = {
@@ -1453,7 +1408,8 @@ function startBrawl(clientIds) {
         round:        null,
         matchDbId:    null,
         startedAt:    new Date(),
-        finished:     false,   // true durante la pantalla de victoria — nadie puede unirse
+        finished:     false,
+
     };
     gameSessions.set(id, session);
 
@@ -1471,7 +1427,8 @@ function startBrawl(clientIds) {
         countdown: true,
     });
 
-    // Notificar a espectadores sin sesión asignada para que vean esta
+
+
     for (const spec of Object.values(spectators)) {
         if (spec.watchingSession !== null) continue;
         spec.watchingSession = id;
@@ -1489,7 +1446,7 @@ function startBrawl(clientIds) {
     return session;
 }
 
-/** Start a 1v1 match between two connected clientIds. */
+
 function startDuel(clientId1, clientId2) {
     const id = String(nextSessionId++);
     const session = {
@@ -1517,11 +1474,7 @@ function startDuel(clientId1, clientId2) {
     return session;
 }
 
-/**
- * Create a tournament in the DB and kick off round 1.
- * @param {number[]} clientIds
- * @param {number} creatorDbId
- */
+
 async function startTournament(clientIds, creatorDbId) {
     if (clientIds.length < 2) throw new Error('Need at least 2 players for a tournament');
 
@@ -1562,7 +1515,7 @@ async function startTournament(clientIds, creatorDbId) {
     return tournamentId;
 }
 
-/** Start a single tournament match between two players. */
+
 async function startTournamentMatch(clientId1, clientId2, tournamentId, round) {
     const id = String(nextSessionId++);
     const session = {
@@ -1596,10 +1549,7 @@ async function startTournamentMatch(clientId1, clientId2, tournamentId, round) {
     return session;
 }
 
-/**
- * Called when a player reaches 0 stocks.
- * Handles session bookkeeping, DB writes, and tournament advancement.
- */
+
 function handleElimination(loser) {
     const sessionId = playerSession.get(loser.id);
     const session   = sessionId ? gameSessions.get(sessionId) : null;
@@ -1610,7 +1560,8 @@ function handleElimination(loser) {
         session.loserStocks  = loser.stocks ?? 0;
     }
 
-    // Convertir al jugador eliminado en espectador de su propia sesión
+
+
     const eliminatedWs     = loser.ws;
     const eliminatedId     = loser.id;
     const eliminatedDbId   = loser.dbUserId ?? null;
@@ -1634,7 +1585,8 @@ function handleElimination(loser) {
             mode:            'overflow',
             watchingSession: sessionId ?? null,
             activeSessions:  listActiveSessions(),
-            eliminated:      true,   // el cliente puede mostrar "eliminado" en la UI
+            eliminated:      true,
+
         }));
 
         console.log(`[GAME] Player ${eliminatedId} eliminated → spectator watching session ${sessionId}`);
@@ -1647,17 +1599,38 @@ function handleElimination(loser) {
 
     const remaining = [...session.playerIds].filter(id => !session.eliminated.has(id));
 
+    console.log(`[GAME] Elimination: player ${eliminatedId} | session ${session.id} | remaining: [${remaining.join(', ')}] / total: ${session.playerIds.size}`);
+
+    // Only declare a winner when exactly 1 player remains alive in the session.
+    // With late-joiners (brawl) there can be 3, 4+ players so we must wait
+    // until all but one have been eliminated.
     if (remaining.length === 1) {
         const winnerId = remaining[0];
         resolveMatchWinner(session, winnerId, eliminatedId);
+    } else if (remaining.length === 0) {
+        // Edge case: everyone eliminated simultaneously — last eliminator wins.
+        // This should not normally happen but guard against a stuck session.
+        console.warn(`[GAME] Session ${session.id}: 0 remaining players — no winner declared, cleaning up.`);
+        session.finished = true;
+        broadcastToSession(session, {
+            type:     'match_end',
+            winner:   null,
+            loser:    eliminatedId,
+            matchId:  null,
+            mode:     session.mode,
+        });
+        setTimeout(() => gameSessions.delete(session.id), 6000);
     }
 }
 
-/** Persist the match result and, for tournaments, advance the bracket. */
+
 async function resolveMatchWinner(session, winnerClientId, loserClientId) {
-    // ── Marcar la sesión como terminada INMEDIATAMENTE ──────────────────────
-    // Esto evita que nuevos jugadores libres arranquen otra partida en esta sesión
-    // y que el tick siga procesando colisiones para los jugadores eliminados.
+
+
+
+
+
+
     session.finished = true;
 
     const winner     = players[winnerClientId];
@@ -1665,33 +1638,25 @@ async function resolveMatchWinner(session, winnerClientId, loserClientId) {
     const loserDbId   = session.loserDbId ?? null;
     const loserStocks = session.loserStocks ?? 0;
 
-    // ── Emitir VICTORY a todos los presentes en la sesión ───────────────────
-    // El cliente reproducirá la animación 'victory' y la congelará en el último frame.
-    // El ganador recibirá isWinner=true; los demás (espectadores/eliminados) isWinner=false.
+
+
+
+
+
+
     broadcastToSession(session, {
         type:     'victory',
         winner:   winnerClientId,
         loser:    loserClientId,
-        // El ganador necesita hacer reload para entrar en la próxima partida
-        reloadRequired: true,
-    });
 
-    // También notificar a los espectadores que miraban esta sesión
-    const raw = JSON.stringify({
-        type:     'victory',
-        winner:   winnerClientId,
-        loser:    loserClientId,
+
         reloadRequired: true,
     });
-    for (const spec of Object.values(spectators)) {
-        if (spec.watchingSession === session.id && spec.ws.readyState === WebSocket.OPEN) {
-            spec.ws.send(raw);
-        }
-    }
 
     console.log(`[GAME] Victory — ganador: ${winnerClientId}, sesión: ${session.id}`);
 
-    // ── Escribir en BD (async, no bloquea la pantalla de victoria) ──────────
+
+
     try {
         const { rows } = await db.query(
             `INSERT INTO matches
@@ -1738,7 +1703,8 @@ async function resolveMatchWinner(session, winnerClientId, loserClientId) {
         console.error('[GAME] DB write error on match resolve:', err.message);
     }
 
-    // match_end también se envía (para compatibilidad con HUD / torneos)
+
+
     broadcastToSession(session, {
         type:     'match_end',
         winner:   winnerClientId,
@@ -1751,16 +1717,20 @@ async function resolveMatchWinner(session, winnerClientId, loserClientId) {
         advanceTournament(session.tournamentId, winnerClientId);
     }
 
-    // ── Esperar la duración de la pantalla de victoria antes de limpiar ─────
-    // Durante este tiempo la sesión sigue en gameSessions con finished=true.
-    // Cualquier nuevo jugador que se conecte irá a una sesión NUEVA aparte.
-    const VICTORY_DISPLAY_MS = 6000;   // 6 s — tiempo suficiente para ver la animación
+
+
+
+
+
+
+    const VICTORY_DISPLAY_MS = 6000;
 
     setTimeout(() => {
         gameSessions.delete(session.id);
-        delete hitstopBySession[session.id];   // limpiar estado de hitstop
+        delete hitstopBySession[session.id];
 
-        // Reasignar espectadores que miraban esta sesión
+
+
         const nextSession = [...gameSessions.values()].find(s => !s.finished)?.id ?? null;
         for (const spec of Object.values(spectators)) {
             if (spec.watchingSession !== session.id) continue;
@@ -1775,18 +1745,15 @@ async function resolveMatchWinner(session, winnerClientId, loserClientId) {
             }
         }
 
-        // Intentar arrancar una nueva partida con los jugadores que esperan
+
+
         tryAutoMatch();
 
     }, VICTORY_DISPLAY_MS);
 }
 
-/**
- * Check if there are enough tournament winners waiting for the next round,
- * and start the next round's matches when ready.
- */
+
 async function advanceTournament(tournamentId, newWinnerId) {
-    if (!tournamentWaitingWinners) tournamentWaitingWinners = {};
     if (!tournamentWaitingWinners[tournamentId]) {
         tournamentWaitingWinners[tournamentId] = [];
     }
@@ -1821,7 +1788,7 @@ async function advanceTournament(tournamentId, newWinnerId) {
     }
 }
 
-/** A single player remains — mark tournament finished. */
+
 async function finalizeTournament(tournamentId, championClientId) {
     const champion = players[championClientId];
     try {
@@ -1856,9 +1823,6 @@ async function finalizeTournament(tournamentId, championClientId) {
 
 let tournamentWaitingWinners = {};
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  ACHIEVEMENTS
-// ─────────────────────────────────────────────────────────────────────────────
 async function checkAndGrantAchievements(dbUserId) {
     try {
         const { rows: stats } = await db.query(
@@ -1885,9 +1849,6 @@ async function checkAndGrantAchievements(dbUserId) {
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  BROADCAST HELPERS
-// ─────────────────────────────────────────────────────────────────────────────
 function broadcastToSession(session, msg) {
     const raw = JSON.stringify(msg);
 
@@ -1913,15 +1874,13 @@ function broadcastToAll(msg) {
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  STATE BROADCAST
-// ─────────────────────────────────────────────────────────────────────────────
 function broadcastState() {
     const snapshot = {};
 
     for (const [id, p] of Object.entries(players)) {
         snapshot[id] = {
             id:           p.id,
+            charId:       p.charId ?? 'eld',
             x:            +p.x.toFixed(3),
             y:            +p.y.toFixed(3),
             rotation:     p.facing === -1 ? Math.PI : 0,
@@ -1950,10 +1909,6 @@ function broadcastState() {
 
     broadcastStateToSpectators();
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  GAME MODE REST ENDPOINTS
-// ─────────────────────────────────────────────────────────────────────────────
 
 app.post('/api/duel', requireAuth, (req, res) => {
     const { clientId1, clientId2 } = req.body ?? {};
@@ -2029,9 +1984,6 @@ app.get('/api/leaderboard', async (req, res) => {
     }
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  DEV HELPERS
-// ─────────────────────────────────────────────────────────────────────────────
 app.get('/api/players', (req, res) => {
     const list = Object.values(players).map(p => ({
         clientId:  p.id,
@@ -2105,9 +2057,6 @@ app.post('/api/dev/tournament', async (req, res) => {
     }
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  HTTP SERVER
-// ─────────────────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`[SERVER] Listening on port ${PORT}`);

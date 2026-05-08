@@ -1,14 +1,3 @@
-/**
- * main.c – Client renderer (Raylib + Emscripten)
- *
- * Responsibilities:
- *   • Reads game state written by ws-client.js into window._gameState.
- *   • Initialises / frees animated character objects per player.
- *   • Advances animation, applies physics-driven visual transforms, draws the scene.
- *   • Renders a HUD with stocks and a colour-coded voltage bar.
- *   • Supports spectator mode (no local player — camera follows action centroid).
- */
-
 #include "raylib.h"
 #include "raymath.h"
 #include "bones_core.h"
@@ -19,9 +8,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  COMPILE-TIME CONSTANTS
-// ─────────────────────────────────────────────────────────────────────────────
 #define MAX_PLAYERS  8
 #define ANIM_COUNT   15
 
@@ -30,22 +16,13 @@
 #define STAGE_Y      -0.05f
 #define PLATFORM_H    0.12f
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  SERVER-SYNCED HITBOX DIMENSIONS  (overwritten on first 'init' message)
-// ─────────────────────────────────────────────────────────────────────────────
 static float ATTACK_RANGE   = 0.525f;
 static float ATTACK_RANGE_Y = 0.5f;
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  WINDOW / CAMERA
-// ─────────────────────────────────────────────────────────────────────────────
 static int    SCREEN_W   = 800;
 static int    SCREEN_H   = 600;
 static Camera scene_cam;
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  ANIMATION ASSET TABLES
-// ─────────────────────────────────────────────────────────────────────────────
 static const char *ANIM_JSON[ANIM_COUNT] = {
 	"data/animations/idle.json",
 	"data/animations/walk.json",
@@ -61,7 +38,7 @@ static const char *ANIM_JSON[ANIM_COUNT] = {
 	"data/animations/hurt.json",
 	"data/animations/block.json",
 	"data/animations/attack_dash.json",
-	"data/animations/victory.json",      /* índice 14 */
+	"data/animations/victory.json",
 };
 
 static const char *ANIM_META[ANIM_COUNT] = {
@@ -79,7 +56,7 @@ static const char *ANIM_META[ANIM_COUNT] = {
 	"data/animations/hurt.anim",
 	"data/animations/block.anim",
 	"data/animations/attack_dash.anim",
-	"data/animations/victory.anim",      /* índice 14 */
+	"data/animations/victory.anim",
 };
 
 static const char *ANIM_NAME[ANIM_COUNT] = {
@@ -87,93 +64,83 @@ static const char *ANIM_NAME[ANIM_COUNT] = {
 	"attack_air", "attack_combo_1", "attack_combo_2", "attack_combo_3",
 	"attack_crouch", "dash", "crouch", "crouch_loop",
 	"hurt", "block", "attack_dash",
-	"victory",                            /* índice 14 */
+	"victory",
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  PLAYER  (client-side representation)
-// ─────────────────────────────────────────────────────────────────────────────
 typedef struct {
-	/* Identity */
-	int  id;
-	int  active;     /* 0 = empty, 1 = alive, 2 = pending asset load */
 
-	/* World transform */
+	int  id;
+	int  active;
+
+
 	float wx, wy;
 	float rotation;
-	float visualRotation;  /* smoothly interpolated toward rotation */
+	float visualRotation;
 
-	/* Animation */
+
 	char animation[24];
 	int  animIndex;
 
-	/* Game state mirrored from server */
+
 	int   stocks;
 	bool  respawning;
 	bool  crouching;
 	int   hitId;
 	int   jumpId;
-	float voltage;        /* 0.0 – 200.0 */
+	float voltage;
 	bool  voltageMaxed;
 	bool  blocking;
 
-	/* Attack hit-flash (debug / visual feedback) */
+
 	float attackFlashTimer;
 	float attackFlashFacing;
 
-	/* Hit shake — applied to worldPos when this player is the target of a hit */
-	float hitShakeAmt;    /* current shake amplitude (world units), decays to 0 */
-	float hitShakeTimer;  /* time remaining (seconds) */
 
-	/* Skeleton reference frame for stable foot placement */
+	float hitShakeAmt;
+	float hitShakeTimer;
+
+
 	Vector3 referenceCenter;
 	bool    hasReferenceCenter;
 	float   anchorYOffset;
 	bool    hasAnchorY;
 
-	/* Bones animation controller */
+
 	AnimatedCharacter *character;
 
 	char charId[32];
 	int  slotIndex;
 } Player;
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  GLOBAL STATE
-// ─────────────────────────────────────────────────────────────────────────────
 static Player players[MAX_PLAYERS];
 static int    my_id            = -1;
 static bool   is_spectator     = false;
 static bool   game_ready       = false;
 static bool   debug_mode       = false;
-/* Cuenta frames sin ID — si supera el umbral y hay jugadores en gameState,
-   forzamos modo espectador para no quedarnos en "Connecting..." eternamente */
-static int    no_id_frames     = 0;
-#define NO_ID_SPECTATOR_FRAMES 180   /* ~3 segundos a 60fps */
 
-/* Estado de fin de partida */
+static int    no_id_frames     = 0;
+#define NO_ID_SPECTATOR_FRAMES 180
+
+
 static bool   match_over          = false;
 static int    winner_id           = -1;
 static char   winner_message[80]  = {0};
 
-/* Camera shake — independiente del hitstop, decae por sí solo */
-static float  g_camShakeAmt   = 0.0f;   /* amplitud actual (unidades de mundo) */
-static float  g_camShakeTimer = 0.0f;   /* tiempo restante (segundos) */
 
-/* Deferred player-init queue — one InitPlayer per frame to avoid hitches. */
+static float  g_camShakeAmt   = 0.0f;
+static float  g_camShakeTimer = 0.0f;
+
+
 #define MAX_PENDING 8
 static int pending_ids[MAX_PENDING];
 static int pending_count = 0;
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  FORWARD DECLARATIONS
-// ─────────────────────────────────────────────────────────────────────────────
 static void InitPlayer(Player *p, int id);
 static void FreePlayer(Player *p);
 static void FetchState(void);
 static void DrawGame(void);
 
-/* EM_JS forward declarations */
+
 int   ws_get_victory_state(void);
 int   ws_get_victory_winner(void);
 void  ws_consume_victory(void);
@@ -183,9 +150,6 @@ int   ws_get_hitstop_frames_left(void);
 float ws_get_hitstop_shake(void);
 int   ws_get_hitstop_target_id(void);
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  JAVASCRIPT BRIDGE  (EM_JS — inline JS called from C)
-// ─────────────────────────────────────────────────────────────────────────────
 EM_JS(int, js_canvas_width, (void), {
 		return (window._canvasWidth > 0) ? (window._canvasWidth | 0) : 800;
 		});
@@ -196,9 +160,7 @@ EM_JS(int, ws_get_my_id, (void), {
 		return (window._myClientId > 0) ? (window._myClientId | 0) : -1;
 		});
 
-/* FIX: returns 1 if the local client is confirmed as spectator.
-   Requires both _isSpectator=true AND _myClientId to be set,
-   so we don't flip to spectator before the handshake completes. */
+
 EM_JS(int, ws_is_spectator, (void), {
 		return (window._isSpectator && window._myClientId > 0) ? 1 : 0;
 		});
@@ -216,19 +178,12 @@ EM_JS(int, ws_player_count, (void), {
 		return Object.keys(window._gameState.players).length;
 		});
 
-/**
- * Lee el estado de victoria desde variables JS planas (sin punteros).
- * Devuelve:
- *   0  → sin victoria
- *   1  → yo gané
- *   2  → yo perdí / espectador
- */
 EM_JS(int, ws_get_victory_state, (void), {
     if (!window._victoryActive || window._victoryConsumed) return 0;
     return window._victoryIsWinner ? 1 : 2;
 });
 
-/** Devuelve el clientId del ganador, o -1 si no hay victoria activa. */
+
 EM_JS(int, ws_get_victory_winner, (void), {
     if (!window._victoryActive || window._victoryConsumed) return -1;
     return window._victoryWinner | 0;
@@ -238,11 +193,6 @@ EM_JS(void, ws_consume_victory, (void), {
     window._victoryConsumed = true;
 });
 
-/**
- * Consulta el estado de hitstop activo.
- * Devuelve el número de frames restantes (>0 = freeze activo, 0 = sin hitstop).
- * Decrementa framesLeft en cada llamada (una por frame de render).
- */
 EM_JS(int, ws_get_hitstop_frames_left, (void), {
     var hs = window._hitstopState;
     if (!hs || hs.framesLeft <= 0) {
@@ -254,35 +204,22 @@ EM_JS(int, ws_get_hitstop_frames_left, (void), {
     return f;
 });
 
-/**
- * Devuelve la intensidad de shake del hitstop activo [0.0–1.0], o 0 si no hay.
- * Normalizado: 1.0 al inicio del hitstop, decrece linealmente hacia 0.
- */
 EM_JS(float, ws_get_hitstop_shake, (void), {
     var hs = window._hitstopState;
     if (!hs || !hs.shakeAmt || hs.startFrames <= 0) return 0.0;
-    /* t va de 1.0 (inicio) a 0.0 (fin) */
+
     var t = hs.framesLeft / hs.startFrames;
     if (t < 0.0) t = 0.0;
     return hs.shakeAmt * t;
 });
 
-/**
- * Devuelve el clientId del target del hitstop activo, o -1 si no hay.
- */
+
 EM_JS(int, ws_get_hitstop_target_id, (void), {
     var hs = window._hitstopState;
     if (!hs) return -1;
     return (hs.targetId | 0);
 });
 
-/**
- * Devuelve la fase del countdown:
- *   0 = sin countdown / terminado
- *   1 = READY  (0 – 1.2 s)
- *   2 = FIGHT  (1.2 – 2.2 s)
- * Al superar 2.2 s marca _countdownDone = true automáticamente.
- */
 EM_JS(int, ws_get_countdown, (void), {
     if (!window._countdownStart || window._countdownDone) return 0;
     var elapsed = (performance.now() - window._countdownStart) / 1000.0;
@@ -292,59 +229,12 @@ EM_JS(int, ws_get_countdown, (void), {
     return 0;
 });
 
-/** Devuelve el tiempo transcurrido en el countdown (segundos), o 0. */
+
 EM_JS(float, ws_get_countdown_elapsed, (void), {
     if (!window._countdownStart || window._countdownDone) return 0.0;
     return (performance.now() - window._countdownStart) / 1000.0;
 });
 
-/**
- * Devuelve 1 si hay resultados de partida pendientes en la UI legacy
- * (match_end — se mantiene por compatibilidad con HUD de torneos).
- */
-EM_JS(int, ws_get_match_overlay, (char *buf, int len), {
-		buf = buf | 0;
-		if (window._lastMatchResult && !window._matchResultConsumed) {
-		const r = window._lastMatchResult;
-		const msg = r.isWinner ? 'YOU WIN!' : 'YOU LOSE';
-		stringToUTF8(msg, buf, len);
-		return r.isWinner ? 1 : 2;
-		}
-		if (window._waitingForNextMatch) {
-		stringToUTF8('Waiting for next match...', buf, len);
-		return 3;
-		}
-		stringToUTF8("", buf, len);
-		return 0;
-		});
-
-EM_JS(void, ws_consume_match_result, (void), {
-		window._lastMatchResult        = null;
-		window._matchResultConsumed    = true;
-		window._waitingForNextMatch    = false;
-		});
-
-/**
- * Lee el mensaje match_winner del servidor.
- * Devuelve el clientId del ganador (>0) o -1 si no hay ganador todavía.
- * Escribe el mensaje en buf.
- */
-EM_JS(int, ws_get_match_winner, (char *buf, int len), {
-		buf = buf | 0;
-		if (!window._lastMatchResult || window._matchResultConsumed) {
-		stringToUTF8("", buf, len);
-		return -1;
-		}
-		const msg = window._lastMatchResult.message || "";
-		stringToUTF8(msg, buf, len);
-		return (window._lastMatchResult.winner | 0);
-		});
-
-/**
- * Serialises player[idx] from the JS game-state into a pipe-delimited string.
- * Fields: id|x|y|rotation|animation|stocks|respawning|hitId|crouching|jumpId
- *        |voltage|blocking|voltageMaxed
- */
 EM_JS(int, ws_get_player, (int idx, char *buf, int len), {
 		if (!window._gameState || !window._gameState.players) return 0;
 		const ids = Object.keys(window._gameState.players);
@@ -370,10 +260,21 @@ EM_JS(int, ws_get_player, (int idx, char *buf, int len), {
 		return 1;
 });
 
+// Read charId for a given clientId directly from the live game state.
+// This works even for remote players because the server now broadcasts charId
+// in every state snapshot, so we don't have to rely on _charSelectData
+// (which only contains the local player's own selection).
+EM_JS(int, ws_get_player_char_id_by_client, (int playerId, char *buf, int len), {
+    buf = buf | 0;
+    if (!window._gameState || !window._gameState.players) {
+        stringToUTF8("", buf, len); return 0;
+    }
+    var p = window._gameState.players[playerId];
+    if (!p || !p.charId) { stringToUTF8("", buf, len); return 0; }
+    stringToUTF8(p.charId, buf, len);
+    return 1;
+});
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  PERSONAJES
-// ─────────────────────────────────────────────────────────────────────────────
 typedef struct { const char *charId, *name, *texCfg, *texSets, *animBase, *portrait; } CharDef;
 
 static const CharDef CHARS[4] = {
@@ -384,12 +285,7 @@ static const CharDef CHARS[4] = {
 };
 #define CHARS_COUNT 4
 
-/* Fases del selector:
-   CSS_SELECTING    — el jugador elige personaje
-   CSS_WAITING_ACK  — esperando que el servidor confirme (char_select_ack)
-   CSS_WAITING_GAME — ack recibido, esperando oponente / match_start
-   CSS_DONE         — match_start recibido, entramos al juego
-*/
+
 typedef enum { CSS_SELECTING, CSS_WAITING_ACK, CSS_WAITING_GAME, CSS_DONE } CssPhase;
 
 static struct {
@@ -399,15 +295,15 @@ static struct {
     Texture2D portraits[CHARS_COUNT];
     bool      portraitsLoaded;
     float     confirmTimer;
-    char      savedCharId[32]; /* charId restaurado desde sessionStorage */
+    char      savedCharId[32];
 } g_css = { CSS_SELECTING, 0, -1, {0}, false, 0.0f, "" };
 
-/* Lee window._charSelectData del servidor (true = ya llegó el ack) */
+
 EM_JS(int, ws_char_select_ready, (void), {
     return (window._charSelectData && window._charSelectData.charId) ? 1 : 0;
 });
 
-/* Lee el charId del slot slotIdx desde window._charSelectData */
+
 EM_JS(int, ws_get_slot_char_id, (int slotIdx, char *buf, int len), {
     buf = buf | 0;
     if (!window._charSelectData || !window._charSelectData.players) { stringToUTF8("", buf, len); return 0; }
@@ -417,19 +313,19 @@ EM_JS(int, ws_get_slot_char_id, (int slotIdx, char *buf, int len), {
     return 1;
 });
 
-/* Envía char_select al servidor y persiste en sessionStorage */
+
 EM_JS(void, ws_send_char_select, (const char *charId, int charIdx, int stageId), {
     var id = UTF8ToString(charId);
     try { sessionStorage.setItem('pendingCharSelect', JSON.stringify({charId:id,charIdx:charIdx,stageId:stageId})); } catch(e){}
     if (typeof window.sendCharSelect === 'function') window.sendCharSelect(id, charIdx, stageId);
 });
 
-/* Comprueba si match_start ya fue recibido (el countdown comenzó) */
+
 EM_JS(int, ws_match_started, (void), {
     return (window._countdownStart != null || window._countdownDone === true) ? 1 : 0;
 });
 
-/* Lee el charId guardado en sessionStorage (reconexión). Retorna 1 si existe. */
+
 EM_JS(int, ws_get_saved_char_id, (char *buf, int len), {
     buf = buf | 0;
     try {
@@ -437,7 +333,7 @@ EM_JS(int, ws_get_saved_char_id, (char *buf, int len), {
         if (!raw) { stringToUTF8("", buf, len); return 0; }
         var d = JSON.parse(raw);
         if (!d || !d.charId) { stringToUTF8("", buf, len); return 0; }
-        /* Restaurar en window._charSelectData para que el resto del código lo lea */
+
         window._charSelectData = d;
         stringToUTF8(d.charId, buf, len);
         return 1;
@@ -449,26 +345,20 @@ EM_JS(void, ws_clear_char_select, (void), {
     try { sessionStorage.removeItem('pendingCharSelect'); sessionStorage.removeItem('charSelectData'); } catch(e){}
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  UTILITY
-// ─────────────────────────────────────────────────────────────────────────────
-/** Null-safe, always-null-terminated string copy. */
+
 static void strcpy_safe(char *dst, const char *src, size_t n) {
 	strncpy(dst, src, n - 1);
 	dst[n - 1] = '\0';
 }
 
-/** Returns the animation-table index for the named clip, or 0 (idle) as fallback. */
+
 static int AnimIndex(const char *name) {
 	for (int i = 0; i < ANIM_COUNT; i++)
 		if (strcmp(name, ANIM_NAME[i]) == 0) return i;
 	return 0;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  SKELETON UTILITIES
-// ─────────────────────────────────────────────────────────────────────────────
-/** Computes the mean position of all valid bone positions in a frame. */
+
 static Vector3 CalcAnimCenter(const AnimationFrame *frame) {
 	if (!frame || !frame->valid || frame->personCount == 0)
 		return (Vector3){ 0, 0, 0 };
@@ -488,7 +378,7 @@ static Vector3 CalcAnimCenter(const AnimationFrame *frame) {
 	return n > 0 ? Vector3Scale(sum, 1.0f / (float)n) : (Vector3){ 0, 0, 0 };
 }
 
-/** Finds a bone by name within one person's skeleton. Returns -1 if not found. */
+
 static int FindBoneByName(const Person *person, const char *name) {
 	if (!person || !name) return -1;
 	for (int b = 0; b < person->boneCount; b++)
@@ -496,7 +386,7 @@ static int FindBoneByName(const Person *person, const char *name) {
 	return -1;
 }
 
-/** Writes a named bone's world position into *outPos. Returns false if absent. */
+
 static bool GetBonePosition(const AnimationFrame *frame, const char *name, Vector3 *outPos) {
 	if (!frame || !outPos || !frame->valid) return false;
 	for (int pi = 0; pi < frame->personCount; pi++) {
@@ -511,7 +401,7 @@ static bool GetBonePosition(const AnimationFrame *frame, const char *name, Vecto
 	return false;
 }
 
-/** Computes the mid-point between LAnkle and RAnkle. Returns false if either is missing. */
+
 static bool CalcAnkleMidPoint(const AnimationFrame *frame, Vector3 *outPos) {
 	if (!frame || !outPos || !frame->valid) return false;
 	Vector3 left = {0}, right = {0};
@@ -522,7 +412,7 @@ static bool CalcAnkleMidPoint(const AnimationFrame *frame, Vector3 *outPos) {
 	return true;
 }
 
-/** Translates every bone in every frame of an animation by `offset`. */
+
 static void ApplyOffsetToAnim(BonesAnimation *anim, Vector3 offset) {
 	if (!anim || !anim->isLoaded) return;
 	for (int f = 0; f < anim->frameCount; f++) {
@@ -540,14 +430,10 @@ static void ApplyOffsetToAnim(BonesAnimation *anim, Vector3 offset) {
 	}
 }
 
-/**
- * Removes lateral drift from an animation by aligning every frame's
- * horizontal centroid to that of frame 0.
- */
 static void StabilizeAnimX(BonesAnimation *anim) {
 	if (!anim || !anim->isLoaded || anim->frameCount < 2) return;
 
-	/* Compute frame-0 centroid X. */
+
 	float baseX = 0.0f;
 	int   n0    = 0;
 	AnimationFrame *f0 = &anim->frames[0];
@@ -563,7 +449,7 @@ static void StabilizeAnimX(BonesAnimation *anim) {
 	if (n0 == 0) return;
 	baseX /= (float)n0;
 
-	/* Shift frames 1..N to match frame-0 X. */
+
 	for (int f = 1; f < anim->frameCount; f++) {
 		AnimationFrame *frame = &anim->frames[f];
 		if (!frame->valid) continue;
@@ -587,7 +473,7 @@ static void StabilizeAnimX(BonesAnimation *anim) {
 	}
 }
 
-/** Returns the blend transition duration (seconds) appropriate for the named clip. */
+
 static float TransitionDuration(const char *anim) {
 	if (!anim)                               return 0.10f;
 	if (strncmp(anim, "idle",        4) == 0) return 0.10f;
@@ -601,11 +487,6 @@ static float TransitionDuration(const char *anim) {
 	return 0.12f;
 }
 
-/**
- * Loads an animation, applies foot-anchor stabilisation, and optionally
- * snaps or offsets it to align with the reference centre established by
- * the first animation loaded for this player.
- */
 static bool LoadAnimWithOffset(Player *p, const char *jsonPath, const char *metaPath) {
 	if (!p || !p->character) return false;
 	if (!LoadAnimation(p->character, jsonPath, metaPath)) return false;
@@ -622,12 +503,12 @@ static bool LoadAnimWithOffset(Player *p, const char *jsonPath, const char *meta
 	if (!hasCtr) thisCenter = CalcAnimCenter(&anim->frames[0]);
 
 	if (!p->hasReferenceCenter) {
-		/* First animation loaded — zero XZ drift and record anchor. */
+
 		Vector3 xzOffset = { -thisCenter.x, 0.0f, -thisCenter.z };
 		if (fabsf(xzOffset.x) > 0.001f || fabsf(xzOffset.z) > 0.001f)
 			ApplyOffsetToAnim(anim, xzOffset);
 
-		/* Re-sample after offset. */
+
 		hasCtr = CalcAnkleMidPoint(&anim->frames[0], &thisCenter);
 		if (!hasCtr) thisCenter = CalcAnimCenter(&anim->frames[0]);
 
@@ -636,7 +517,7 @@ static bool LoadAnimWithOffset(Player *p, const char *jsonPath, const char *meta
 		p->anchorYOffset      = thisCenter.y;
 		p->hasAnchorY         = true;
 	} else {
-		/* Subsequent animations — align to the stored reference. */
+
 		Vector3 delta = Vector3Subtract(p->referenceCenter, thisCenter);
 		if (Vector3Length(delta) > 0.001f)
 			ApplyOffsetToAnim(anim, delta);
@@ -646,17 +527,14 @@ static bool LoadAnimWithOffset(Player *p, const char *jsonPath, const char *meta
 	return true;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  DEFERRED PLAYER INIT QUEUE
-// ─────────────────────────────────────────────────────────────────────────────
 static void QueuePlayerInit(int id) {
 	for (int i = 0; i < pending_count; i++)
-		if (pending_ids[i] == id) return;   /* already queued */
+		if (pending_ids[i] == id) return;
 	if (pending_count < MAX_PENDING)
 		pending_ids[pending_count++] = id;
 }
 
-/** Pops one player from the queue and calls InitPlayer — called once per frame. */
+
 static void FlushOnePlayerInit(void) {
 	if (pending_count == 0) return;
 
@@ -671,10 +549,6 @@ static void FlushOnePlayerInit(void) {
 		}
 	}
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  PLAYER LIFECYCLE
-// ─────────────────────────────────────────────────────────────────────────────
 
 static const CharDef *FindCharDef(const char *id) {
     if (!id || !id[0]) return NULL;
@@ -700,7 +574,7 @@ static void LoadPlayerAnim(Player *p, int animIdx) {
 }
 
 static void InitPlayer(Player *p, int id) {
-	/* Preserve visual state across re-init (e.g. re-connection). */
+
 	const Player prev = *p;
 
 	memset(p, 0, sizeof(Player));
@@ -721,10 +595,13 @@ static void InitPlayer(Player *p, int id) {
 	strncpy(p->charId, prev.charId, sizeof(p->charId)-1);
 	p->slotIndex = prev.slotIndex;
 
-	/* Si aún no tiene charId, intentar leerlo del ack del servidor */
+
 	if (!p->charId[0]) {
 		char cid[32] = {0};
-		if (ws_get_slot_char_id(p->slotIndex, cid, sizeof(cid)) && cid[0])
+		// Try state snapshot first (has charId for all players, not just local)
+		if (ws_get_player_char_id_by_client(p->id, cid, sizeof(cid)) && cid[0])
+			strncpy(p->charId, cid, sizeof(p->charId)-1);
+		else if (ws_get_slot_char_id(p->slotIndex, cid, sizeof(cid)) && cid[0])
 			strncpy(p->charId, cid, sizeof(p->charId)-1);
 	}
 
@@ -751,13 +628,6 @@ static void FreePlayer(Player *p) {
 	p->id     = -1;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  STATE PARSING
-// ─────────────────────────────────────────────────────────────────────────────
-/**
- * Parses a pipe-delimited player record produced by ws_get_player().
- * Returns 1 on success, 0 on parse failure.
- */
 static int ParsePlayer(const char *buf,
 		int *id, float *x, float *y, float *rot,
 		char *anim, int animLen,
@@ -790,14 +660,8 @@ static int ParsePlayer(const char *buf,
 	return 1;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  STATE FETCH  (called every frame before Draw)
-// ─────────────────────────────────────────────────────────────────────────────
 static void FetchState(void) {
-	/* Always process whatever state JS has — even during the connecting phase.
-	   Cached gameState from sessionStorage will render immediately on refresh
-	   while we wait for the server handshake.  The ghost guard below keeps
-	   stale slots from appearing. */
+
 
 	int  count = ws_player_count();
 	char buf[256];
@@ -814,11 +678,10 @@ static void FetchState(void) {
 					&pstocks, &prespawning, &phitId, &pcrouching, &pjumpId,
 					&pvoltage, &pblocking, &pvoltageMaxed)) continue;
 
-		/* Spectators must not instantiate a player object for their own
-		   clientId — they have no player entry on the server. */
+
 		if (is_spectator && my_id > 0 && pid == my_id) continue;
 
-		/* Buscar o crear un slot para este jugador */
+
 		int slot = -1;
 		for (int s = 0; s < MAX_PLAYERS; s++)
 			if (players[s].active && players[s].id == pid) { slot = s; break; }
@@ -827,12 +690,21 @@ static void FetchState(void) {
 				if (!players[s].active) { slot = s; break; }
 		if (slot < 0) continue;
 
-		/* Jugador nuevo → encolar carga de assets */
+
 		if (!players[slot].active) {
 			players[slot].id        = pid;
 			players[slot].active    = 2;
 			players[slot].slotIndex = slot;
-			{ char _cid[32]={0}; if(ws_get_slot_char_id(slot,_cid,sizeof(_cid))&&_cid[0]) strncpy(players[slot].charId,_cid,sizeof(players[slot].charId)-1); }
+			{
+				char _cid[32] = {0};
+				// Priority 1: read charId from the server state snapshot (works for all players)
+				if (ws_get_player_char_id_by_client(pid, _cid, sizeof(_cid)) && _cid[0]) {
+					strncpy(players[slot].charId, _cid, sizeof(players[slot].charId)-1);
+				// Priority 2: fallback to char_select_ack data (only reliable for local player)
+				} else if (ws_get_slot_char_id(slot, _cid, sizeof(_cid)) && _cid[0]) {
+					strncpy(players[slot].charId, _cid, sizeof(players[slot].charId)-1);
+				}
+			}
 			players[slot].animIndex = AnimIndex(panim);
 			strcpy_safe(players[slot].animation, panim, sizeof(players[slot].animation));
 			QueuePlayerInit(pid);
@@ -840,7 +712,7 @@ static void FetchState(void) {
 
 		seen[slot] = 1;
 
-		/* Actualizar transformación y estado del juego */
+
 		players[slot].wx           = px;
 		players[slot].wy           = py;
 		players[slot].rotation     = prot;
@@ -852,7 +724,7 @@ static void FetchState(void) {
 		players[slot].voltageMaxed = (bool)pvoltageMaxed;
 		players[slot].blocking     = (bool)pblocking;
 
-		/* Prioridad: hurt > jump > animación normal */
+
 		if (phitId != players[slot].hitId) {
 			players[slot].hitId = phitId;
 			if (players[slot].character) {
@@ -878,7 +750,7 @@ static void FetchState(void) {
 				SetCharacterAutoPlay(players[slot].character, true);
 				players[slot].animIndex = ai;
 			}
-			/* Hit-flash cuando comienza un nuevo ataque */
+
 			if (strncmp(panim, "attack", 6) == 0 &&
 					strncmp(players[slot].animation, "attack", 6) != 0) {
 				players[slot].attackFlashTimer  = 0.3f;
@@ -888,11 +760,11 @@ static void FetchState(void) {
 		}
 	}
 
-	/* Eliminar jugadores que ya no están en la snapshot del servidor */
+
 	for (int s = 0; s < MAX_PLAYERS; s++) {
 		if (!players[s].active || seen[s]) continue;
 
-		/* Expulsar de la cola pendiente primero */
+
 		for (int q = 0; q < pending_count; q++) {
 			if (pending_ids[q] != players[s].id) continue;
 			memmove(pending_ids + q, pending_ids + q + 1,
@@ -906,12 +778,7 @@ static void FetchState(void) {
 	}
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  HUD HELPERS
-// ─────────────────────────────────────────────────────────────────────────────
-/**
- * Linearly interpolates between two colours (component-wise, u in [0, 1]).
- */
+
 static Color LerpColor(Color a, Color b, float u) {
 	return (Color){
 		(unsigned char)(a.r + (b.r - a.r) * u),
@@ -921,25 +788,16 @@ static Color LerpColor(Color a, Color b, float u) {
 	};
 }
 
-/* Voltage bar colour stops */
+
 static const Color VOLTAGE_COL_BLUE   = { 20,  80, 255, 230 };
 static const Color VOLTAGE_COL_YELLOW = {255, 220,   0, 230 };
 static const Color VOLTAGE_COL_RED    = {255,   0,   0, 230 };
 
-/**
- * Returns the voltage-bar fill colour for the given normalised voltage [0, 1].
- * Blue (0%) → Yellow (50%) → Red (100%).
- */
 static Color VoltageBarColor(float t) {
 	if (t <= 0.5f) return LerpColor(VOLTAGE_COL_BLUE,   VOLTAGE_COL_YELLOW, t * 2.0f);
 	else           return LerpColor(VOLTAGE_COL_YELLOW, VOLTAGE_COL_RED,    (t - 0.5f) * 2.0f);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  SPECTATOR CAMERA HELPER
-//  FIX: when no local player exists, compute centroid of all active players
-//  and use that as the camera target so the view is never blank.
-// ─────────────────────────────────────────────────────────────────────────────
 static float SpectatorCamX(float currentCamX) {
 	float sumX = 0.0f;
 	int   n    = 0;
@@ -949,10 +807,10 @@ static float SpectatorCamX(float currentCamX) {
 			n++;
 		}
 	}
-	/* If nobody is in the game yet, stay centered. */
+
 	float targetX = (n > 0) ? (sumX / (float)n) : 0.0f;
 
-	/* Smooth follow — slightly slower than player cam for a broadcast feel. */
+
 	float newX = currentCamX + (targetX - currentCamX) * 0.05f;
 
 	const float CAM_HALF_W = 5.0f;
@@ -961,9 +819,6 @@ static float SpectatorCamX(float currentCamX) {
 	return newX;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  DRAW
-// ─────────────────────────────────────────────────────────────────────────────
 static void DrawGame(void) {
 	static float camX      = 0.0f;
 	static float blinkTimer = 0.0f;
@@ -971,40 +826,33 @@ static void DrawGame(void) {
 
 	const float dt = GetFrameTime();
 
-	/* ── Hitstop: freeze de animaciones + seed de shakes ────────────────────
-	   El servidor ya congeló la física.  El cliente congela las animaciones
-	   poniendo animDt=0 durante el freeze, y dispara los shakes en el frame
-	   exacto en que llega el hitstop.
-	   ──────────────────────────────────────────────────────────────────── */
+
 	int   hitstopFrames = ws_get_hitstop_frames_left();
 	float shakeAmt      = ws_get_hitstop_shake();
 	int   targetId      = ws_get_hitstop_target_id();
 
-	/* animDt = 0 durante freeze, dt normal fuera */
+
 	float animDt = (hitstopFrames > 0) ? 0.0f : dt;
 
-	/* Acumular shake de cámara — solo en el frame de INICIO del hitstop
-	   (cuando framesLeft acaba de decrementarse desde startFrames a startFrames-1).
-	   Usamos shakeAmt > 0 como proxy; si ya hay shake activo no lo sobreescribimos
-	   a menos que el nuevo sea más fuerte. */
+
 	if (shakeAmt > 0.0f && shakeAmt > g_camShakeAmt) {
 		g_camShakeAmt   = shakeAmt;
-		g_camShakeTimer = 0.18f;   /* duración base del shake de cámara (s) */
+		g_camShakeTimer = 0.18f;
 	}
 
-	/* Acumular shake en el personaje objetivo */
+
 	if (shakeAmt > 0.0f && targetId >= 0) {
 		for (int s = 0; s < MAX_PLAYERS; s++) {
 			if (!players[s].active || players[s].id != targetId) continue;
 			if (shakeAmt > players[s].hitShakeAmt) {
-				players[s].hitShakeAmt   = shakeAmt * 1.6f;  /* personaje vibra más que la cámara */
+				players[s].hitShakeAmt   = shakeAmt * 1.6f;
 				players[s].hitShakeTimer = 0.22f;
 			}
 			break;
 		}
 	}
 
-	/* Decay del camera shake */
+
 	float camShakeOffX = 0.0f, camShakeOffY = 0.0f;
 	if (g_camShakeTimer > 0.0f) {
 		g_camShakeTimer -= dt;
@@ -1012,22 +860,22 @@ static void DrawGame(void) {
 			g_camShakeTimer = 0.0f;
 			g_camShakeAmt   = 0.0f;
 		} else {
-			/* Decaimiento exponencial: empieza fuerte y se apaga rápido */
+
 			float decay = g_camShakeTimer / 0.18f;
 			float amp   = g_camShakeAmt * decay * decay;
-			/* Ruido de alta frecuencia — sinusoides desfasadas para parecer random */
+
 			float t = (float)GetTime();
 			camShakeOffX = amp * sinf(t * 97.3f);
 			camShakeOffY = amp * sinf(t * 113.7f + 1.4f) * 0.5f;
 		}
 	}
 
-	/* ── Camera ── */
+
 	if (is_spectator) {
-		/* FIX: spectator camera follows centroid of all players */
+
 		camX = SpectatorCamX(camX);
 	} else {
-		/* Player camera: smooth follow of local player, clamped to stage. */
+
 		for (int s = 0; s < MAX_PLAYERS; s++) {
 			if (!players[s].active || players[s].id != my_id) continue;
 			camX += (players[s].wx - camX) * 0.08f;
@@ -1042,11 +890,11 @@ static void DrawGame(void) {
 	scene_cam.target   = (Vector3){ camX + camShakeOffX, 1.2f + camShakeOffY, 0.0f };
 	scene_cam.up       = (Vector3){ 0.0f, 1.0f, 0.0f };
 
-	/* ── Background ── */
+
 	BeginDrawing();
 	ClearBackground((Color){ 10, 10, 28, 255 });
 
-	/* ── Stage geometry ── */
+
 	BeginMode3D(scene_cam);
 	{
 		const float stageW = STAGE_RIGHT - STAGE_LEFT;
@@ -1060,16 +908,16 @@ static void DrawGame(void) {
 	}
 	EndMode3D();
 
-	/* ── Characters ── */
+
 	const float TURN_SPEED = 12.0f;
 
 	for (int s = 0; s < MAX_PLAYERS; s++) {
 		Player *p = &players[s];
 		if (p->active != 1 || !p->character || p->respawning) continue;
-		/* Never render a ghost of our own clientId when we are a spectator. */
+
 		if (is_spectator && my_id > 0 && p->id == my_id) continue;
 
-		/* Guard against stale frame index. */
+
 		if (p->character->currentFrame < 0 ||
 				p->character->currentFrame >= p->character->animation.frameCount) {
 			p->character->currentFrame = 0;
@@ -1078,9 +926,9 @@ static void DrawGame(void) {
 
 		UpdateAnimatedCharacter(p->character, animDt);
 
-		/* Handle end-of-clip: freeze on last frame (crouch/jump/victory) or return to idle. */
+
 		if (p->character->animController && !p->character->animController->playing) {
-			/* Ganador en victoria: congelar para siempre en el último frame */
+
 			if (match_over && p->id == winner_id) {
 				int last = p->character->animation.frameCount - 1;
 				if (last < 0) last = 0;
@@ -1106,7 +954,7 @@ static void DrawGame(void) {
 			p->character->autoCenter.z = 0.0f;
 		}
 
-		/* Smooth rotation. */
+
 		{
 			float target = p->rotation;
 			float cur    = p->visualRotation;
@@ -1119,8 +967,7 @@ static void DrawGame(void) {
 
 		float    visualY  = p->wy - (p->hasAnchorY ? p->anchorYOffset : 0.0f);
 
-		/* Hit shake: vibración del personaje objetivo tras recibir el golpe.
-		   Decaimiento exponencial rápido — como en Smash Bros. */
+
 		float playerShakeX = 0.0f, playerShakeY = 0.0f;
 		if (p->hitShakeTimer > 0.0f) {
 			p->hitShakeTimer -= dt;
@@ -1131,7 +978,7 @@ static void DrawGame(void) {
 				float decay = p->hitShakeTimer / 0.22f;
 				float amp   = p->hitShakeAmt * decay * decay;
 				float t     = (float)GetTime();
-				/* Frecuencia alta para vibración de impacto — ligeramente distinta a la cámara */
+
 				playerShakeX = amp * sinf(t * 141.2f + (float)p->id * 2.3f);
 				playerShakeY = amp * sinf(t * 127.8f + (float)p->id * 3.7f) * 0.4f;
 			}
@@ -1143,12 +990,12 @@ static void DrawGame(void) {
 		DrawAnimatedCharacterTransformed(p->character, scene_cam, worldPos, drawRot);
 	}
 
-	/* ── Debug overlay (toggle with U) ── */
+
 	if (IsKeyPressed(KEY_U)) debug_mode = !debug_mode;
 	if (debug_mode) {
 		BeginMode3D(scene_cam);
 
-		/* Stage bounds */
+
 		DrawCubeWires((Vector3){ 0.0f,  0.0f, 0.0f }, 16.0f, 0.05f, 0.1f, (Color){  0, 200, 255, 160 });
 		DrawCubeWires((Vector3){-4.0f,  1.6f, 0.0f },  2.4f, 0.05f, 0.1f, (Color){  0, 200, 255, 160 });
 		DrawCubeWires((Vector3){ 4.0f,  1.6f, 0.0f },  2.4f, 0.05f, 0.1f, (Color){  0, 200, 255, 160 });
@@ -1160,7 +1007,7 @@ static void DrawGame(void) {
 		for (int s = 0; s < MAX_PLAYERS; s++) {
 			Player *p = &players[s];
 			if (p->active != 1 || p->respawning) continue;
-			if (is_spectator && my_id > 0 && p->id == my_id) continue; /* no ghost hitbox */
+			if (is_spectator && my_id > 0 && p->id == my_id) continue;
 
 			Vector3 wp = { p->wx, p->wy, 0.0f };
 			Color   cc = (p->id == my_id) ? (Color){ 0, 255, 100, 220 }
@@ -1183,7 +1030,7 @@ static void DrawGame(void) {
 		EndMode3D();
 	}
 
-	/* ── HUD ── */
+
 	blinkTimer += dt;
 	if (blinkTimer > 0.18f) { blinkTimer = 0.0f; blinkOn = !blinkOn; }
 
@@ -1198,16 +1045,16 @@ static void DrawGame(void) {
 		const bool isMe    = (!is_spectator && p->id == my_id);
 		const Color nameCol = isMe ? YELLOW : WHITE;
 
-		/* Stocks label */
+
 		char hud[48];
 		snprintf(hud, sizeof(hud), "P%d: %d stocks", p->id, p->stocks);
 		DrawText(hud, 8, hudY, 12, nameCol);
 		hudY += 14;
 
-		/* Voltage bar background */
+
 		DrawRectangle(8, hudY, BAR_W, BAR_H, (Color){ 30, 30, 50, 200 });
 
-		/* Voltage fill */
+
 		float t = p->voltage / 200.0f;
 		Color fillCol;
 		if (p->voltageMaxed) {
@@ -1218,24 +1065,24 @@ static void DrawGame(void) {
 		int fillW = (int)(BAR_W * t);
 		if (fillW > 0) DrawRectangle(8, hudY, fillW, BAR_H, fillCol);
 
-		/* Critical border */
+
 		if (p->voltageMaxed && blinkOn)
 			DrawRectangleLines(8, hudY, BAR_W, BAR_H, (Color){ 255, 80, 80, 255 });
 
-		/* Voltage % label */
+
 		char vLabel[12];
 		snprintf(vLabel, sizeof(vLabel), "%.0f%%", p->voltage);
 		Color vLabelCol = (p->voltageMaxed && blinkOn) ? (Color){ 255, 80, 80, 255 } : nameCol;
 		DrawText(vLabel, 8 + BAR_W + 4, hudY, 10, vLabelCol);
 
-		/* Block indicator */
+
 		if (p->blocking)
 			DrawText("[BLK]", 8 + BAR_W + 38, hudY, 10, (Color){ 80, 200, 255, 255 });
 
 		hudY += BAR_H + 6;
 	}
 
-	/* FIX: Corner label — shows "SPECTATOR" badge, player ID, or connecting state */
+
 	if (is_spectator) {
 		DrawText("SPECTATOR", SCREEN_W - 90, 8, 12, (Color){ 80, 200, 255, 255 });
 	} else if (my_id > 0) {
@@ -1243,10 +1090,9 @@ static void DrawGame(void) {
 		snprintf(txt, sizeof(txt), "Player %d", my_id);
 		DrawText(txt, SCREEN_W - 80, 8, 12, YELLOW);
 	} else if (no_id_frames > 60) {
-		/* Ha pasado más de 1 segundo sin ID ni confirmación de espectador —
-		   mostrar estado de espera en lugar de nada */
+
 		DrawText("Connecting...", SCREEN_W - 100, 8, 12, (Color){ 220, 140, 40, 255 });
-		/* Si hay datos en gameState pero aún no tenemos rol, mostrar hint */
+
 		if (ws_player_count() > 0) {
 			DrawText("Waiting for server...", SCREEN_W / 2 - 80, SCREEN_H / 2, 16,
 					(Color){ 200, 200, 200, 180 });
@@ -1255,34 +1101,34 @@ static void DrawGame(void) {
 		DrawText("Connecting...", SCREEN_W - 100, 8, 12, (Color){ 220, 140, 40, 255 });
 	}
 
-	/* ── Overlay de VICTORIA ── */
+
 	if (match_over && winner_message[0] != '\0') {
 		const bool iWon = (!is_spectator && my_id == winner_id);
 
-		/* Fondo completo oscuro semitransparente */
+
 		DrawRectangle(0, 0, SCREEN_W, SCREEN_H, (Color){ 0, 0, 0, 180 });
 
-		/* Caja central grande */
+
 		const int BOX_W = 420;
 		const int BOX_H = iWon ? 160 : 130;
 		const int BOX_X = (SCREEN_W - BOX_W) / 2;
 		const int BOX_Y = (SCREEN_H - BOX_H) / 2;
 
 		Color borderCol = iWon
-			? (Color){ 255, 215,   0, 255 }   /* dorado para el ganador */
-			: (Color){  80, 200, 255, 255 };   /* azul para los demás   */
+			? (Color){ 255, 215,   0, 255 }
+			: (Color){  80, 200, 255, 255 };
 		Color bgCol     = iWon
 			? (Color){  40,  30,   0, 240 }
 			: (Color){  20,  20,  40, 240 };
 
 		DrawRectangle    (BOX_X, BOX_Y, BOX_W, BOX_H, bgCol);
 		DrawRectangleLines(BOX_X, BOX_Y, BOX_W, BOX_H, borderCol);
-		/* Segundo borde interior para efecto de brillo */
+
 		DrawRectangleLines(BOX_X+2, BOX_Y+2, BOX_W-4, BOX_H-4,
 		                   (Color){ borderCol.r, borderCol.g, borderCol.b, 120 });
 
 		if (iWon) {
-			/* ── GANADOR ── */
+
 			const char *line1 = "*** VICTORY ***";
 			int l1w = MeasureText(line1, 36);
 			DrawText(line1, BOX_X + (BOX_W - l1w) / 2, BOX_Y + 16, 36,
@@ -1292,7 +1138,7 @@ static void DrawGame(void) {
 			int l2w = MeasureText(line2, 18);
 			DrawText(line2, BOX_X + (BOX_W - l2w) / 2, BOX_Y + 64, 18, WHITE);
 
-			/* Parpadeo en el mensaje de reload */
+
 			static float blinkV = 0.0f;
 			blinkV += GetFrameTime() * 3.0f;
 			unsigned char alpha = (unsigned char)(180 + 75 * sinf(blinkV));
@@ -1307,14 +1153,14 @@ static void DrawGame(void) {
 			         (Color){ 200, 180, 80, 180 });
 
 		} else {
-			/* ── PERDEDOR / ESPECTADOR ── */
+
 			const char *line1 = is_spectator ? "FIN DE LA PARTIDA" : "DERROTA";
 			int fsize1 = is_spectator ? 26 : 34;
 			int l1w = MeasureText(line1, fsize1);
 			DrawText(line1, BOX_X + (BOX_W - l1w) / 2, BOX_Y + 16, fsize1,
 			         (Color){ 80, 200, 255, 255 });
 
-			/* Mostrar quién ganó */
+
 			char wline[48];
 			snprintf(wline, sizeof(wline), "Ganador: Player %d", winner_id);
 			int wlw = MeasureText(wline, 18);
@@ -1327,7 +1173,7 @@ static void DrawGame(void) {
 		}
 	}
 
-	/* ── Overlay READY / FIGHT ── */
+
 	if (!match_over) {
 		int   cd_phase   = ws_get_countdown();
 		float cd_elapsed = ws_get_countdown_elapsed();
@@ -1340,10 +1186,10 @@ static void DrawGame(void) {
 
 			const char *word = (cd_phase == 1) ? "READY?" : "FIGHT!";
 
-			/* Escala: entra grande y se encoge */
+
 			float scale = 1.0f + 0.6f * (1.0f - phase_t);
 
-			/* Fade: aparece de golpe, desaparece al final */
+
 			float fade = (phase_t > 0.7f) ? (1.0f - (phase_t - 0.7f) / 0.3f) : 1.0f;
 			if (fade < 0.0f) fade = 0.0f;
 			unsigned char alpha = (unsigned char)(255.0f * fade);
@@ -1353,7 +1199,7 @@ static void DrawGame(void) {
 			int tx   = (SCREEN_W - tw) / 2;
 			int ty   = SCREEN_H / 2 - size / 2 - 30;
 
-			/* Sombra */
+
 			DrawText(word, tx + 4, ty + 4, size,
 			         (Color){ 0, 0, 0, (unsigned char)(alpha / 2) });
 
@@ -1367,16 +1213,6 @@ static void DrawGame(void) {
 	EndDrawing();
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  MAIN LOOP  (called by Emscripten each browser frame)
-// ─────────────────────────────────────────────────────────────────────────────
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  CHAR-SELECT SCREEN
-//  Aparece DESPUÉS de conectarse al servidor, ANTES del match_start.
-//  En reconexión se salta automáticamente si hay charSelectData en sessionStorage.
-// ─────────────────────────────────────────────────────────────────────────────
-
 static void CSS_LoadPortraits(void) {
     if (g_css.portraitsLoaded) return;
     for (int i = 0; i < CHARS_COUNT; i++) g_css.portraits[i] = LoadTexture(CHARS[i].portrait);
@@ -1389,28 +1225,27 @@ static void CSS_UnloadPortraits(void) {
     g_css.portraitsLoaded = false;
 }
 
-/* Llama a esta función cada frame mientras g_css.phase != CSS_DONE.
-   Retorna true en el frame en que se detecta el match_start. */
+
 static bool CSS_UpdateAndDraw(void) {
 
-    /* ── Reconexión: si sessionStorage ya tiene charSelectData, saltamos el selector ── */
+
     if (g_css.phase == CSS_SELECTING && !g_css.savedCharId[0]) {
         char saved[32] = {0};
         if (ws_get_saved_char_id(saved, sizeof(saved)) && saved[0]) {
             strncpy(g_css.savedCharId, saved, sizeof(g_css.savedCharId)-1);
-            /* Buscar índice del personaje guardado */
+
             for (int i = 0; i < CHARS_COUNT; i++) {
                 if (strcmp(CHARS[i].charId, saved) == 0) { g_css.selected = i; break; }
             }
-            /* Reenviar char_select al servidor (por si acaso) */
+
             ws_send_char_select(saved, g_css.selected >= 0 ? g_css.selected : 0, 0);
             g_css.phase = CSS_WAITING_ACK;
         }
     }
 
-    /* ── Ack recibido → entrar al juego inmediatamente (sin esperar oponente) ── */
+
     if (g_css.phase == CSS_WAITING_ACK && ws_char_select_ready()) {
-        /* Propagar charId elegido a nuestro slot */
+
         for (int s = 0; s < MAX_PLAYERS; s++) {
             if (players[s].active && players[s].id == my_id) {
                 if (g_css.selected >= 0)
@@ -1425,7 +1260,7 @@ static bool CSS_UpdateAndDraw(void) {
         return true;
     }
 
-    /* ── CSS_WAITING_GAME: llegamos aquí solo si match_start llegó antes del ack ── */
+
     if (g_css.phase == CSS_WAITING_GAME) {
         if (ws_match_started()) {
             for (int s = 0; s < MAX_PLAYERS; s++) {
@@ -1441,7 +1276,7 @@ static bool CSS_UpdateAndDraw(void) {
             CSS_UnloadPortraits();
             return true;
         }
-        /* Mientras esperamos match_start, dibujar el personaje elegido */
+
         {
             ClearBackground((Color){10, 10, 20, 255});
             const char *sel = (g_css.selected >= 0) ? CHARS[g_css.selected].name
@@ -1454,7 +1289,7 @@ static bool CSS_UpdateAndDraw(void) {
         return false;
     }
 
-    /* ── Selector de personaje ── */
+
     CSS_LoadPortraits();
 
     int sw = GetScreenWidth(), sh = GetScreenHeight();
@@ -1528,7 +1363,7 @@ static bool CSS_UpdateAndDraw(void) {
 static void MainLoop(void) {
 	if (!game_ready) return;
 
-	/* Selector de personaje — bloquea MainLoop hasta el match_start */
+
 	if (g_css.phase != CSS_DONE) {
 		BeginDrawing();
 		CSS_UpdateAndDraw();
@@ -1537,28 +1372,24 @@ static void MainLoop(void) {
 	}
 
 
-	/* Leer estado de espectador desde JS cada frame */
 	is_spectator = (bool)ws_is_spectator();
 
 	if (is_spectator) {
-		/* Espectador confirmado por JS — my_id no tiene sentido aquí */
+
 		my_id      = -1;
 		no_id_frames = 0;
 	} else if (my_id > 0) {
-		/* Ya tenemos ID de jugador — nada que hacer */
+
 		no_id_frames = 0;
 	} else {
-		/* Todavía sin ID — intentar obtenerlo */
+
 		my_id = ws_get_my_id();
 		if (my_id > 0) {
 			ATTACK_RANGE   = ws_get_attack_range();
 			ATTACK_RANGE_Y = ws_get_attack_range_y();
 			no_id_frames   = 0;
 		} else {
-			/* Sin ID y sin confirmación de espectador todavía.
-			   Si llevamos demasiados frames así Y hay jugadores en la snapshot,
-			   es porque somos espectador pero el mensaje WS llegó tarde.
-			   Forzar modo espectador para que el render arranque. */
+
 			no_id_frames++;
 			if (no_id_frames >= NO_ID_SPECTATOR_FRAMES && ws_player_count() > 0) {
 				is_spectator = true;
@@ -1567,7 +1398,7 @@ static void MainLoop(void) {
 		}
 	}
 
-	/* Responder a cambio de tamaño del canvas */
+
 	int newW = js_canvas_width();
 	int newH = js_canvas_height();
 	if (newW != SCREEN_W || newH != SCREEN_H) {
@@ -1579,7 +1410,7 @@ static void MainLoop(void) {
 	FetchState();
 	FlushOnePlayerInit();
 
-	/* ── Comprobar victoria (mensaje 'victory' del servidor) ── */
+
 	if (!match_over) {
 		int vstate = ws_get_victory_state();
 		if (vstate != 0) {
@@ -1594,17 +1425,12 @@ static void MainLoop(void) {
 
 			ws_consume_victory();
 
-			/* Cargar animación 'victory' en el ganador y congelar en último frame */
+
 			int vi = AnimIndex("victory");
 			for (int s = 0; s < MAX_PLAYERS; s++) {
 				if (!players[s].active || players[s].id != winner_id) continue;
 				if (players[s].character) {
 					LoadPlayerAnim(&players[s], vi);
-					bool loaded = true;
-					if (!loaded) {
-						vi = AnimIndex("idle");
-						LoadPlayerAnim(&players[s], 0);
-					}
 					SetCharacterAutoPlay(players[s].character, false);
 					int last = players[s].character->animation.frameCount - 1;
 					if (last < 0) last = 0;
@@ -1622,9 +1448,6 @@ static void MainLoop(void) {
 	DrawGame();
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  ENTRY POINT
-// ─────────────────────────────────────────────────────────────────────────────
 int main(void) {
 	memset(players, 0, sizeof(players));
 
@@ -1643,7 +1466,7 @@ int main(void) {
 	game_ready = true;
 	emscripten_set_main_loop(MainLoop, 0, 1);
 
-	/* Cleanup (unreachable in browser, but correct for native builds). */
+
 	for (int i = 0; i < MAX_PLAYERS; i++)
 		if (players[i].active) FreePlayer(&players[i]);
 	CloseWindow();

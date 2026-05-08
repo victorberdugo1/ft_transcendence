@@ -1,6 +1,3 @@
-// ─────────────────────────────────────────────────────────────────────────────
-//  PERSISTENT STATE  (survives page refresh)
-// ─────────────────────────────────────────────────────────────────────────────
 (function restoreLastState() {
     try {
         const saved = sessionStorage.getItem('gameState');
@@ -14,44 +11,33 @@ window._myClientId     = -1;
 window._ws             = null;
 window._charSelectData = null;
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  INPUT CONSTANTS
-// ─────────────────────────────────────────────────────────────────────────────
-const ACTION_KEY     = 'Space';   // tap → attack | intentional hold → block
-const ACTION_KEY_ALT = 'KeyG';   // alternate binding for ACTION_KEY
+const ACTION_KEY     = 'Space';
 
-const DASH_TAP_MS    = 300;   // double-tap window for dash (ms)
-const DASH_ATTACK_MS = 200;   // window after dash ends to trigger dash-attack (ms)
+const ACTION_KEY_ALT = 'KeyG';
 
-// Client-side hold threshold: determines tap vs. hold on keyup.
-// Block activation and dash lockout are enforced server-side.
+const DASH_TAP_MS    = 300;
+
+const DASH_ATTACK_MS = 200;
+
 const ACTION_HOLD_MS = 350;
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  KEYBOARD STATE
-// ─────────────────────────────────────────────────────────────────────────────
-/** Continuously held keys (true while key is pressed). */
+
 const keys = {};
 
 window.addEventListener('keydown', e => { keys[e.code] = true;  });
 window.addEventListener('keyup',   e => { keys[e.code] = false; });
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  PER-FRAME ONE-SHOT EVENTS
-// ─────────────────────────────────────────────────────────────────────────────
-/** Template for a clean frame — copied into frameEvents each tick. */
+
 const EMPTY_FRAME = Object.freeze({
     jump: false, attack: false, dash: false, dashDir: 0, dashAttack: false,
 });
 
-/** Accumulates one-shot events between input-loop ticks. */
+
 const frameEvents = { ...EMPTY_FRAME };
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  ACTION KEY (ATTACK / BLOCK)
-// ─────────────────────────────────────────────────────────────────────────────
-let actionDownAt = 0;     // timestamp (ms) when the action key was pressed
-let actionFired  = false; // prevents double-firing within a single press
+let actionDownAt = 0;
+
+let actionFired  = false;
 
 function isActionKey(code) {
     return code === ACTION_KEY || code === ACTION_KEY_ALT;
@@ -68,12 +54,14 @@ window.addEventListener('keyup', (e) => {
 
     const heldMs = Date.now() - actionDownAt;
 
-    // Short tap → attack (or dash-attack if within the post-dash window).
+
+
     if (!actionFired && heldMs < ACTION_HOLD_MS) {
         const sinceDash = Date.now() - dashEndTime;
         if (dashEndTime > 0 && sinceDash < DASH_ATTACK_MS) {
             frameEvents.dashAttack = true;
-            dashEndTime = 0;   // consume the window — one shot only
+            dashEndTime = 0;
+
         } else {
             frameEvents.attack = true;
         }
@@ -81,18 +69,12 @@ window.addEventListener('keyup', (e) => {
     actionFired = false;
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  BLOCK  (server owns all timing — client just forwards the held state)
-// ─────────────────────────────────────────────────────────────────────────────
 function isBlocking() {
     return !!(keys[ACTION_KEY] || keys[ACTION_KEY_ALT]);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  DASH  (double-tap left / right)
-// ─────────────────────────────────────────────────────────────────────────────
 let lastTap     = { code: '', time: 0 };
-let dashEndTime = 0;   // client-side estimate of when the server dash ends
+let dashEndTime = 0;
 
 const DASH_KEYS = new Set(['ArrowLeft', 'KeyA', 'ArrowRight', 'KeyD']);
 
@@ -103,23 +85,18 @@ window.addEventListener('keydown', (e) => {
     if (e.code === lastTap.code && now - lastTap.time < DASH_TAP_MS) {
         frameEvents.dash    = true;
         frameEvents.dashDir = (e.code === 'ArrowRight' || e.code === 'KeyD') ? 1 : -1;
-        // Approximate when the dash ends on the server (~DASH_DURATION s).
+
+
         dashEndTime = now + 120;
     }
     lastTap = { code: e.code, time: now };
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  JUMP
-// ─────────────────────────────────────────────────────────────────────────────
 window.addEventListener('keydown', (e) => {
     if (e.repeat) return;
     if (e.code === 'KeyW' || e.code === 'ArrowUp') frameEvents.jump = true;
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  60 Hz INPUT LOOP
-// ─────────────────────────────────────────────────────────────────────────────
 setInterval(() => {
     const moveX  = (keys['KeyD'] || keys['ArrowRight'] ? 1 : 0)
                  - (keys['KeyA'] || keys['ArrowLeft']  ? 1 : 0);
@@ -140,9 +117,6 @@ setInterval(() => {
     Object.assign(frameEvents, EMPTY_FRAME);
 }, 1000 / 60);
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  WEBSOCKET
-// ─────────────────────────────────────────────────────────────────────────────
 (function connectWS() {
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
     const ws       = new WebSocket(`${protocol}//${location.host}/ws`);
@@ -157,12 +131,16 @@ setInterval(() => {
         setStatus('⬤ Connected');
         const savedId = sessionStorage.getItem('clientId');
 
-        // Clear any stale game state from the previous session so C doesn't
-        // try to render an inconsistent snapshot while we wait for the server.
+
+
+
+
         window._gameState      = { type: 'state', frameId: 0, players: {} };
         window._isSpectator    = false;
         window._spectatorMode  = null;
-        // Restaurar char select data desde sessionStorage si existe
+        window._eliminatedFromSession = null;
+
+
         window._charSelectConfirmed = false;
         try {
             const saved = sessionStorage.getItem('charSelectData');
@@ -176,15 +154,21 @@ setInterval(() => {
             window._charSelectData = null;
         }
 
-        // Reenviar char_select si había una pendiente (reconexión)
+
+
         const _pcs = sessionStorage.getItem('pendingCharSelect');
         if (_pcs) { try { const {charId,charIdx,stageId} = JSON.parse(_pcs); setTimeout(()=>{ if(window._ws&&window._ws.readyState===WebSocket.OPEN) sendCharSelect(charId,charIdx??0,stageId??0); },300); } catch(e){} }
 
-        // The server always decides whether this client is a player or spectator
-        // based on how many players are currently connected.  We never force
-        // spectator mode from the client — if we were an overflow spectator last
-        // time, we try to rejoin as a player now (the server will push us back to
-        // spectator_mode if the room is still full).
+
+
+
+
+
+
+
+
+
+
         if (savedId) {
             ws.send(JSON.stringify({ type: 'rejoin', clientId: parseInt(savedId, 10) }));
         } else {
@@ -205,7 +189,8 @@ setInterval(() => {
         } else if (msg.type === 'char_select_ack') {
             window._charSelectData = msg;
             try { sessionStorage.setItem('charSelectData', JSON.stringify(msg)); } catch(e){}
-            // Marcar que el personaje está confirmado — el juego puede arrancar
+
+
             window._charSelectConfirmed = true;
             window.dispatchEvent(new CustomEvent('char_select_ack', { detail: msg }));
 
@@ -218,13 +203,21 @@ setInterval(() => {
                 activeSessions:  msg.activeSessions,
                 eliminated:      msg.eliminated ?? false,
             };
+            // If we were just eliminated, mark it so victory events are treated
+            // as "spectator watching the end" and not as personal defeat screen.
+            if (msg.eliminated) {
+                window._eliminatedFromSession = msg.watchingSession ?? null;
+            }
             sessionStorage.setItem('clientId', msg.clientId);
             if (!window._gameState || !window._gameState.players) {
                 window._gameState = { type: 'state', frameId: 0, players: {} };
             }
-            // IMPORTANTE: NO tocar _victoryState aquí.
-            // Si este cliente acaba de ser eliminado, puede llegar spectator_mode
-            // justo después del victory — el C todavía no lo ha leído.
+
+
+
+
+
+
             window.dispatchEvent(new CustomEvent('spectator_mode', { detail: window._spectatorMode }));
 
             if (!msg.watchingSession) {
@@ -250,8 +243,10 @@ setInterval(() => {
             window.dispatchEvent(new CustomEvent('spectator_session_changed', { detail: msg }));
 
         } else if (msg.type === 'hitstop') {
-            // Freeze puro + shake: el C lo lee vía ws_get_hitstop_state()
-            // Intensidad de shake por tier (usada por la cámara y el personaje)
+
+
+
+
             const shakeByTier = { micro: 0.012, light: 0.028, medium: 0.055, heavy: 0.10, ultra: 0.18 };
             const shakeAmt = shakeByTier[msg.tier] ?? 0.02;
 
@@ -263,22 +258,27 @@ setInterval(() => {
                     shakeAmt,
                     attackerId:  msg.attackerId,
                     targetId:    msg.targetId,
-                    startFrames: msg.frames,   // para normalizar intensidad de shake
+                    startFrames: msg.frames,
+
                 };
             }
             window.dispatchEvent(new CustomEvent('hitstop', { detail: window._hitstopState }));
 
         } else if (msg.type === 'state') {
             window._gameState = msg;
-            try { sessionStorage.setItem('gameState', JSON.stringify(msg)); } catch { /* quota */ }
+            try { sessionStorage.setItem('gameState', JSON.stringify(msg)); } catch {   }
 
         } else if (msg.type === 'match_start') {
-            // Nueva partida — limpiar cualquier victoria anterior
+
+
             window._victoryState    = null;
             window._victoryConsumed = false;
-            window._hitstopState    = null;   // resetear bullet-time
-            // NO limpiar _charSelectData ni _charSelectConfirmed aquí:
-            // se necesitan para reconexión mid-match
+            window._hitstopState    = null;
+
+
+
+
+
             window._matchSession = {
                 sessionId:    msg.sessionId,
                 mode:         msg.mode,
@@ -295,16 +295,44 @@ setInterval(() => {
             window.dispatchEvent(new CustomEvent('match_start', { detail: window._matchSession }));
 
         } else if (msg.type === 'victory') {
-            // Guardamos en una variable separada que el C lee vía EM_JS.
-            // Usamos _victoryWinner (int) y _victoryIsWinner (bool) para
-            // evitar la dependencia de setValue/punteros en EM_JS.
+            // If this client was eliminated earlier and is now watching as a spectator,
+            // we must NOT trigger the personal loss/victory screen. Instead we just
+            // dispatch the event so the frontend can show a "X wins!" overlay.
+            // Only activate _victoryState (which drives the reload/end-screen logic)
+            // once the whole match is truly over (handled by match_end below).
+            if (window._isSpectator && window._eliminatedFromSession) {
+                // Broadcast a neutral victory notification for spectators/eliminated players
+                window.dispatchEvent(new CustomEvent('victory_spectator', { detail: {
+                    winner:   msg.winner,
+                    loser:    msg.loser,
+                    isWinner: false,
+                    spectating: true,
+                }}));
+                // Freeze winner animation in local state so it renders correctly
+                if (window._gameState && window._gameState.players) {
+                    const wp = window._gameState.players[msg.winner];
+                    if (wp) {
+                        wp.animation = 'victory';
+                        wp.frozen    = true;
+                    }
+                }
+                return;
+            }
+
+
+
+
+
+
             const isWinner = (msg.winner === window._myClientId);
             window._victoryWinner   = msg.winner | 0;
             window._victoryIsWinner = isWinner;
-            window._victoryActive   = true;   // el C comprueba este flag
+            window._victoryActive   = true;
+
             window._victoryConsumed = false;
 
-            // También mantener el objeto para el HUD/React
+
+
             window._victoryState = {
                 winner:         msg.winner,
                 loser:          msg.loser,
@@ -312,7 +340,8 @@ setInterval(() => {
                 reloadRequired: msg.reloadRequired ?? true,
             };
 
-            // Forzar animación 'victory' en el snapshot para el renderer
+
+
             if (window._gameState && window._gameState.players) {
                 const wp = window._gameState.players[msg.winner];
                 if (wp) {
@@ -327,6 +356,8 @@ setInterval(() => {
         } else if (msg.type === 'match_end') {
             const isWinnerMe = msg.winner === window._myClientId;
             window._lastMatchResult = { winner: msg.winner, loser: msg.loser, isWinner: isWinnerMe, matchId: msg.matchId };
+            // Clear eliminated-spectator flag now that the match is fully over
+            window._eliminatedFromSession = null;
             window.dispatchEvent(new CustomEvent('match_end', { detail: window._lastMatchResult }));
             window._matchSession = null;
 
@@ -359,20 +390,17 @@ setInterval(() => {
     });
 })();
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  PUBLIC API
-// ─────────────────────────────────────────────────────────────────────────────
-/**
- * Serialises and sends one input frame to the server.
- * @param {InputFrame} frame
- */
+
 function sendInput(frame) {
     if (!window._ws || window._ws.readyState !== WebSocket.OPEN) return;
-    // Espectadores no mandan input
+
+
     if (window._isSpectator) return;
-    // Partida terminada — ninguna tecla debe llegar al servidor
+
+
     if (window._victoryState && !window._victoryConsumed) return;
-    // Durante el countdown tampoco se manda input
+
+
     if (window._countdownStart && !window._countdownDone) return;
 
     window._ws.send(JSON.stringify({
@@ -388,15 +416,9 @@ function sendInput(frame) {
     }));
 }
 
-// Expose for legacy callers (Emscripten EM_JS bridge).
 window._sendInput = (moveX, jump, attack, dash, dashDir, crouch, block, dashAttack) =>
     sendInput({ moveX, jump, attack, dash, dashDir, crouch, block, dashAttack });
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  SPECTATOR AUTO-WATCH
-//  Busca sesiones activas cada segundo hasta encontrar una y unirse.
-//  Se cancela cuando llega spectator_session_changed con sesión válida.
-// ─────────────────────────────────────────────────────────────────────────────
 window._spectatorAutoWatchTimer = null;
 
 function _spectatorAutoWatch() {
@@ -415,7 +437,7 @@ function _spectatorAutoWatch() {
                 watchSession(sessions[0].sessionId);
                 return;
             }
-        } catch (e) { /* red caída, reintentar */ }
+        } catch (e) {   }
         window._spectatorAutoWatchTimer = setTimeout(attempt, 1000);
     }
 
@@ -424,20 +446,7 @@ function _spectatorAutoWatch() {
 
 window._spectatorAutoWatch = _spectatorAutoWatch;
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  SPECTATOR API
-// ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Switch to spectator mode voluntarily, optionally watching a specific session.
- * Call this from the lobby / match-browser UI.
- *
- * @param {string|null} sessionId  – the sessionId to watch, or null for lobby view
- *
- * Usage examples:
- *   watchSession('3');           // watch session 3
- *   watchSession(null);          // lobby — see all sessions overview
- */
 function watchSession(sessionId) {
     if (!window._ws || window._ws.readyState !== WebSocket.OPEN) return;
     window._ws.send(JSON.stringify({ type: 'watch', sessionId: sessionId ?? null }));
@@ -445,12 +454,7 @@ function watchSession(sessionId) {
 
 window.watchSession = watchSession;
 
-/**
- * Fetch the list of active sessions from the REST API.
- * Returns a Promise resolving to { sessions, lobbySpectators, totalSpectators }.
- *
- * Usage: const { sessions } = await fetchActiveSessions();
- */
+
 async function fetchActiveSessions() {
     const res = await fetch('/api/sessions');
     if (!res.ok) throw new Error(`fetchActiveSessions: ${res.status}`);
@@ -458,9 +462,7 @@ async function fetchActiveSessions() {
 }
 
 window.fetchActiveSessions = fetchActiveSessions;
-// ─────────────────────────────────────────────────────────────────────────────
-//  CHAR SELECT
-// ─────────────────────────────────────────────────────────────────────────────
+
 function sendCharSelect(charId, charIdx, stageId) {
     if (!window._ws || window._ws.readyState !== WebSocket.OPEN) return;
     window._ws.send(JSON.stringify({ type: 'char_select', charId, charIdx: charIdx ?? 0, stageId: stageId ?? 0 }));
