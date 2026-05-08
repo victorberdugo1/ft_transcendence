@@ -323,7 +323,11 @@ setInterval(() => {
                 window.dispatchEvent(new CustomEvent('victory_spectator', { detail: {
                     winner: msg.winner, loser: msg.loser, isWinner: false, spectating: true,
                 }}));
-                window.dispatchEvent(new CustomEvent('victory', { detail: window._victoryState }));
+                // Delay the overlay so the victory animation can play and there is
+                // time to position the camera before the UI appears.
+                setTimeout(() => {
+                    window.dispatchEvent(new CustomEvent('victory', { detail: window._victoryState }));
+                }, window._victoryOverlayDelayMs ?? 3000);
                 return;
             }
 
@@ -358,8 +362,13 @@ setInterval(() => {
                 }
             }
 
-            window.dispatchEvent(new CustomEvent('victory', { detail: window._victoryState }));
-            if (isWinner) console.log('[GAME] Victory! Reload para la próxima partida.');
+            // Delay the overlay so the victory animation can finish and there is
+            // time to position the camera before the UI appears.
+            // Tune window._victoryOverlayDelayMs (default 3000 ms) to adjust the wait.
+            setTimeout(() => {
+                window.dispatchEvent(new CustomEvent('victory', { detail: window._victoryState }));
+                if (isWinner) console.log('[GAME] Victory! Reload para la próxima partida.');
+            }, window._victoryOverlayDelayMs ?? 3000);
 
         } else if (msg.type === 'match_finished') {
             // The session is permanently over. Clear all persisted identity so that

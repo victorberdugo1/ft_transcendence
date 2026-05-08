@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS friendships (
     friend_id  INTEGER REFERENCES users(id) ON DELETE CASCADE,
     status     VARCHAR(20) DEFAULT 'pending',     -- 'pending' | 'accepted' | 'blocked'
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(user_id, friend_id)
 );
 
@@ -61,7 +62,9 @@ CREATE TABLE IF NOT EXISTS matches (
     score2      INTEGER   DEFAULT 0,
     winner_id   INTEGER REFERENCES users(id) ON DELETE SET NULL,
     game_type   VARCHAR(50) DEFAULT 'brawler',    -- nombre del juego
-    played_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    played_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    ended_at    TIMESTAMP,                        -- cuándo terminó la partida
+    duration_s  INTEGER                           -- duración en segundos
 );
 
 -- ─── Estadísticas de usuario (módulo Game Statistics) ────
@@ -69,6 +72,9 @@ CREATE TABLE IF NOT EXISTS user_stats (
     user_id     INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     wins        INTEGER DEFAULT 0,
     losses      INTEGER DEFAULT 0,
+    draws       INTEGER DEFAULT 0,
+    win_streak  INTEGER DEFAULT 0,
+    best_streak INTEGER DEFAULT 0,
     xp          INTEGER DEFAULT 0,
     level       INTEGER DEFAULT 1,
     updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -94,7 +100,8 @@ CREATE TABLE IF NOT EXISTS tournament_matches (
     id            SERIAL PRIMARY KEY,
     tournament_id INTEGER REFERENCES tournaments(id) ON DELETE CASCADE,
     match_id      INTEGER REFERENCES matches(id)     ON DELETE SET NULL,
-    round         INTEGER NOT NULL
+    round         INTEGER NOT NULL,
+    match_order   INTEGER DEFAULT 0   -- posición dentro del round para el bracket visual
 );
 
 -- ─── Logros / Gamificación ────────────────────────────────

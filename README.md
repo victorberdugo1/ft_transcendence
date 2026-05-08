@@ -140,19 +140,19 @@ Full ERD with all relationships:
 
 | Table | Purpose | Key columns |
 |---|---|---|
-| `users` | User accounts | `id`, `username`, `email`, `password_hash` (bcrypt), `role`, `is_online` |
+| `users` | User accounts | `id` PK, `username`, `email`, `password_hash` (bcrypt), `avatar_url`, `is_online`, `role`, `totp_secret`, `totp_enabled`, `created_at` |
 | `sessions` | Session tokens (auth) | `token` PK, `user_id` FK, `expires_at` (7 days) |
-| `user_stats` | Game statistics | `user_id` PK, `wins`, `losses`, `xp`, `level` |
-| `friendships` | Friends system | `user_id`, `friend_id`, `status` (`pending`/`accepted`/`blocked`) |
-| `messages` | Direct chat | `sender_id`, `receiver_id`, `content`, `is_read` |
-| `matches` | Match history | `player1_id`, `player2_id`, `winner_id`, `score1`, `score2` |
-| `tournaments` | Tournaments | `name`, `status` (`open`/`ongoing`/`finished`), `created_by` |
-| `tournament_players` | Tournament participants | `tournament_id`, `user_id`, `eliminated` |
-| `tournament_matches` | Tournament rounds | `tournament_id`, `match_id`, `round` |
-| `achievements` | Achievement catalogue | `key`, `name`, `description` |
-| `user_achievements` | Unlocked achievements | `user_id`, `achievement_id`, `earned_at` |
-| `notifications` | In-app notifications | `user_id`, `type`, `payload` (JSONB), `is_read` |
-| `spectators` | Spectator sessions | `user_id` FK, `session_id`, `tournament_id` FK, `mode` (`overflow`/`voluntary`), `joined_at`, `left_at` |
+| `user_stats` | Game statistics | `user_id` PK, `wins`, `losses`, `draws`, `win_streak`, `best_streak`, `xp`, `level` |
+| `friendships` | Friends system | `id` PK, `user_id` FK, `friend_id` FK, `status` (`pending`/`accepted`/`blocked`), `updated_at` |
+| `messages` | Direct chat | `id` PK, `sender_id` FK, `receiver_id` FK, `content`, `is_read`, `sent_at` |
+| `matches` | Match history | `id` PK, `player1_id` FK, `player2_id` FK, `winner_id` FK, `score1`, `score2`, `game_type`, `played_at`, `ended_at`, `duration_s` |
+| `tournaments` | Tournaments | `id` PK, `name`, `status` (`open`/`ongoing`/`finished`), `created_by` FK, `created_at` |
+| `tournament_players` | Tournament participants | `(tournament_id, user_id)` composite PK, `eliminated` |
+| `tournament_matches` | Tournament rounds | `id` PK, `tournament_id` FK, `match_id` FK, `round`, `match_order` |
+| `achievements` | Achievement catalogue | `id` PK, `key`, `name`, `description` |
+| `user_achievements` | Unlocked achievements | `(user_id, achievement_id)` composite PK, `earned_at` |
+| `notifications` | In-app notifications | `id` PK, `user_id` FK, `type`, `payload` (JSONB), `is_read`, `created_at` |
+| `spectators` | Spectator sessions | `id` PK, `user_id` FK, `session_id`, `tournament_id` FK, `mode` (`overflow`/`voluntary`), `joined_at`, `left_at` |
 
 **Key relationships:** `users` is the central table — `sessions`, `user_stats`, `friendships`, `messages`, `matches`, `notifications`, `user_achievements`, and `spectators` all reference it. Tournaments are composed of `tournaments` → `tournament_players` (who participates) and `tournament_matches` (which matches belong to each round). The `spectators` table tracks both overflow connections (slot limit reached) and voluntary viewers who choose to watch a live match.
 

@@ -711,6 +711,22 @@ wss.on('connection', async (ws, req) => {
 
         if (msg.type === 'rejoin' && msg.clientId) {
 
+            // ── Cancel any pending disconnect-elimination grace timer ──
+            // If this player had a grace-period timer running (because they closed
+            // the tab / hit F5), cancel it now so they are not eliminated.
+            for (const [sessId, sess] of gameSessions.entries()) {
+                if (sess.pendingEliminations && sess.pendingEliminations[msg.clientId]) {
+                    clearTimeout(sess.pendingEliminations[msg.clientId]);
+                    delete sess.pendingEliminations[msg.clientId];
+                    // Tell all peers the player is back
+                    broadcastToSession(sess, {
+                        type:     'player_reconnected',
+                        clientId: msg.clientId,
+                    });
+                    console.log(`[REJOIN] Grace-period cancelled for client ${msg.clientId} in session ${sessId}`);
+                }
+            }
+
 
             if (players[msg.clientId]) {
                 clientId = msg.clientId;
@@ -718,6 +734,13 @@ wss.on('connection', async (ws, req) => {
                 players[clientId].ws = ws;
                 isSpectator = false;
                 mode = 'player';
+
+                // Restore the player's session mapping if it was cleared on disconnect
+                const savedSession = lastState[clientId]?.sessionId ?? null;
+                if (savedSession && gameSessions.has(savedSession) && !playerSession.has(clientId)) {
+                    playerSession.set(clientId, savedSession);
+                }
+
                 ws.send(JSON.stringify({
                     type: 'init',
                     clientId,
@@ -943,22 +966,58 @@ wss.on('connection', async (ws, req) => {
             }, GHOST_TTL),
         };
 
-        // If player was in a session, treat disconnect as elimination so victory
-        // logic works correctly and remaining players can still win normally.
+        // If player was in a session, give them a grace period to reconnect (e.g. F5)
+        // before treating the disconnect as an elimination. If they reconnect within
+        // DISCONNECT_GRACE_MS the pending timer is cancelled in the 'rejoin' handler.
         const disconnectedSessionId = playerSession.get(clientId);
         const disconnectedSession   = disconnectedSessionId ? gameSessions.get(disconnectedSessionId) : null;
 
         delete players[clientId];
         playerSession.delete(clientId);
 
-        // Check if this disconnect resolves the session
         if (disconnectedSession && !disconnectedSession.finished) {
-            disconnectedSession.eliminated.add(clientId);
-            const remaining = [...disconnectedSession.playerIds].filter(id => !disconnectedSession.eliminated.has(id));
-            if (remaining.length === 1) {
-                const winnerId = remaining[0];
-                resolveMatchWinner(disconnectedSession, winnerId, clientId);
+            const gracePeriodMs = 8000; // 8 s — enough to survive an F5 reload
+
+            // Notify peers that this player is temporarily disconnected (not eliminated yet)
+            broadcastToSession(disconnectedSession, {
+                type:     'player_disconnected',
+                clientId: clientId,
+                graceMs:  gracePeriodMs,
+            });
+
+            // Store the pending-elimination timer so the rejoin handler can cancel it
+            if (!disconnectedSession.pendingEliminations) {
+                disconnectedSession.pendingEliminations = {};
             }
+
+            disconnectedSession.pendingEliminations[clientId] = setTimeout(() => {
+                delete disconnectedSession.pendingEliminations[clientId];
+
+                // Only proceed if the session is still alive and the player has not
+                // already reconnected (reconnect re-adds them to players{}).
+                if (disconnectedSession.finished) return;
+                if (players[clientId]) return; // reconnected in time
+
+                broadcastToSession(disconnectedSession, {
+                    type:     'player_eliminated',
+                    clientId: clientId,
+                });
+                broadcastToAll({ type: 'player_eliminated', clientId: clientId });
+
+                disconnectedSession.eliminated.add(clientId);
+                const remaining = [...disconnectedSession.playerIds].filter(id => !disconnectedSession.eliminated.has(id));
+                if (remaining.length === 1) {
+                    const winnerId = remaining[0];
+                    resolveMatchWinner(disconnectedSession, winnerId, clientId);
+                } else if (remaining.length === 0) {
+                    disconnectedSession.finished = true;
+                    broadcastToSession(disconnectedSession, {
+                        type: 'match_end', winner: null, loser: clientId,
+                        matchId: null, mode: disconnectedSession.mode,
+                    });
+                    setTimeout(() => gameSessions.delete(disconnectedSession.id), 6000);
+                }
+            }, gracePeriodMs);
         }
 
 

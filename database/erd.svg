@@ -1,1555 +1,524 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="830" height="1230" viewBox="0 0 830 1230" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif">
-<defs>
-  <filter id="sh">
-    <feDropShadow dx="0" dy="3" stdDeviation="6" flood-color="#000" flood-opacity="0.5"/>
-  </filter>
-  <marker id="dot" viewBox="0 0 8 8" refX="4" refY="4" markerWidth="5" markerHeight="5">
-    <circle cx="4" cy="4" r="3" fill="#7C6AFA" opacity="0.8"/>
-  </marker>
-  <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
-    <path d="M1 2L8 5L1 8" fill="none" stroke="#7C6AFA" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-  </marker>
-</defs>
-<rect width="830" height="1230" fill="#0d0b1e"/>
-<circle cx="0" cy="0" r="1" fill="#1a1733"/>
-<circle cx="0" cy="28" r="1" fill="#1a1733"/>
-<circle cx="0" cy="56" r="1" fill="#1a1733"/>
-<circle cx="0" cy="84" r="1" fill="#1a1733"/>
-<circle cx="0" cy="112" r="1" fill="#1a1733"/>
-<circle cx="0" cy="140" r="1" fill="#1a1733"/>
-<circle cx="0" cy="168" r="1" fill="#1a1733"/>
-<circle cx="0" cy="196" r="1" fill="#1a1733"/>
-<circle cx="0" cy="224" r="1" fill="#1a1733"/>
-<circle cx="0" cy="252" r="1" fill="#1a1733"/>
-<circle cx="0" cy="280" r="1" fill="#1a1733"/>
-<circle cx="0" cy="308" r="1" fill="#1a1733"/>
-<circle cx="0" cy="336" r="1" fill="#1a1733"/>
-<circle cx="0" cy="364" r="1" fill="#1a1733"/>
-<circle cx="0" cy="392" r="1" fill="#1a1733"/>
-<circle cx="0" cy="420" r="1" fill="#1a1733"/>
-<circle cx="0" cy="448" r="1" fill="#1a1733"/>
-<circle cx="0" cy="476" r="1" fill="#1a1733"/>
-<circle cx="0" cy="504" r="1" fill="#1a1733"/>
-<circle cx="0" cy="532" r="1" fill="#1a1733"/>
-<circle cx="0" cy="560" r="1" fill="#1a1733"/>
-<circle cx="0" cy="588" r="1" fill="#1a1733"/>
-<circle cx="0" cy="616" r="1" fill="#1a1733"/>
-<circle cx="0" cy="644" r="1" fill="#1a1733"/>
-<circle cx="0" cy="672" r="1" fill="#1a1733"/>
-<circle cx="0" cy="700" r="1" fill="#1a1733"/>
-<circle cx="0" cy="728" r="1" fill="#1a1733"/>
-<circle cx="0" cy="756" r="1" fill="#1a1733"/>
-<circle cx="0" cy="784" r="1" fill="#1a1733"/>
-<circle cx="0" cy="812" r="1" fill="#1a1733"/>
-<circle cx="0" cy="840" r="1" fill="#1a1733"/>
-<circle cx="0" cy="868" r="1" fill="#1a1733"/>
-<circle cx="0" cy="896" r="1" fill="#1a1733"/>
-<circle cx="0" cy="924" r="1" fill="#1a1733"/>
-<circle cx="0" cy="952" r="1" fill="#1a1733"/>
-<circle cx="0" cy="980" r="1" fill="#1a1733"/>
-<circle cx="0" cy="1008" r="1" fill="#1a1733"/>
-<circle cx="0" cy="1036" r="1" fill="#1a1733"/>
-<circle cx="28" cy="0" r="1" fill="#1a1733"/>
-<circle cx="28" cy="28" r="1" fill="#1a1733"/>
-<circle cx="28" cy="56" r="1" fill="#1a1733"/>
-<circle cx="28" cy="84" r="1" fill="#1a1733"/>
-<circle cx="28" cy="112" r="1" fill="#1a1733"/>
-<circle cx="28" cy="140" r="1" fill="#1a1733"/>
-<circle cx="28" cy="168" r="1" fill="#1a1733"/>
-<circle cx="28" cy="196" r="1" fill="#1a1733"/>
-<circle cx="28" cy="224" r="1" fill="#1a1733"/>
-<circle cx="28" cy="252" r="1" fill="#1a1733"/>
-<circle cx="28" cy="280" r="1" fill="#1a1733"/>
-<circle cx="28" cy="308" r="1" fill="#1a1733"/>
-<circle cx="28" cy="336" r="1" fill="#1a1733"/>
-<circle cx="28" cy="364" r="1" fill="#1a1733"/>
-<circle cx="28" cy="392" r="1" fill="#1a1733"/>
-<circle cx="28" cy="420" r="1" fill="#1a1733"/>
-<circle cx="28" cy="448" r="1" fill="#1a1733"/>
-<circle cx="28" cy="476" r="1" fill="#1a1733"/>
-<circle cx="28" cy="504" r="1" fill="#1a1733"/>
-<circle cx="28" cy="532" r="1" fill="#1a1733"/>
-<circle cx="28" cy="560" r="1" fill="#1a1733"/>
-<circle cx="28" cy="588" r="1" fill="#1a1733"/>
-<circle cx="28" cy="616" r="1" fill="#1a1733"/>
-<circle cx="28" cy="644" r="1" fill="#1a1733"/>
-<circle cx="28" cy="672" r="1" fill="#1a1733"/>
-<circle cx="28" cy="700" r="1" fill="#1a1733"/>
-<circle cx="28" cy="728" r="1" fill="#1a1733"/>
-<circle cx="28" cy="756" r="1" fill="#1a1733"/>
-<circle cx="28" cy="784" r="1" fill="#1a1733"/>
-<circle cx="28" cy="812" r="1" fill="#1a1733"/>
-<circle cx="28" cy="840" r="1" fill="#1a1733"/>
-<circle cx="28" cy="868" r="1" fill="#1a1733"/>
-<circle cx="28" cy="896" r="1" fill="#1a1733"/>
-<circle cx="28" cy="924" r="1" fill="#1a1733"/>
-<circle cx="28" cy="952" r="1" fill="#1a1733"/>
-<circle cx="28" cy="980" r="1" fill="#1a1733"/>
-<circle cx="28" cy="1008" r="1" fill="#1a1733"/>
-<circle cx="28" cy="1036" r="1" fill="#1a1733"/>
-<circle cx="56" cy="0" r="1" fill="#1a1733"/>
-<circle cx="56" cy="28" r="1" fill="#1a1733"/>
-<circle cx="56" cy="56" r="1" fill="#1a1733"/>
-<circle cx="56" cy="84" r="1" fill="#1a1733"/>
-<circle cx="56" cy="112" r="1" fill="#1a1733"/>
-<circle cx="56" cy="140" r="1" fill="#1a1733"/>
-<circle cx="56" cy="168" r="1" fill="#1a1733"/>
-<circle cx="56" cy="196" r="1" fill="#1a1733"/>
-<circle cx="56" cy="224" r="1" fill="#1a1733"/>
-<circle cx="56" cy="252" r="1" fill="#1a1733"/>
-<circle cx="56" cy="280" r="1" fill="#1a1733"/>
-<circle cx="56" cy="308" r="1" fill="#1a1733"/>
-<circle cx="56" cy="336" r="1" fill="#1a1733"/>
-<circle cx="56" cy="364" r="1" fill="#1a1733"/>
-<circle cx="56" cy="392" r="1" fill="#1a1733"/>
-<circle cx="56" cy="420" r="1" fill="#1a1733"/>
-<circle cx="56" cy="448" r="1" fill="#1a1733"/>
-<circle cx="56" cy="476" r="1" fill="#1a1733"/>
-<circle cx="56" cy="504" r="1" fill="#1a1733"/>
-<circle cx="56" cy="532" r="1" fill="#1a1733"/>
-<circle cx="56" cy="560" r="1" fill="#1a1733"/>
-<circle cx="56" cy="588" r="1" fill="#1a1733"/>
-<circle cx="56" cy="616" r="1" fill="#1a1733"/>
-<circle cx="56" cy="644" r="1" fill="#1a1733"/>
-<circle cx="56" cy="672" r="1" fill="#1a1733"/>
-<circle cx="56" cy="700" r="1" fill="#1a1733"/>
-<circle cx="56" cy="728" r="1" fill="#1a1733"/>
-<circle cx="56" cy="756" r="1" fill="#1a1733"/>
-<circle cx="56" cy="784" r="1" fill="#1a1733"/>
-<circle cx="56" cy="812" r="1" fill="#1a1733"/>
-<circle cx="56" cy="840" r="1" fill="#1a1733"/>
-<circle cx="56" cy="868" r="1" fill="#1a1733"/>
-<circle cx="56" cy="896" r="1" fill="#1a1733"/>
-<circle cx="56" cy="924" r="1" fill="#1a1733"/>
-<circle cx="56" cy="952" r="1" fill="#1a1733"/>
-<circle cx="56" cy="980" r="1" fill="#1a1733"/>
-<circle cx="56" cy="1008" r="1" fill="#1a1733"/>
-<circle cx="56" cy="1036" r="1" fill="#1a1733"/>
-<circle cx="84" cy="0" r="1" fill="#1a1733"/>
-<circle cx="84" cy="28" r="1" fill="#1a1733"/>
-<circle cx="84" cy="56" r="1" fill="#1a1733"/>
-<circle cx="84" cy="84" r="1" fill="#1a1733"/>
-<circle cx="84" cy="112" r="1" fill="#1a1733"/>
-<circle cx="84" cy="140" r="1" fill="#1a1733"/>
-<circle cx="84" cy="168" r="1" fill="#1a1733"/>
-<circle cx="84" cy="196" r="1" fill="#1a1733"/>
-<circle cx="84" cy="224" r="1" fill="#1a1733"/>
-<circle cx="84" cy="252" r="1" fill="#1a1733"/>
-<circle cx="84" cy="280" r="1" fill="#1a1733"/>
-<circle cx="84" cy="308" r="1" fill="#1a1733"/>
-<circle cx="84" cy="336" r="1" fill="#1a1733"/>
-<circle cx="84" cy="364" r="1" fill="#1a1733"/>
-<circle cx="84" cy="392" r="1" fill="#1a1733"/>
-<circle cx="84" cy="420" r="1" fill="#1a1733"/>
-<circle cx="84" cy="448" r="1" fill="#1a1733"/>
-<circle cx="84" cy="476" r="1" fill="#1a1733"/>
-<circle cx="84" cy="504" r="1" fill="#1a1733"/>
-<circle cx="84" cy="532" r="1" fill="#1a1733"/>
-<circle cx="84" cy="560" r="1" fill="#1a1733"/>
-<circle cx="84" cy="588" r="1" fill="#1a1733"/>
-<circle cx="84" cy="616" r="1" fill="#1a1733"/>
-<circle cx="84" cy="644" r="1" fill="#1a1733"/>
-<circle cx="84" cy="672" r="1" fill="#1a1733"/>
-<circle cx="84" cy="700" r="1" fill="#1a1733"/>
-<circle cx="84" cy="728" r="1" fill="#1a1733"/>
-<circle cx="84" cy="756" r="1" fill="#1a1733"/>
-<circle cx="84" cy="784" r="1" fill="#1a1733"/>
-<circle cx="84" cy="812" r="1" fill="#1a1733"/>
-<circle cx="84" cy="840" r="1" fill="#1a1733"/>
-<circle cx="84" cy="868" r="1" fill="#1a1733"/>
-<circle cx="84" cy="896" r="1" fill="#1a1733"/>
-<circle cx="84" cy="924" r="1" fill="#1a1733"/>
-<circle cx="84" cy="952" r="1" fill="#1a1733"/>
-<circle cx="84" cy="980" r="1" fill="#1a1733"/>
-<circle cx="84" cy="1008" r="1" fill="#1a1733"/>
-<circle cx="84" cy="1036" r="1" fill="#1a1733"/>
-<circle cx="112" cy="0" r="1" fill="#1a1733"/>
-<circle cx="112" cy="28" r="1" fill="#1a1733"/>
-<circle cx="112" cy="56" r="1" fill="#1a1733"/>
-<circle cx="112" cy="84" r="1" fill="#1a1733"/>
-<circle cx="112" cy="112" r="1" fill="#1a1733"/>
-<circle cx="112" cy="140" r="1" fill="#1a1733"/>
-<circle cx="112" cy="168" r="1" fill="#1a1733"/>
-<circle cx="112" cy="196" r="1" fill="#1a1733"/>
-<circle cx="112" cy="224" r="1" fill="#1a1733"/>
-<circle cx="112" cy="252" r="1" fill="#1a1733"/>
-<circle cx="112" cy="280" r="1" fill="#1a1733"/>
-<circle cx="112" cy="308" r="1" fill="#1a1733"/>
-<circle cx="112" cy="336" r="1" fill="#1a1733"/>
-<circle cx="112" cy="364" r="1" fill="#1a1733"/>
-<circle cx="112" cy="392" r="1" fill="#1a1733"/>
-<circle cx="112" cy="420" r="1" fill="#1a1733"/>
-<circle cx="112" cy="448" r="1" fill="#1a1733"/>
-<circle cx="112" cy="476" r="1" fill="#1a1733"/>
-<circle cx="112" cy="504" r="1" fill="#1a1733"/>
-<circle cx="112" cy="532" r="1" fill="#1a1733"/>
-<circle cx="112" cy="560" r="1" fill="#1a1733"/>
-<circle cx="112" cy="588" r="1" fill="#1a1733"/>
-<circle cx="112" cy="616" r="1" fill="#1a1733"/>
-<circle cx="112" cy="644" r="1" fill="#1a1733"/>
-<circle cx="112" cy="672" r="1" fill="#1a1733"/>
-<circle cx="112" cy="700" r="1" fill="#1a1733"/>
-<circle cx="112" cy="728" r="1" fill="#1a1733"/>
-<circle cx="112" cy="756" r="1" fill="#1a1733"/>
-<circle cx="112" cy="784" r="1" fill="#1a1733"/>
-<circle cx="112" cy="812" r="1" fill="#1a1733"/>
-<circle cx="112" cy="840" r="1" fill="#1a1733"/>
-<circle cx="112" cy="868" r="1" fill="#1a1733"/>
-<circle cx="112" cy="896" r="1" fill="#1a1733"/>
-<circle cx="112" cy="924" r="1" fill="#1a1733"/>
-<circle cx="112" cy="952" r="1" fill="#1a1733"/>
-<circle cx="112" cy="980" r="1" fill="#1a1733"/>
-<circle cx="112" cy="1008" r="1" fill="#1a1733"/>
-<circle cx="112" cy="1036" r="1" fill="#1a1733"/>
-<circle cx="140" cy="0" r="1" fill="#1a1733"/>
-<circle cx="140" cy="28" r="1" fill="#1a1733"/>
-<circle cx="140" cy="56" r="1" fill="#1a1733"/>
-<circle cx="140" cy="84" r="1" fill="#1a1733"/>
-<circle cx="140" cy="112" r="1" fill="#1a1733"/>
-<circle cx="140" cy="140" r="1" fill="#1a1733"/>
-<circle cx="140" cy="168" r="1" fill="#1a1733"/>
-<circle cx="140" cy="196" r="1" fill="#1a1733"/>
-<circle cx="140" cy="224" r="1" fill="#1a1733"/>
-<circle cx="140" cy="252" r="1" fill="#1a1733"/>
-<circle cx="140" cy="280" r="1" fill="#1a1733"/>
-<circle cx="140" cy="308" r="1" fill="#1a1733"/>
-<circle cx="140" cy="336" r="1" fill="#1a1733"/>
-<circle cx="140" cy="364" r="1" fill="#1a1733"/>
-<circle cx="140" cy="392" r="1" fill="#1a1733"/>
-<circle cx="140" cy="420" r="1" fill="#1a1733"/>
-<circle cx="140" cy="448" r="1" fill="#1a1733"/>
-<circle cx="140" cy="476" r="1" fill="#1a1733"/>
-<circle cx="140" cy="504" r="1" fill="#1a1733"/>
-<circle cx="140" cy="532" r="1" fill="#1a1733"/>
-<circle cx="140" cy="560" r="1" fill="#1a1733"/>
-<circle cx="140" cy="588" r="1" fill="#1a1733"/>
-<circle cx="140" cy="616" r="1" fill="#1a1733"/>
-<circle cx="140" cy="644" r="1" fill="#1a1733"/>
-<circle cx="140" cy="672" r="1" fill="#1a1733"/>
-<circle cx="140" cy="700" r="1" fill="#1a1733"/>
-<circle cx="140" cy="728" r="1" fill="#1a1733"/>
-<circle cx="140" cy="756" r="1" fill="#1a1733"/>
-<circle cx="140" cy="784" r="1" fill="#1a1733"/>
-<circle cx="140" cy="812" r="1" fill="#1a1733"/>
-<circle cx="140" cy="840" r="1" fill="#1a1733"/>
-<circle cx="140" cy="868" r="1" fill="#1a1733"/>
-<circle cx="140" cy="896" r="1" fill="#1a1733"/>
-<circle cx="140" cy="924" r="1" fill="#1a1733"/>
-<circle cx="140" cy="952" r="1" fill="#1a1733"/>
-<circle cx="140" cy="980" r="1" fill="#1a1733"/>
-<circle cx="140" cy="1008" r="1" fill="#1a1733"/>
-<circle cx="140" cy="1036" r="1" fill="#1a1733"/>
-<circle cx="168" cy="0" r="1" fill="#1a1733"/>
-<circle cx="168" cy="28" r="1" fill="#1a1733"/>
-<circle cx="168" cy="56" r="1" fill="#1a1733"/>
-<circle cx="168" cy="84" r="1" fill="#1a1733"/>
-<circle cx="168" cy="112" r="1" fill="#1a1733"/>
-<circle cx="168" cy="140" r="1" fill="#1a1733"/>
-<circle cx="168" cy="168" r="1" fill="#1a1733"/>
-<circle cx="168" cy="196" r="1" fill="#1a1733"/>
-<circle cx="168" cy="224" r="1" fill="#1a1733"/>
-<circle cx="168" cy="252" r="1" fill="#1a1733"/>
-<circle cx="168" cy="280" r="1" fill="#1a1733"/>
-<circle cx="168" cy="308" r="1" fill="#1a1733"/>
-<circle cx="168" cy="336" r="1" fill="#1a1733"/>
-<circle cx="168" cy="364" r="1" fill="#1a1733"/>
-<circle cx="168" cy="392" r="1" fill="#1a1733"/>
-<circle cx="168" cy="420" r="1" fill="#1a1733"/>
-<circle cx="168" cy="448" r="1" fill="#1a1733"/>
-<circle cx="168" cy="476" r="1" fill="#1a1733"/>
-<circle cx="168" cy="504" r="1" fill="#1a1733"/>
-<circle cx="168" cy="532" r="1" fill="#1a1733"/>
-<circle cx="168" cy="560" r="1" fill="#1a1733"/>
-<circle cx="168" cy="588" r="1" fill="#1a1733"/>
-<circle cx="168" cy="616" r="1" fill="#1a1733"/>
-<circle cx="168" cy="644" r="1" fill="#1a1733"/>
-<circle cx="168" cy="672" r="1" fill="#1a1733"/>
-<circle cx="168" cy="700" r="1" fill="#1a1733"/>
-<circle cx="168" cy="728" r="1" fill="#1a1733"/>
-<circle cx="168" cy="756" r="1" fill="#1a1733"/>
-<circle cx="168" cy="784" r="1" fill="#1a1733"/>
-<circle cx="168" cy="812" r="1" fill="#1a1733"/>
-<circle cx="168" cy="840" r="1" fill="#1a1733"/>
-<circle cx="168" cy="868" r="1" fill="#1a1733"/>
-<circle cx="168" cy="896" r="1" fill="#1a1733"/>
-<circle cx="168" cy="924" r="1" fill="#1a1733"/>
-<circle cx="168" cy="952" r="1" fill="#1a1733"/>
-<circle cx="168" cy="980" r="1" fill="#1a1733"/>
-<circle cx="168" cy="1008" r="1" fill="#1a1733"/>
-<circle cx="168" cy="1036" r="1" fill="#1a1733"/>
-<circle cx="196" cy="0" r="1" fill="#1a1733"/>
-<circle cx="196" cy="28" r="1" fill="#1a1733"/>
-<circle cx="196" cy="56" r="1" fill="#1a1733"/>
-<circle cx="196" cy="84" r="1" fill="#1a1733"/>
-<circle cx="196" cy="112" r="1" fill="#1a1733"/>
-<circle cx="196" cy="140" r="1" fill="#1a1733"/>
-<circle cx="196" cy="168" r="1" fill="#1a1733"/>
-<circle cx="196" cy="196" r="1" fill="#1a1733"/>
-<circle cx="196" cy="224" r="1" fill="#1a1733"/>
-<circle cx="196" cy="252" r="1" fill="#1a1733"/>
-<circle cx="196" cy="280" r="1" fill="#1a1733"/>
-<circle cx="196" cy="308" r="1" fill="#1a1733"/>
-<circle cx="196" cy="336" r="1" fill="#1a1733"/>
-<circle cx="196" cy="364" r="1" fill="#1a1733"/>
-<circle cx="196" cy="392" r="1" fill="#1a1733"/>
-<circle cx="196" cy="420" r="1" fill="#1a1733"/>
-<circle cx="196" cy="448" r="1" fill="#1a1733"/>
-<circle cx="196" cy="476" r="1" fill="#1a1733"/>
-<circle cx="196" cy="504" r="1" fill="#1a1733"/>
-<circle cx="196" cy="532" r="1" fill="#1a1733"/>
-<circle cx="196" cy="560" r="1" fill="#1a1733"/>
-<circle cx="196" cy="588" r="1" fill="#1a1733"/>
-<circle cx="196" cy="616" r="1" fill="#1a1733"/>
-<circle cx="196" cy="644" r="1" fill="#1a1733"/>
-<circle cx="196" cy="672" r="1" fill="#1a1733"/>
-<circle cx="196" cy="700" r="1" fill="#1a1733"/>
-<circle cx="196" cy="728" r="1" fill="#1a1733"/>
-<circle cx="196" cy="756" r="1" fill="#1a1733"/>
-<circle cx="196" cy="784" r="1" fill="#1a1733"/>
-<circle cx="196" cy="812" r="1" fill="#1a1733"/>
-<circle cx="196" cy="840" r="1" fill="#1a1733"/>
-<circle cx="196" cy="868" r="1" fill="#1a1733"/>
-<circle cx="196" cy="896" r="1" fill="#1a1733"/>
-<circle cx="196" cy="924" r="1" fill="#1a1733"/>
-<circle cx="196" cy="952" r="1" fill="#1a1733"/>
-<circle cx="196" cy="980" r="1" fill="#1a1733"/>
-<circle cx="196" cy="1008" r="1" fill="#1a1733"/>
-<circle cx="196" cy="1036" r="1" fill="#1a1733"/>
-<circle cx="224" cy="0" r="1" fill="#1a1733"/>
-<circle cx="224" cy="28" r="1" fill="#1a1733"/>
-<circle cx="224" cy="56" r="1" fill="#1a1733"/>
-<circle cx="224" cy="84" r="1" fill="#1a1733"/>
-<circle cx="224" cy="112" r="1" fill="#1a1733"/>
-<circle cx="224" cy="140" r="1" fill="#1a1733"/>
-<circle cx="224" cy="168" r="1" fill="#1a1733"/>
-<circle cx="224" cy="196" r="1" fill="#1a1733"/>
-<circle cx="224" cy="224" r="1" fill="#1a1733"/>
-<circle cx="224" cy="252" r="1" fill="#1a1733"/>
-<circle cx="224" cy="280" r="1" fill="#1a1733"/>
-<circle cx="224" cy="308" r="1" fill="#1a1733"/>
-<circle cx="224" cy="336" r="1" fill="#1a1733"/>
-<circle cx="224" cy="364" r="1" fill="#1a1733"/>
-<circle cx="224" cy="392" r="1" fill="#1a1733"/>
-<circle cx="224" cy="420" r="1" fill="#1a1733"/>
-<circle cx="224" cy="448" r="1" fill="#1a1733"/>
-<circle cx="224" cy="476" r="1" fill="#1a1733"/>
-<circle cx="224" cy="504" r="1" fill="#1a1733"/>
-<circle cx="224" cy="532" r="1" fill="#1a1733"/>
-<circle cx="224" cy="560" r="1" fill="#1a1733"/>
-<circle cx="224" cy="588" r="1" fill="#1a1733"/>
-<circle cx="224" cy="616" r="1" fill="#1a1733"/>
-<circle cx="224" cy="644" r="1" fill="#1a1733"/>
-<circle cx="224" cy="672" r="1" fill="#1a1733"/>
-<circle cx="224" cy="700" r="1" fill="#1a1733"/>
-<circle cx="224" cy="728" r="1" fill="#1a1733"/>
-<circle cx="224" cy="756" r="1" fill="#1a1733"/>
-<circle cx="224" cy="784" r="1" fill="#1a1733"/>
-<circle cx="224" cy="812" r="1" fill="#1a1733"/>
-<circle cx="224" cy="840" r="1" fill="#1a1733"/>
-<circle cx="224" cy="868" r="1" fill="#1a1733"/>
-<circle cx="224" cy="896" r="1" fill="#1a1733"/>
-<circle cx="224" cy="924" r="1" fill="#1a1733"/>
-<circle cx="224" cy="952" r="1" fill="#1a1733"/>
-<circle cx="224" cy="980" r="1" fill="#1a1733"/>
-<circle cx="224" cy="1008" r="1" fill="#1a1733"/>
-<circle cx="224" cy="1036" r="1" fill="#1a1733"/>
-<circle cx="252" cy="0" r="1" fill="#1a1733"/>
-<circle cx="252" cy="28" r="1" fill="#1a1733"/>
-<circle cx="252" cy="56" r="1" fill="#1a1733"/>
-<circle cx="252" cy="84" r="1" fill="#1a1733"/>
-<circle cx="252" cy="112" r="1" fill="#1a1733"/>
-<circle cx="252" cy="140" r="1" fill="#1a1733"/>
-<circle cx="252" cy="168" r="1" fill="#1a1733"/>
-<circle cx="252" cy="196" r="1" fill="#1a1733"/>
-<circle cx="252" cy="224" r="1" fill="#1a1733"/>
-<circle cx="252" cy="252" r="1" fill="#1a1733"/>
-<circle cx="252" cy="280" r="1" fill="#1a1733"/>
-<circle cx="252" cy="308" r="1" fill="#1a1733"/>
-<circle cx="252" cy="336" r="1" fill="#1a1733"/>
-<circle cx="252" cy="364" r="1" fill="#1a1733"/>
-<circle cx="252" cy="392" r="1" fill="#1a1733"/>
-<circle cx="252" cy="420" r="1" fill="#1a1733"/>
-<circle cx="252" cy="448" r="1" fill="#1a1733"/>
-<circle cx="252" cy="476" r="1" fill="#1a1733"/>
-<circle cx="252" cy="504" r="1" fill="#1a1733"/>
-<circle cx="252" cy="532" r="1" fill="#1a1733"/>
-<circle cx="252" cy="560" r="1" fill="#1a1733"/>
-<circle cx="252" cy="588" r="1" fill="#1a1733"/>
-<circle cx="252" cy="616" r="1" fill="#1a1733"/>
-<circle cx="252" cy="644" r="1" fill="#1a1733"/>
-<circle cx="252" cy="672" r="1" fill="#1a1733"/>
-<circle cx="252" cy="700" r="1" fill="#1a1733"/>
-<circle cx="252" cy="728" r="1" fill="#1a1733"/>
-<circle cx="252" cy="756" r="1" fill="#1a1733"/>
-<circle cx="252" cy="784" r="1" fill="#1a1733"/>
-<circle cx="252" cy="812" r="1" fill="#1a1733"/>
-<circle cx="252" cy="840" r="1" fill="#1a1733"/>
-<circle cx="252" cy="868" r="1" fill="#1a1733"/>
-<circle cx="252" cy="896" r="1" fill="#1a1733"/>
-<circle cx="252" cy="924" r="1" fill="#1a1733"/>
-<circle cx="252" cy="952" r="1" fill="#1a1733"/>
-<circle cx="252" cy="980" r="1" fill="#1a1733"/>
-<circle cx="252" cy="1008" r="1" fill="#1a1733"/>
-<circle cx="252" cy="1036" r="1" fill="#1a1733"/>
-<circle cx="280" cy="0" r="1" fill="#1a1733"/>
-<circle cx="280" cy="28" r="1" fill="#1a1733"/>
-<circle cx="280" cy="56" r="1" fill="#1a1733"/>
-<circle cx="280" cy="84" r="1" fill="#1a1733"/>
-<circle cx="280" cy="112" r="1" fill="#1a1733"/>
-<circle cx="280" cy="140" r="1" fill="#1a1733"/>
-<circle cx="280" cy="168" r="1" fill="#1a1733"/>
-<circle cx="280" cy="196" r="1" fill="#1a1733"/>
-<circle cx="280" cy="224" r="1" fill="#1a1733"/>
-<circle cx="280" cy="252" r="1" fill="#1a1733"/>
-<circle cx="280" cy="280" r="1" fill="#1a1733"/>
-<circle cx="280" cy="308" r="1" fill="#1a1733"/>
-<circle cx="280" cy="336" r="1" fill="#1a1733"/>
-<circle cx="280" cy="364" r="1" fill="#1a1733"/>
-<circle cx="280" cy="392" r="1" fill="#1a1733"/>
-<circle cx="280" cy="420" r="1" fill="#1a1733"/>
-<circle cx="280" cy="448" r="1" fill="#1a1733"/>
-<circle cx="280" cy="476" r="1" fill="#1a1733"/>
-<circle cx="280" cy="504" r="1" fill="#1a1733"/>
-<circle cx="280" cy="532" r="1" fill="#1a1733"/>
-<circle cx="280" cy="560" r="1" fill="#1a1733"/>
-<circle cx="280" cy="588" r="1" fill="#1a1733"/>
-<circle cx="280" cy="616" r="1" fill="#1a1733"/>
-<circle cx="280" cy="644" r="1" fill="#1a1733"/>
-<circle cx="280" cy="672" r="1" fill="#1a1733"/>
-<circle cx="280" cy="700" r="1" fill="#1a1733"/>
-<circle cx="280" cy="728" r="1" fill="#1a1733"/>
-<circle cx="280" cy="756" r="1" fill="#1a1733"/>
-<circle cx="280" cy="784" r="1" fill="#1a1733"/>
-<circle cx="280" cy="812" r="1" fill="#1a1733"/>
-<circle cx="280" cy="840" r="1" fill="#1a1733"/>
-<circle cx="280" cy="868" r="1" fill="#1a1733"/>
-<circle cx="280" cy="896" r="1" fill="#1a1733"/>
-<circle cx="280" cy="924" r="1" fill="#1a1733"/>
-<circle cx="280" cy="952" r="1" fill="#1a1733"/>
-<circle cx="280" cy="980" r="1" fill="#1a1733"/>
-<circle cx="280" cy="1008" r="1" fill="#1a1733"/>
-<circle cx="280" cy="1036" r="1" fill="#1a1733"/>
-<circle cx="308" cy="0" r="1" fill="#1a1733"/>
-<circle cx="308" cy="28" r="1" fill="#1a1733"/>
-<circle cx="308" cy="56" r="1" fill="#1a1733"/>
-<circle cx="308" cy="84" r="1" fill="#1a1733"/>
-<circle cx="308" cy="112" r="1" fill="#1a1733"/>
-<circle cx="308" cy="140" r="1" fill="#1a1733"/>
-<circle cx="308" cy="168" r="1" fill="#1a1733"/>
-<circle cx="308" cy="196" r="1" fill="#1a1733"/>
-<circle cx="308" cy="224" r="1" fill="#1a1733"/>
-<circle cx="308" cy="252" r="1" fill="#1a1733"/>
-<circle cx="308" cy="280" r="1" fill="#1a1733"/>
-<circle cx="308" cy="308" r="1" fill="#1a1733"/>
-<circle cx="308" cy="336" r="1" fill="#1a1733"/>
-<circle cx="308" cy="364" r="1" fill="#1a1733"/>
-<circle cx="308" cy="392" r="1" fill="#1a1733"/>
-<circle cx="308" cy="420" r="1" fill="#1a1733"/>
-<circle cx="308" cy="448" r="1" fill="#1a1733"/>
-<circle cx="308" cy="476" r="1" fill="#1a1733"/>
-<circle cx="308" cy="504" r="1" fill="#1a1733"/>
-<circle cx="308" cy="532" r="1" fill="#1a1733"/>
-<circle cx="308" cy="560" r="1" fill="#1a1733"/>
-<circle cx="308" cy="588" r="1" fill="#1a1733"/>
-<circle cx="308" cy="616" r="1" fill="#1a1733"/>
-<circle cx="308" cy="644" r="1" fill="#1a1733"/>
-<circle cx="308" cy="672" r="1" fill="#1a1733"/>
-<circle cx="308" cy="700" r="1" fill="#1a1733"/>
-<circle cx="308" cy="728" r="1" fill="#1a1733"/>
-<circle cx="308" cy="756" r="1" fill="#1a1733"/>
-<circle cx="308" cy="784" r="1" fill="#1a1733"/>
-<circle cx="308" cy="812" r="1" fill="#1a1733"/>
-<circle cx="308" cy="840" r="1" fill="#1a1733"/>
-<circle cx="308" cy="868" r="1" fill="#1a1733"/>
-<circle cx="308" cy="896" r="1" fill="#1a1733"/>
-<circle cx="308" cy="924" r="1" fill="#1a1733"/>
-<circle cx="308" cy="952" r="1" fill="#1a1733"/>
-<circle cx="308" cy="980" r="1" fill="#1a1733"/>
-<circle cx="308" cy="1008" r="1" fill="#1a1733"/>
-<circle cx="308" cy="1036" r="1" fill="#1a1733"/>
-<circle cx="336" cy="0" r="1" fill="#1a1733"/>
-<circle cx="336" cy="28" r="1" fill="#1a1733"/>
-<circle cx="336" cy="56" r="1" fill="#1a1733"/>
-<circle cx="336" cy="84" r="1" fill="#1a1733"/>
-<circle cx="336" cy="112" r="1" fill="#1a1733"/>
-<circle cx="336" cy="140" r="1" fill="#1a1733"/>
-<circle cx="336" cy="168" r="1" fill="#1a1733"/>
-<circle cx="336" cy="196" r="1" fill="#1a1733"/>
-<circle cx="336" cy="224" r="1" fill="#1a1733"/>
-<circle cx="336" cy="252" r="1" fill="#1a1733"/>
-<circle cx="336" cy="280" r="1" fill="#1a1733"/>
-<circle cx="336" cy="308" r="1" fill="#1a1733"/>
-<circle cx="336" cy="336" r="1" fill="#1a1733"/>
-<circle cx="336" cy="364" r="1" fill="#1a1733"/>
-<circle cx="336" cy="392" r="1" fill="#1a1733"/>
-<circle cx="336" cy="420" r="1" fill="#1a1733"/>
-<circle cx="336" cy="448" r="1" fill="#1a1733"/>
-<circle cx="336" cy="476" r="1" fill="#1a1733"/>
-<circle cx="336" cy="504" r="1" fill="#1a1733"/>
-<circle cx="336" cy="532" r="1" fill="#1a1733"/>
-<circle cx="336" cy="560" r="1" fill="#1a1733"/>
-<circle cx="336" cy="588" r="1" fill="#1a1733"/>
-<circle cx="336" cy="616" r="1" fill="#1a1733"/>
-<circle cx="336" cy="644" r="1" fill="#1a1733"/>
-<circle cx="336" cy="672" r="1" fill="#1a1733"/>
-<circle cx="336" cy="700" r="1" fill="#1a1733"/>
-<circle cx="336" cy="728" r="1" fill="#1a1733"/>
-<circle cx="336" cy="756" r="1" fill="#1a1733"/>
-<circle cx="336" cy="784" r="1" fill="#1a1733"/>
-<circle cx="336" cy="812" r="1" fill="#1a1733"/>
-<circle cx="336" cy="840" r="1" fill="#1a1733"/>
-<circle cx="336" cy="868" r="1" fill="#1a1733"/>
-<circle cx="336" cy="896" r="1" fill="#1a1733"/>
-<circle cx="336" cy="924" r="1" fill="#1a1733"/>
-<circle cx="336" cy="952" r="1" fill="#1a1733"/>
-<circle cx="336" cy="980" r="1" fill="#1a1733"/>
-<circle cx="336" cy="1008" r="1" fill="#1a1733"/>
-<circle cx="336" cy="1036" r="1" fill="#1a1733"/>
-<circle cx="364" cy="0" r="1" fill="#1a1733"/>
-<circle cx="364" cy="28" r="1" fill="#1a1733"/>
-<circle cx="364" cy="56" r="1" fill="#1a1733"/>
-<circle cx="364" cy="84" r="1" fill="#1a1733"/>
-<circle cx="364" cy="112" r="1" fill="#1a1733"/>
-<circle cx="364" cy="140" r="1" fill="#1a1733"/>
-<circle cx="364" cy="168" r="1" fill="#1a1733"/>
-<circle cx="364" cy="196" r="1" fill="#1a1733"/>
-<circle cx="364" cy="224" r="1" fill="#1a1733"/>
-<circle cx="364" cy="252" r="1" fill="#1a1733"/>
-<circle cx="364" cy="280" r="1" fill="#1a1733"/>
-<circle cx="364" cy="308" r="1" fill="#1a1733"/>
-<circle cx="364" cy="336" r="1" fill="#1a1733"/>
-<circle cx="364" cy="364" r="1" fill="#1a1733"/>
-<circle cx="364" cy="392" r="1" fill="#1a1733"/>
-<circle cx="364" cy="420" r="1" fill="#1a1733"/>
-<circle cx="364" cy="448" r="1" fill="#1a1733"/>
-<circle cx="364" cy="476" r="1" fill="#1a1733"/>
-<circle cx="364" cy="504" r="1" fill="#1a1733"/>
-<circle cx="364" cy="532" r="1" fill="#1a1733"/>
-<circle cx="364" cy="560" r="1" fill="#1a1733"/>
-<circle cx="364" cy="588" r="1" fill="#1a1733"/>
-<circle cx="364" cy="616" r="1" fill="#1a1733"/>
-<circle cx="364" cy="644" r="1" fill="#1a1733"/>
-<circle cx="364" cy="672" r="1" fill="#1a1733"/>
-<circle cx="364" cy="700" r="1" fill="#1a1733"/>
-<circle cx="364" cy="728" r="1" fill="#1a1733"/>
-<circle cx="364" cy="756" r="1" fill="#1a1733"/>
-<circle cx="364" cy="784" r="1" fill="#1a1733"/>
-<circle cx="364" cy="812" r="1" fill="#1a1733"/>
-<circle cx="364" cy="840" r="1" fill="#1a1733"/>
-<circle cx="364" cy="868" r="1" fill="#1a1733"/>
-<circle cx="364" cy="896" r="1" fill="#1a1733"/>
-<circle cx="364" cy="924" r="1" fill="#1a1733"/>
-<circle cx="364" cy="952" r="1" fill="#1a1733"/>
-<circle cx="364" cy="980" r="1" fill="#1a1733"/>
-<circle cx="364" cy="1008" r="1" fill="#1a1733"/>
-<circle cx="364" cy="1036" r="1" fill="#1a1733"/>
-<circle cx="392" cy="0" r="1" fill="#1a1733"/>
-<circle cx="392" cy="28" r="1" fill="#1a1733"/>
-<circle cx="392" cy="56" r="1" fill="#1a1733"/>
-<circle cx="392" cy="84" r="1" fill="#1a1733"/>
-<circle cx="392" cy="112" r="1" fill="#1a1733"/>
-<circle cx="392" cy="140" r="1" fill="#1a1733"/>
-<circle cx="392" cy="168" r="1" fill="#1a1733"/>
-<circle cx="392" cy="196" r="1" fill="#1a1733"/>
-<circle cx="392" cy="224" r="1" fill="#1a1733"/>
-<circle cx="392" cy="252" r="1" fill="#1a1733"/>
-<circle cx="392" cy="280" r="1" fill="#1a1733"/>
-<circle cx="392" cy="308" r="1" fill="#1a1733"/>
-<circle cx="392" cy="336" r="1" fill="#1a1733"/>
-<circle cx="392" cy="364" r="1" fill="#1a1733"/>
-<circle cx="392" cy="392" r="1" fill="#1a1733"/>
-<circle cx="392" cy="420" r="1" fill="#1a1733"/>
-<circle cx="392" cy="448" r="1" fill="#1a1733"/>
-<circle cx="392" cy="476" r="1" fill="#1a1733"/>
-<circle cx="392" cy="504" r="1" fill="#1a1733"/>
-<circle cx="392" cy="532" r="1" fill="#1a1733"/>
-<circle cx="392" cy="560" r="1" fill="#1a1733"/>
-<circle cx="392" cy="588" r="1" fill="#1a1733"/>
-<circle cx="392" cy="616" r="1" fill="#1a1733"/>
-<circle cx="392" cy="644" r="1" fill="#1a1733"/>
-<circle cx="392" cy="672" r="1" fill="#1a1733"/>
-<circle cx="392" cy="700" r="1" fill="#1a1733"/>
-<circle cx="392" cy="728" r="1" fill="#1a1733"/>
-<circle cx="392" cy="756" r="1" fill="#1a1733"/>
-<circle cx="392" cy="784" r="1" fill="#1a1733"/>
-<circle cx="392" cy="812" r="1" fill="#1a1733"/>
-<circle cx="392" cy="840" r="1" fill="#1a1733"/>
-<circle cx="392" cy="868" r="1" fill="#1a1733"/>
-<circle cx="392" cy="896" r="1" fill="#1a1733"/>
-<circle cx="392" cy="924" r="1" fill="#1a1733"/>
-<circle cx="392" cy="952" r="1" fill="#1a1733"/>
-<circle cx="392" cy="980" r="1" fill="#1a1733"/>
-<circle cx="392" cy="1008" r="1" fill="#1a1733"/>
-<circle cx="392" cy="1036" r="1" fill="#1a1733"/>
-<circle cx="420" cy="0" r="1" fill="#1a1733"/>
-<circle cx="420" cy="28" r="1" fill="#1a1733"/>
-<circle cx="420" cy="56" r="1" fill="#1a1733"/>
-<circle cx="420" cy="84" r="1" fill="#1a1733"/>
-<circle cx="420" cy="112" r="1" fill="#1a1733"/>
-<circle cx="420" cy="140" r="1" fill="#1a1733"/>
-<circle cx="420" cy="168" r="1" fill="#1a1733"/>
-<circle cx="420" cy="196" r="1" fill="#1a1733"/>
-<circle cx="420" cy="224" r="1" fill="#1a1733"/>
-<circle cx="420" cy="252" r="1" fill="#1a1733"/>
-<circle cx="420" cy="280" r="1" fill="#1a1733"/>
-<circle cx="420" cy="308" r="1" fill="#1a1733"/>
-<circle cx="420" cy="336" r="1" fill="#1a1733"/>
-<circle cx="420" cy="364" r="1" fill="#1a1733"/>
-<circle cx="420" cy="392" r="1" fill="#1a1733"/>
-<circle cx="420" cy="420" r="1" fill="#1a1733"/>
-<circle cx="420" cy="448" r="1" fill="#1a1733"/>
-<circle cx="420" cy="476" r="1" fill="#1a1733"/>
-<circle cx="420" cy="504" r="1" fill="#1a1733"/>
-<circle cx="420" cy="532" r="1" fill="#1a1733"/>
-<circle cx="420" cy="560" r="1" fill="#1a1733"/>
-<circle cx="420" cy="588" r="1" fill="#1a1733"/>
-<circle cx="420" cy="616" r="1" fill="#1a1733"/>
-<circle cx="420" cy="644" r="1" fill="#1a1733"/>
-<circle cx="420" cy="672" r="1" fill="#1a1733"/>
-<circle cx="420" cy="700" r="1" fill="#1a1733"/>
-<circle cx="420" cy="728" r="1" fill="#1a1733"/>
-<circle cx="420" cy="756" r="1" fill="#1a1733"/>
-<circle cx="420" cy="784" r="1" fill="#1a1733"/>
-<circle cx="420" cy="812" r="1" fill="#1a1733"/>
-<circle cx="420" cy="840" r="1" fill="#1a1733"/>
-<circle cx="420" cy="868" r="1" fill="#1a1733"/>
-<circle cx="420" cy="896" r="1" fill="#1a1733"/>
-<circle cx="420" cy="924" r="1" fill="#1a1733"/>
-<circle cx="420" cy="952" r="1" fill="#1a1733"/>
-<circle cx="420" cy="980" r="1" fill="#1a1733"/>
-<circle cx="420" cy="1008" r="1" fill="#1a1733"/>
-<circle cx="420" cy="1036" r="1" fill="#1a1733"/>
-<circle cx="448" cy="0" r="1" fill="#1a1733"/>
-<circle cx="448" cy="28" r="1" fill="#1a1733"/>
-<circle cx="448" cy="56" r="1" fill="#1a1733"/>
-<circle cx="448" cy="84" r="1" fill="#1a1733"/>
-<circle cx="448" cy="112" r="1" fill="#1a1733"/>
-<circle cx="448" cy="140" r="1" fill="#1a1733"/>
-<circle cx="448" cy="168" r="1" fill="#1a1733"/>
-<circle cx="448" cy="196" r="1" fill="#1a1733"/>
-<circle cx="448" cy="224" r="1" fill="#1a1733"/>
-<circle cx="448" cy="252" r="1" fill="#1a1733"/>
-<circle cx="448" cy="280" r="1" fill="#1a1733"/>
-<circle cx="448" cy="308" r="1" fill="#1a1733"/>
-<circle cx="448" cy="336" r="1" fill="#1a1733"/>
-<circle cx="448" cy="364" r="1" fill="#1a1733"/>
-<circle cx="448" cy="392" r="1" fill="#1a1733"/>
-<circle cx="448" cy="420" r="1" fill="#1a1733"/>
-<circle cx="448" cy="448" r="1" fill="#1a1733"/>
-<circle cx="448" cy="476" r="1" fill="#1a1733"/>
-<circle cx="448" cy="504" r="1" fill="#1a1733"/>
-<circle cx="448" cy="532" r="1" fill="#1a1733"/>
-<circle cx="448" cy="560" r="1" fill="#1a1733"/>
-<circle cx="448" cy="588" r="1" fill="#1a1733"/>
-<circle cx="448" cy="616" r="1" fill="#1a1733"/>
-<circle cx="448" cy="644" r="1" fill="#1a1733"/>
-<circle cx="448" cy="672" r="1" fill="#1a1733"/>
-<circle cx="448" cy="700" r="1" fill="#1a1733"/>
-<circle cx="448" cy="728" r="1" fill="#1a1733"/>
-<circle cx="448" cy="756" r="1" fill="#1a1733"/>
-<circle cx="448" cy="784" r="1" fill="#1a1733"/>
-<circle cx="448" cy="812" r="1" fill="#1a1733"/>
-<circle cx="448" cy="840" r="1" fill="#1a1733"/>
-<circle cx="448" cy="868" r="1" fill="#1a1733"/>
-<circle cx="448" cy="896" r="1" fill="#1a1733"/>
-<circle cx="448" cy="924" r="1" fill="#1a1733"/>
-<circle cx="448" cy="952" r="1" fill="#1a1733"/>
-<circle cx="448" cy="980" r="1" fill="#1a1733"/>
-<circle cx="448" cy="1008" r="1" fill="#1a1733"/>
-<circle cx="448" cy="1036" r="1" fill="#1a1733"/>
-<circle cx="476" cy="0" r="1" fill="#1a1733"/>
-<circle cx="476" cy="28" r="1" fill="#1a1733"/>
-<circle cx="476" cy="56" r="1" fill="#1a1733"/>
-<circle cx="476" cy="84" r="1" fill="#1a1733"/>
-<circle cx="476" cy="112" r="1" fill="#1a1733"/>
-<circle cx="476" cy="140" r="1" fill="#1a1733"/>
-<circle cx="476" cy="168" r="1" fill="#1a1733"/>
-<circle cx="476" cy="196" r="1" fill="#1a1733"/>
-<circle cx="476" cy="224" r="1" fill="#1a1733"/>
-<circle cx="476" cy="252" r="1" fill="#1a1733"/>
-<circle cx="476" cy="280" r="1" fill="#1a1733"/>
-<circle cx="476" cy="308" r="1" fill="#1a1733"/>
-<circle cx="476" cy="336" r="1" fill="#1a1733"/>
-<circle cx="476" cy="364" r="1" fill="#1a1733"/>
-<circle cx="476" cy="392" r="1" fill="#1a1733"/>
-<circle cx="476" cy="420" r="1" fill="#1a1733"/>
-<circle cx="476" cy="448" r="1" fill="#1a1733"/>
-<circle cx="476" cy="476" r="1" fill="#1a1733"/>
-<circle cx="476" cy="504" r="1" fill="#1a1733"/>
-<circle cx="476" cy="532" r="1" fill="#1a1733"/>
-<circle cx="476" cy="560" r="1" fill="#1a1733"/>
-<circle cx="476" cy="588" r="1" fill="#1a1733"/>
-<circle cx="476" cy="616" r="1" fill="#1a1733"/>
-<circle cx="476" cy="644" r="1" fill="#1a1733"/>
-<circle cx="476" cy="672" r="1" fill="#1a1733"/>
-<circle cx="476" cy="700" r="1" fill="#1a1733"/>
-<circle cx="476" cy="728" r="1" fill="#1a1733"/>
-<circle cx="476" cy="756" r="1" fill="#1a1733"/>
-<circle cx="476" cy="784" r="1" fill="#1a1733"/>
-<circle cx="476" cy="812" r="1" fill="#1a1733"/>
-<circle cx="476" cy="840" r="1" fill="#1a1733"/>
-<circle cx="476" cy="868" r="1" fill="#1a1733"/>
-<circle cx="476" cy="896" r="1" fill="#1a1733"/>
-<circle cx="476" cy="924" r="1" fill="#1a1733"/>
-<circle cx="476" cy="952" r="1" fill="#1a1733"/>
-<circle cx="476" cy="980" r="1" fill="#1a1733"/>
-<circle cx="476" cy="1008" r="1" fill="#1a1733"/>
-<circle cx="476" cy="1036" r="1" fill="#1a1733"/>
-<circle cx="504" cy="0" r="1" fill="#1a1733"/>
-<circle cx="504" cy="28" r="1" fill="#1a1733"/>
-<circle cx="504" cy="56" r="1" fill="#1a1733"/>
-<circle cx="504" cy="84" r="1" fill="#1a1733"/>
-<circle cx="504" cy="112" r="1" fill="#1a1733"/>
-<circle cx="504" cy="140" r="1" fill="#1a1733"/>
-<circle cx="504" cy="168" r="1" fill="#1a1733"/>
-<circle cx="504" cy="196" r="1" fill="#1a1733"/>
-<circle cx="504" cy="224" r="1" fill="#1a1733"/>
-<circle cx="504" cy="252" r="1" fill="#1a1733"/>
-<circle cx="504" cy="280" r="1" fill="#1a1733"/>
-<circle cx="504" cy="308" r="1" fill="#1a1733"/>
-<circle cx="504" cy="336" r="1" fill="#1a1733"/>
-<circle cx="504" cy="364" r="1" fill="#1a1733"/>
-<circle cx="504" cy="392" r="1" fill="#1a1733"/>
-<circle cx="504" cy="420" r="1" fill="#1a1733"/>
-<circle cx="504" cy="448" r="1" fill="#1a1733"/>
-<circle cx="504" cy="476" r="1" fill="#1a1733"/>
-<circle cx="504" cy="504" r="1" fill="#1a1733"/>
-<circle cx="504" cy="532" r="1" fill="#1a1733"/>
-<circle cx="504" cy="560" r="1" fill="#1a1733"/>
-<circle cx="504" cy="588" r="1" fill="#1a1733"/>
-<circle cx="504" cy="616" r="1" fill="#1a1733"/>
-<circle cx="504" cy="644" r="1" fill="#1a1733"/>
-<circle cx="504" cy="672" r="1" fill="#1a1733"/>
-<circle cx="504" cy="700" r="1" fill="#1a1733"/>
-<circle cx="504" cy="728" r="1" fill="#1a1733"/>
-<circle cx="504" cy="756" r="1" fill="#1a1733"/>
-<circle cx="504" cy="784" r="1" fill="#1a1733"/>
-<circle cx="504" cy="812" r="1" fill="#1a1733"/>
-<circle cx="504" cy="840" r="1" fill="#1a1733"/>
-<circle cx="504" cy="868" r="1" fill="#1a1733"/>
-<circle cx="504" cy="896" r="1" fill="#1a1733"/>
-<circle cx="504" cy="924" r="1" fill="#1a1733"/>
-<circle cx="504" cy="952" r="1" fill="#1a1733"/>
-<circle cx="504" cy="980" r="1" fill="#1a1733"/>
-<circle cx="504" cy="1008" r="1" fill="#1a1733"/>
-<circle cx="504" cy="1036" r="1" fill="#1a1733"/>
-<circle cx="532" cy="0" r="1" fill="#1a1733"/>
-<circle cx="532" cy="28" r="1" fill="#1a1733"/>
-<circle cx="532" cy="56" r="1" fill="#1a1733"/>
-<circle cx="532" cy="84" r="1" fill="#1a1733"/>
-<circle cx="532" cy="112" r="1" fill="#1a1733"/>
-<circle cx="532" cy="140" r="1" fill="#1a1733"/>
-<circle cx="532" cy="168" r="1" fill="#1a1733"/>
-<circle cx="532" cy="196" r="1" fill="#1a1733"/>
-<circle cx="532" cy="224" r="1" fill="#1a1733"/>
-<circle cx="532" cy="252" r="1" fill="#1a1733"/>
-<circle cx="532" cy="280" r="1" fill="#1a1733"/>
-<circle cx="532" cy="308" r="1" fill="#1a1733"/>
-<circle cx="532" cy="336" r="1" fill="#1a1733"/>
-<circle cx="532" cy="364" r="1" fill="#1a1733"/>
-<circle cx="532" cy="392" r="1" fill="#1a1733"/>
-<circle cx="532" cy="420" r="1" fill="#1a1733"/>
-<circle cx="532" cy="448" r="1" fill="#1a1733"/>
-<circle cx="532" cy="476" r="1" fill="#1a1733"/>
-<circle cx="532" cy="504" r="1" fill="#1a1733"/>
-<circle cx="532" cy="532" r="1" fill="#1a1733"/>
-<circle cx="532" cy="560" r="1" fill="#1a1733"/>
-<circle cx="532" cy="588" r="1" fill="#1a1733"/>
-<circle cx="532" cy="616" r="1" fill="#1a1733"/>
-<circle cx="532" cy="644" r="1" fill="#1a1733"/>
-<circle cx="532" cy="672" r="1" fill="#1a1733"/>
-<circle cx="532" cy="700" r="1" fill="#1a1733"/>
-<circle cx="532" cy="728" r="1" fill="#1a1733"/>
-<circle cx="532" cy="756" r="1" fill="#1a1733"/>
-<circle cx="532" cy="784" r="1" fill="#1a1733"/>
-<circle cx="532" cy="812" r="1" fill="#1a1733"/>
-<circle cx="532" cy="840" r="1" fill="#1a1733"/>
-<circle cx="532" cy="868" r="1" fill="#1a1733"/>
-<circle cx="532" cy="896" r="1" fill="#1a1733"/>
-<circle cx="532" cy="924" r="1" fill="#1a1733"/>
-<circle cx="532" cy="952" r="1" fill="#1a1733"/>
-<circle cx="532" cy="980" r="1" fill="#1a1733"/>
-<circle cx="532" cy="1008" r="1" fill="#1a1733"/>
-<circle cx="532" cy="1036" r="1" fill="#1a1733"/>
-<circle cx="560" cy="0" r="1" fill="#1a1733"/>
-<circle cx="560" cy="28" r="1" fill="#1a1733"/>
-<circle cx="560" cy="56" r="1" fill="#1a1733"/>
-<circle cx="560" cy="84" r="1" fill="#1a1733"/>
-<circle cx="560" cy="112" r="1" fill="#1a1733"/>
-<circle cx="560" cy="140" r="1" fill="#1a1733"/>
-<circle cx="560" cy="168" r="1" fill="#1a1733"/>
-<circle cx="560" cy="196" r="1" fill="#1a1733"/>
-<circle cx="560" cy="224" r="1" fill="#1a1733"/>
-<circle cx="560" cy="252" r="1" fill="#1a1733"/>
-<circle cx="560" cy="280" r="1" fill="#1a1733"/>
-<circle cx="560" cy="308" r="1" fill="#1a1733"/>
-<circle cx="560" cy="336" r="1" fill="#1a1733"/>
-<circle cx="560" cy="364" r="1" fill="#1a1733"/>
-<circle cx="560" cy="392" r="1" fill="#1a1733"/>
-<circle cx="560" cy="420" r="1" fill="#1a1733"/>
-<circle cx="560" cy="448" r="1" fill="#1a1733"/>
-<circle cx="560" cy="476" r="1" fill="#1a1733"/>
-<circle cx="560" cy="504" r="1" fill="#1a1733"/>
-<circle cx="560" cy="532" r="1" fill="#1a1733"/>
-<circle cx="560" cy="560" r="1" fill="#1a1733"/>
-<circle cx="560" cy="588" r="1" fill="#1a1733"/>
-<circle cx="560" cy="616" r="1" fill="#1a1733"/>
-<circle cx="560" cy="644" r="1" fill="#1a1733"/>
-<circle cx="560" cy="672" r="1" fill="#1a1733"/>
-<circle cx="560" cy="700" r="1" fill="#1a1733"/>
-<circle cx="560" cy="728" r="1" fill="#1a1733"/>
-<circle cx="560" cy="756" r="1" fill="#1a1733"/>
-<circle cx="560" cy="784" r="1" fill="#1a1733"/>
-<circle cx="560" cy="812" r="1" fill="#1a1733"/>
-<circle cx="560" cy="840" r="1" fill="#1a1733"/>
-<circle cx="560" cy="868" r="1" fill="#1a1733"/>
-<circle cx="560" cy="896" r="1" fill="#1a1733"/>
-<circle cx="560" cy="924" r="1" fill="#1a1733"/>
-<circle cx="560" cy="952" r="1" fill="#1a1733"/>
-<circle cx="560" cy="980" r="1" fill="#1a1733"/>
-<circle cx="560" cy="1008" r="1" fill="#1a1733"/>
-<circle cx="560" cy="1036" r="1" fill="#1a1733"/>
-<circle cx="588" cy="0" r="1" fill="#1a1733"/>
-<circle cx="588" cy="28" r="1" fill="#1a1733"/>
-<circle cx="588" cy="56" r="1" fill="#1a1733"/>
-<circle cx="588" cy="84" r="1" fill="#1a1733"/>
-<circle cx="588" cy="112" r="1" fill="#1a1733"/>
-<circle cx="588" cy="140" r="1" fill="#1a1733"/>
-<circle cx="588" cy="168" r="1" fill="#1a1733"/>
-<circle cx="588" cy="196" r="1" fill="#1a1733"/>
-<circle cx="588" cy="224" r="1" fill="#1a1733"/>
-<circle cx="588" cy="252" r="1" fill="#1a1733"/>
-<circle cx="588" cy="280" r="1" fill="#1a1733"/>
-<circle cx="588" cy="308" r="1" fill="#1a1733"/>
-<circle cx="588" cy="336" r="1" fill="#1a1733"/>
-<circle cx="588" cy="364" r="1" fill="#1a1733"/>
-<circle cx="588" cy="392" r="1" fill="#1a1733"/>
-<circle cx="588" cy="420" r="1" fill="#1a1733"/>
-<circle cx="588" cy="448" r="1" fill="#1a1733"/>
-<circle cx="588" cy="476" r="1" fill="#1a1733"/>
-<circle cx="588" cy="504" r="1" fill="#1a1733"/>
-<circle cx="588" cy="532" r="1" fill="#1a1733"/>
-<circle cx="588" cy="560" r="1" fill="#1a1733"/>
-<circle cx="588" cy="588" r="1" fill="#1a1733"/>
-<circle cx="588" cy="616" r="1" fill="#1a1733"/>
-<circle cx="588" cy="644" r="1" fill="#1a1733"/>
-<circle cx="588" cy="672" r="1" fill="#1a1733"/>
-<circle cx="588" cy="700" r="1" fill="#1a1733"/>
-<circle cx="588" cy="728" r="1" fill="#1a1733"/>
-<circle cx="588" cy="756" r="1" fill="#1a1733"/>
-<circle cx="588" cy="784" r="1" fill="#1a1733"/>
-<circle cx="588" cy="812" r="1" fill="#1a1733"/>
-<circle cx="588" cy="840" r="1" fill="#1a1733"/>
-<circle cx="588" cy="868" r="1" fill="#1a1733"/>
-<circle cx="588" cy="896" r="1" fill="#1a1733"/>
-<circle cx="588" cy="924" r="1" fill="#1a1733"/>
-<circle cx="588" cy="952" r="1" fill="#1a1733"/>
-<circle cx="588" cy="980" r="1" fill="#1a1733"/>
-<circle cx="588" cy="1008" r="1" fill="#1a1733"/>
-<circle cx="588" cy="1036" r="1" fill="#1a1733"/>
-<circle cx="616" cy="0" r="1" fill="#1a1733"/>
-<circle cx="616" cy="28" r="1" fill="#1a1733"/>
-<circle cx="616" cy="56" r="1" fill="#1a1733"/>
-<circle cx="616" cy="84" r="1" fill="#1a1733"/>
-<circle cx="616" cy="112" r="1" fill="#1a1733"/>
-<circle cx="616" cy="140" r="1" fill="#1a1733"/>
-<circle cx="616" cy="168" r="1" fill="#1a1733"/>
-<circle cx="616" cy="196" r="1" fill="#1a1733"/>
-<circle cx="616" cy="224" r="1" fill="#1a1733"/>
-<circle cx="616" cy="252" r="1" fill="#1a1733"/>
-<circle cx="616" cy="280" r="1" fill="#1a1733"/>
-<circle cx="616" cy="308" r="1" fill="#1a1733"/>
-<circle cx="616" cy="336" r="1" fill="#1a1733"/>
-<circle cx="616" cy="364" r="1" fill="#1a1733"/>
-<circle cx="616" cy="392" r="1" fill="#1a1733"/>
-<circle cx="616" cy="420" r="1" fill="#1a1733"/>
-<circle cx="616" cy="448" r="1" fill="#1a1733"/>
-<circle cx="616" cy="476" r="1" fill="#1a1733"/>
-<circle cx="616" cy="504" r="1" fill="#1a1733"/>
-<circle cx="616" cy="532" r="1" fill="#1a1733"/>
-<circle cx="616" cy="560" r="1" fill="#1a1733"/>
-<circle cx="616" cy="588" r="1" fill="#1a1733"/>
-<circle cx="616" cy="616" r="1" fill="#1a1733"/>
-<circle cx="616" cy="644" r="1" fill="#1a1733"/>
-<circle cx="616" cy="672" r="1" fill="#1a1733"/>
-<circle cx="616" cy="700" r="1" fill="#1a1733"/>
-<circle cx="616" cy="728" r="1" fill="#1a1733"/>
-<circle cx="616" cy="756" r="1" fill="#1a1733"/>
-<circle cx="616" cy="784" r="1" fill="#1a1733"/>
-<circle cx="616" cy="812" r="1" fill="#1a1733"/>
-<circle cx="616" cy="840" r="1" fill="#1a1733"/>
-<circle cx="616" cy="868" r="1" fill="#1a1733"/>
-<circle cx="616" cy="896" r="1" fill="#1a1733"/>
-<circle cx="616" cy="924" r="1" fill="#1a1733"/>
-<circle cx="616" cy="952" r="1" fill="#1a1733"/>
-<circle cx="616" cy="980" r="1" fill="#1a1733"/>
-<circle cx="616" cy="1008" r="1" fill="#1a1733"/>
-<circle cx="616" cy="1036" r="1" fill="#1a1733"/>
-<circle cx="644" cy="0" r="1" fill="#1a1733"/>
-<circle cx="644" cy="28" r="1" fill="#1a1733"/>
-<circle cx="644" cy="56" r="1" fill="#1a1733"/>
-<circle cx="644" cy="84" r="1" fill="#1a1733"/>
-<circle cx="644" cy="112" r="1" fill="#1a1733"/>
-<circle cx="644" cy="140" r="1" fill="#1a1733"/>
-<circle cx="644" cy="168" r="1" fill="#1a1733"/>
-<circle cx="644" cy="196" r="1" fill="#1a1733"/>
-<circle cx="644" cy="224" r="1" fill="#1a1733"/>
-<circle cx="644" cy="252" r="1" fill="#1a1733"/>
-<circle cx="644" cy="280" r="1" fill="#1a1733"/>
-<circle cx="644" cy="308" r="1" fill="#1a1733"/>
-<circle cx="644" cy="336" r="1" fill="#1a1733"/>
-<circle cx="644" cy="364" r="1" fill="#1a1733"/>
-<circle cx="644" cy="392" r="1" fill="#1a1733"/>
-<circle cx="644" cy="420" r="1" fill="#1a1733"/>
-<circle cx="644" cy="448" r="1" fill="#1a1733"/>
-<circle cx="644" cy="476" r="1" fill="#1a1733"/>
-<circle cx="644" cy="504" r="1" fill="#1a1733"/>
-<circle cx="644" cy="532" r="1" fill="#1a1733"/>
-<circle cx="644" cy="560" r="1" fill="#1a1733"/>
-<circle cx="644" cy="588" r="1" fill="#1a1733"/>
-<circle cx="644" cy="616" r="1" fill="#1a1733"/>
-<circle cx="644" cy="644" r="1" fill="#1a1733"/>
-<circle cx="644" cy="672" r="1" fill="#1a1733"/>
-<circle cx="644" cy="700" r="1" fill="#1a1733"/>
-<circle cx="644" cy="728" r="1" fill="#1a1733"/>
-<circle cx="644" cy="756" r="1" fill="#1a1733"/>
-<circle cx="644" cy="784" r="1" fill="#1a1733"/>
-<circle cx="644" cy="812" r="1" fill="#1a1733"/>
-<circle cx="644" cy="840" r="1" fill="#1a1733"/>
-<circle cx="644" cy="868" r="1" fill="#1a1733"/>
-<circle cx="644" cy="896" r="1" fill="#1a1733"/>
-<circle cx="644" cy="924" r="1" fill="#1a1733"/>
-<circle cx="644" cy="952" r="1" fill="#1a1733"/>
-<circle cx="644" cy="980" r="1" fill="#1a1733"/>
-<circle cx="644" cy="1008" r="1" fill="#1a1733"/>
-<circle cx="644" cy="1036" r="1" fill="#1a1733"/>
-<circle cx="672" cy="0" r="1" fill="#1a1733"/>
-<circle cx="672" cy="28" r="1" fill="#1a1733"/>
-<circle cx="672" cy="56" r="1" fill="#1a1733"/>
-<circle cx="672" cy="84" r="1" fill="#1a1733"/>
-<circle cx="672" cy="112" r="1" fill="#1a1733"/>
-<circle cx="672" cy="140" r="1" fill="#1a1733"/>
-<circle cx="672" cy="168" r="1" fill="#1a1733"/>
-<circle cx="672" cy="196" r="1" fill="#1a1733"/>
-<circle cx="672" cy="224" r="1" fill="#1a1733"/>
-<circle cx="672" cy="252" r="1" fill="#1a1733"/>
-<circle cx="672" cy="280" r="1" fill="#1a1733"/>
-<circle cx="672" cy="308" r="1" fill="#1a1733"/>
-<circle cx="672" cy="336" r="1" fill="#1a1733"/>
-<circle cx="672" cy="364" r="1" fill="#1a1733"/>
-<circle cx="672" cy="392" r="1" fill="#1a1733"/>
-<circle cx="672" cy="420" r="1" fill="#1a1733"/>
-<circle cx="672" cy="448" r="1" fill="#1a1733"/>
-<circle cx="672" cy="476" r="1" fill="#1a1733"/>
-<circle cx="672" cy="504" r="1" fill="#1a1733"/>
-<circle cx="672" cy="532" r="1" fill="#1a1733"/>
-<circle cx="672" cy="560" r="1" fill="#1a1733"/>
-<circle cx="672" cy="588" r="1" fill="#1a1733"/>
-<circle cx="672" cy="616" r="1" fill="#1a1733"/>
-<circle cx="672" cy="644" r="1" fill="#1a1733"/>
-<circle cx="672" cy="672" r="1" fill="#1a1733"/>
-<circle cx="672" cy="700" r="1" fill="#1a1733"/>
-<circle cx="672" cy="728" r="1" fill="#1a1733"/>
-<circle cx="672" cy="756" r="1" fill="#1a1733"/>
-<circle cx="672" cy="784" r="1" fill="#1a1733"/>
-<circle cx="672" cy="812" r="1" fill="#1a1733"/>
-<circle cx="672" cy="840" r="1" fill="#1a1733"/>
-<circle cx="672" cy="868" r="1" fill="#1a1733"/>
-<circle cx="672" cy="896" r="1" fill="#1a1733"/>
-<circle cx="672" cy="924" r="1" fill="#1a1733"/>
-<circle cx="672" cy="952" r="1" fill="#1a1733"/>
-<circle cx="672" cy="980" r="1" fill="#1a1733"/>
-<circle cx="672" cy="1008" r="1" fill="#1a1733"/>
-<circle cx="672" cy="1036" r="1" fill="#1a1733"/>
-<circle cx="700" cy="0" r="1" fill="#1a1733"/>
-<circle cx="700" cy="28" r="1" fill="#1a1733"/>
-<circle cx="700" cy="56" r="1" fill="#1a1733"/>
-<circle cx="700" cy="84" r="1" fill="#1a1733"/>
-<circle cx="700" cy="112" r="1" fill="#1a1733"/>
-<circle cx="700" cy="140" r="1" fill="#1a1733"/>
-<circle cx="700" cy="168" r="1" fill="#1a1733"/>
-<circle cx="700" cy="196" r="1" fill="#1a1733"/>
-<circle cx="700" cy="224" r="1" fill="#1a1733"/>
-<circle cx="700" cy="252" r="1" fill="#1a1733"/>
-<circle cx="700" cy="280" r="1" fill="#1a1733"/>
-<circle cx="700" cy="308" r="1" fill="#1a1733"/>
-<circle cx="700" cy="336" r="1" fill="#1a1733"/>
-<circle cx="700" cy="364" r="1" fill="#1a1733"/>
-<circle cx="700" cy="392" r="1" fill="#1a1733"/>
-<circle cx="700" cy="420" r="1" fill="#1a1733"/>
-<circle cx="700" cy="448" r="1" fill="#1a1733"/>
-<circle cx="700" cy="476" r="1" fill="#1a1733"/>
-<circle cx="700" cy="504" r="1" fill="#1a1733"/>
-<circle cx="700" cy="532" r="1" fill="#1a1733"/>
-<circle cx="700" cy="560" r="1" fill="#1a1733"/>
-<circle cx="700" cy="588" r="1" fill="#1a1733"/>
-<circle cx="700" cy="616" r="1" fill="#1a1733"/>
-<circle cx="700" cy="644" r="1" fill="#1a1733"/>
-<circle cx="700" cy="672" r="1" fill="#1a1733"/>
-<circle cx="700" cy="700" r="1" fill="#1a1733"/>
-<circle cx="700" cy="728" r="1" fill="#1a1733"/>
-<circle cx="700" cy="756" r="1" fill="#1a1733"/>
-<circle cx="700" cy="784" r="1" fill="#1a1733"/>
-<circle cx="700" cy="812" r="1" fill="#1a1733"/>
-<circle cx="700" cy="840" r="1" fill="#1a1733"/>
-<circle cx="700" cy="868" r="1" fill="#1a1733"/>
-<circle cx="700" cy="896" r="1" fill="#1a1733"/>
-<circle cx="700" cy="924" r="1" fill="#1a1733"/>
-<circle cx="700" cy="952" r="1" fill="#1a1733"/>
-<circle cx="700" cy="980" r="1" fill="#1a1733"/>
-<circle cx="700" cy="1008" r="1" fill="#1a1733"/>
-<circle cx="700" cy="1036" r="1" fill="#1a1733"/>
-<circle cx="728" cy="0" r="1" fill="#1a1733"/>
-<circle cx="728" cy="28" r="1" fill="#1a1733"/>
-<circle cx="728" cy="56" r="1" fill="#1a1733"/>
-<circle cx="728" cy="84" r="1" fill="#1a1733"/>
-<circle cx="728" cy="112" r="1" fill="#1a1733"/>
-<circle cx="728" cy="140" r="1" fill="#1a1733"/>
-<circle cx="728" cy="168" r="1" fill="#1a1733"/>
-<circle cx="728" cy="196" r="1" fill="#1a1733"/>
-<circle cx="728" cy="224" r="1" fill="#1a1733"/>
-<circle cx="728" cy="252" r="1" fill="#1a1733"/>
-<circle cx="728" cy="280" r="1" fill="#1a1733"/>
-<circle cx="728" cy="308" r="1" fill="#1a1733"/>
-<circle cx="728" cy="336" r="1" fill="#1a1733"/>
-<circle cx="728" cy="364" r="1" fill="#1a1733"/>
-<circle cx="728" cy="392" r="1" fill="#1a1733"/>
-<circle cx="728" cy="420" r="1" fill="#1a1733"/>
-<circle cx="728" cy="448" r="1" fill="#1a1733"/>
-<circle cx="728" cy="476" r="1" fill="#1a1733"/>
-<circle cx="728" cy="504" r="1" fill="#1a1733"/>
-<circle cx="728" cy="532" r="1" fill="#1a1733"/>
-<circle cx="728" cy="560" r="1" fill="#1a1733"/>
-<circle cx="728" cy="588" r="1" fill="#1a1733"/>
-<circle cx="728" cy="616" r="1" fill="#1a1733"/>
-<circle cx="728" cy="644" r="1" fill="#1a1733"/>
-<circle cx="728" cy="672" r="1" fill="#1a1733"/>
-<circle cx="728" cy="700" r="1" fill="#1a1733"/>
-<circle cx="728" cy="728" r="1" fill="#1a1733"/>
-<circle cx="728" cy="756" r="1" fill="#1a1733"/>
-<circle cx="728" cy="784" r="1" fill="#1a1733"/>
-<circle cx="728" cy="812" r="1" fill="#1a1733"/>
-<circle cx="728" cy="840" r="1" fill="#1a1733"/>
-<circle cx="728" cy="868" r="1" fill="#1a1733"/>
-<circle cx="728" cy="896" r="1" fill="#1a1733"/>
-<circle cx="728" cy="924" r="1" fill="#1a1733"/>
-<circle cx="728" cy="952" r="1" fill="#1a1733"/>
-<circle cx="728" cy="980" r="1" fill="#1a1733"/>
-<circle cx="728" cy="1008" r="1" fill="#1a1733"/>
-<circle cx="728" cy="1036" r="1" fill="#1a1733"/>
-<circle cx="756" cy="0" r="1" fill="#1a1733"/>
-<circle cx="756" cy="28" r="1" fill="#1a1733"/>
-<circle cx="756" cy="56" r="1" fill="#1a1733"/>
-<circle cx="756" cy="84" r="1" fill="#1a1733"/>
-<circle cx="756" cy="112" r="1" fill="#1a1733"/>
-<circle cx="756" cy="140" r="1" fill="#1a1733"/>
-<circle cx="756" cy="168" r="1" fill="#1a1733"/>
-<circle cx="756" cy="196" r="1" fill="#1a1733"/>
-<circle cx="756" cy="224" r="1" fill="#1a1733"/>
-<circle cx="756" cy="252" r="1" fill="#1a1733"/>
-<circle cx="756" cy="280" r="1" fill="#1a1733"/>
-<circle cx="756" cy="308" r="1" fill="#1a1733"/>
-<circle cx="756" cy="336" r="1" fill="#1a1733"/>
-<circle cx="756" cy="364" r="1" fill="#1a1733"/>
-<circle cx="756" cy="392" r="1" fill="#1a1733"/>
-<circle cx="756" cy="420" r="1" fill="#1a1733"/>
-<circle cx="756" cy="448" r="1" fill="#1a1733"/>
-<circle cx="756" cy="476" r="1" fill="#1a1733"/>
-<circle cx="756" cy="504" r="1" fill="#1a1733"/>
-<circle cx="756" cy="532" r="1" fill="#1a1733"/>
-<circle cx="756" cy="560" r="1" fill="#1a1733"/>
-<circle cx="756" cy="588" r="1" fill="#1a1733"/>
-<circle cx="756" cy="616" r="1" fill="#1a1733"/>
-<circle cx="756" cy="644" r="1" fill="#1a1733"/>
-<circle cx="756" cy="672" r="1" fill="#1a1733"/>
-<circle cx="756" cy="700" r="1" fill="#1a1733"/>
-<circle cx="756" cy="728" r="1" fill="#1a1733"/>
-<circle cx="756" cy="756" r="1" fill="#1a1733"/>
-<circle cx="756" cy="784" r="1" fill="#1a1733"/>
-<circle cx="756" cy="812" r="1" fill="#1a1733"/>
-<circle cx="756" cy="840" r="1" fill="#1a1733"/>
-<circle cx="756" cy="868" r="1" fill="#1a1733"/>
-<circle cx="756" cy="896" r="1" fill="#1a1733"/>
-<circle cx="756" cy="924" r="1" fill="#1a1733"/>
-<circle cx="756" cy="952" r="1" fill="#1a1733"/>
-<circle cx="756" cy="980" r="1" fill="#1a1733"/>
-<circle cx="756" cy="1008" r="1" fill="#1a1733"/>
-<circle cx="756" cy="1036" r="1" fill="#1a1733"/>
-<circle cx="784" cy="0" r="1" fill="#1a1733"/>
-<circle cx="784" cy="28" r="1" fill="#1a1733"/>
-<circle cx="784" cy="56" r="1" fill="#1a1733"/>
-<circle cx="784" cy="84" r="1" fill="#1a1733"/>
-<circle cx="784" cy="112" r="1" fill="#1a1733"/>
-<circle cx="784" cy="140" r="1" fill="#1a1733"/>
-<circle cx="784" cy="168" r="1" fill="#1a1733"/>
-<circle cx="784" cy="196" r="1" fill="#1a1733"/>
-<circle cx="784" cy="224" r="1" fill="#1a1733"/>
-<circle cx="784" cy="252" r="1" fill="#1a1733"/>
-<circle cx="784" cy="280" r="1" fill="#1a1733"/>
-<circle cx="784" cy="308" r="1" fill="#1a1733"/>
-<circle cx="784" cy="336" r="1" fill="#1a1733"/>
-<circle cx="784" cy="364" r="1" fill="#1a1733"/>
-<circle cx="784" cy="392" r="1" fill="#1a1733"/>
-<circle cx="784" cy="420" r="1" fill="#1a1733"/>
-<circle cx="784" cy="448" r="1" fill="#1a1733"/>
-<circle cx="784" cy="476" r="1" fill="#1a1733"/>
-<circle cx="784" cy="504" r="1" fill="#1a1733"/>
-<circle cx="784" cy="532" r="1" fill="#1a1733"/>
-<circle cx="784" cy="560" r="1" fill="#1a1733"/>
-<circle cx="784" cy="588" r="1" fill="#1a1733"/>
-<circle cx="784" cy="616" r="1" fill="#1a1733"/>
-<circle cx="784" cy="644" r="1" fill="#1a1733"/>
-<circle cx="784" cy="672" r="1" fill="#1a1733"/>
-<circle cx="784" cy="700" r="1" fill="#1a1733"/>
-<circle cx="784" cy="728" r="1" fill="#1a1733"/>
-<circle cx="784" cy="756" r="1" fill="#1a1733"/>
-<circle cx="784" cy="784" r="1" fill="#1a1733"/>
-<circle cx="784" cy="812" r="1" fill="#1a1733"/>
-<circle cx="784" cy="840" r="1" fill="#1a1733"/>
-<circle cx="784" cy="868" r="1" fill="#1a1733"/>
-<circle cx="784" cy="896" r="1" fill="#1a1733"/>
-<circle cx="784" cy="924" r="1" fill="#1a1733"/>
-<circle cx="784" cy="952" r="1" fill="#1a1733"/>
-<circle cx="784" cy="980" r="1" fill="#1a1733"/>
-<circle cx="784" cy="1008" r="1" fill="#1a1733"/>
-<circle cx="784" cy="1036" r="1" fill="#1a1733"/>
-<circle cx="812" cy="0" r="1" fill="#1a1733"/>
-<circle cx="812" cy="28" r="1" fill="#1a1733"/>
-<circle cx="812" cy="56" r="1" fill="#1a1733"/>
-<circle cx="812" cy="84" r="1" fill="#1a1733"/>
-<circle cx="812" cy="112" r="1" fill="#1a1733"/>
-<circle cx="812" cy="140" r="1" fill="#1a1733"/>
-<circle cx="812" cy="168" r="1" fill="#1a1733"/>
-<circle cx="812" cy="196" r="1" fill="#1a1733"/>
-<circle cx="812" cy="224" r="1" fill="#1a1733"/>
-<circle cx="812" cy="252" r="1" fill="#1a1733"/>
-<circle cx="812" cy="280" r="1" fill="#1a1733"/>
-<circle cx="812" cy="308" r="1" fill="#1a1733"/>
-<circle cx="812" cy="336" r="1" fill="#1a1733"/>
-<circle cx="812" cy="364" r="1" fill="#1a1733"/>
-<circle cx="812" cy="392" r="1" fill="#1a1733"/>
-<circle cx="812" cy="420" r="1" fill="#1a1733"/>
-<circle cx="812" cy="448" r="1" fill="#1a1733"/>
-<circle cx="812" cy="476" r="1" fill="#1a1733"/>
-<circle cx="812" cy="504" r="1" fill="#1a1733"/>
-<circle cx="812" cy="532" r="1" fill="#1a1733"/>
-<circle cx="812" cy="560" r="1" fill="#1a1733"/>
-<circle cx="812" cy="588" r="1" fill="#1a1733"/>
-<circle cx="812" cy="616" r="1" fill="#1a1733"/>
-<circle cx="812" cy="644" r="1" fill="#1a1733"/>
-<circle cx="812" cy="672" r="1" fill="#1a1733"/>
-<circle cx="812" cy="700" r="1" fill="#1a1733"/>
-<circle cx="812" cy="728" r="1" fill="#1a1733"/>
-<circle cx="812" cy="756" r="1" fill="#1a1733"/>
-<circle cx="812" cy="784" r="1" fill="#1a1733"/>
-<circle cx="812" cy="812" r="1" fill="#1a1733"/>
-<circle cx="812" cy="840" r="1" fill="#1a1733"/>
-<circle cx="812" cy="868" r="1" fill="#1a1733"/>
-<circle cx="812" cy="896" r="1" fill="#1a1733"/>
-<circle cx="812" cy="924" r="1" fill="#1a1733"/>
-<circle cx="812" cy="952" r="1" fill="#1a1733"/>
-<circle cx="812" cy="980" r="1" fill="#1a1733"/>
-<circle cx="812" cy="1008" r="1" fill="#1a1733"/>
-<circle cx="812" cy="1036" r="1" fill="#1a1733"/>
-<text x="40" y="48" font-size="19" font-weight="700" fill="#b0a8f8" letter-spacing="-0.4">ft_transcendence — ERD</text>
-<text x="40" y="66" font-size="11" fill="#7a75a8">PostgreSQL · 13 tables · generated from database/init.sql</text>
-<path d="M520,244 C600,244 -40,172 40,172" fill="none" stroke="#7C6AFA" stroke-width="1.5" opacity="0.4" stroke-dasharray="5 3" marker-start="url(#dot)" marker-end="url(#arr)"/>
-<path d="M310,244 C230,244 330,374 250,374" fill="none" stroke="#7C6AFA" stroke-width="1.5" opacity="0.4" stroke-dasharray="5 3" marker-start="url(#dot)" marker-end="url(#arr)"/>
-<path d="M310,244 C230,244 330,600 250,600" fill="none" stroke="#7C6AFA" stroke-width="1.5" opacity="0.4" stroke-dasharray="5 3" marker-start="url(#dot)" marker-end="url(#arr)"/>
-<path d="M310,244 C230,244 330,862 250,862" fill="none" stroke="#7C6AFA" stroke-width="1.5" opacity="0.4" stroke-dasharray="5 3" marker-start="url(#dot)" marker-end="url(#arr)"/>
-<path d="M520,244 C600,244 500,196 580,196" fill="none" stroke="#7C6AFA" stroke-width="1.5" opacity="0.4" stroke-dasharray="5 3" marker-start="url(#dot)" marker-end="url(#arr)"/>
-<path d="M520,244 C600,244 500,422 580,422" fill="none" stroke="#7C6AFA" stroke-width="1.5" opacity="0.4" stroke-dasharray="5 3" marker-start="url(#dot)" marker-end="url(#arr)"/>
-<path d="M520,244 C600,244 500,612 580,612" fill="none" stroke="#7C6AFA" stroke-width="1.5" opacity="0.4" stroke-dasharray="5 3" marker-start="url(#dot)" marker-end="url(#arr)"/>
-<path d="M520,244 C600,244 230,530 310,530" fill="none" stroke="#7C6AFA" stroke-width="1.5" opacity="0.4" stroke-dasharray="5 3" marker-start="url(#dot)" marker-end="url(#arr)"/>
-<path d="M415,388 C415,428 415,632 415,672" fill="none" stroke="#7C6AFA" stroke-width="1.5" opacity="0.4" stroke-dasharray="5 3" marker-start="url(#dot)" marker-end="url(#arr)"/>
-<path d="M685,506 C685,546 685,512 685,552" fill="none" stroke="#7C6AFA" stroke-width="1.5" opacity="0.4" stroke-dasharray="5 3" marker-start="url(#dot)" marker-end="url(#arr)"/>
-<path d="M685,506 C685,546 685,678 685,718" fill="none" stroke="#7C6AFA" stroke-width="1.5" opacity="0.4" stroke-dasharray="5 3" marker-start="url(#dot)" marker-end="url(#arr)"/>
-<path d="M250,862 C330,862 500,790 580,790" fill="none" stroke="#7C6AFA" stroke-width="1.5" opacity="0.4" stroke-dasharray="5 3" marker-start="url(#dot)" marker-end="url(#arr)"/>
-<path d="M415,838 C415,798 415,832 415,792" fill="none" stroke="#7C6AFA" stroke-width="1.5" opacity="0.4" stroke-dasharray="5 3" marker-start="url(#dot)" marker-end="url(#arr)"/>
-<rect x="310" y="100" width="210" height="288" rx="10" fill="#15122b" filter="url(#sh)"/>
-<rect x="310" y="100" width="210" height="38" rx="10" fill="#1a1640"/>
-<rect x="310" y="128" width="210" height="10" fill="#1a1640"/>
-<rect x="310" y="100" width="4" height="38" rx="2" fill="#7C6AFA"/>
-<text x="326" y="124" font-size="13" font-weight="700" fill="#e0ddff">users</text>
-<rect x="488" y="111" width="24" height="16" rx="8" fill="#7C6AFA" opacity="0.2"/>
-<text x="500" y="123" font-size="10" font-weight="600" fill="#7C6AFA" text-anchor="middle">1</text>
-<line x1="310" y1="138" x2="520" y2="138" stroke="#2e2a52" stroke-width="0.5"/>
-<rect x="311" y="138" width="208" height="24" fill="#1b1735"/>
-<circle cx="324" cy="150" r="5" fill="#F59E42"/>
-<text x="324" y="154" font-size="7" font-weight="800" fill="#1a0a00" text-anchor="middle">PK</text>
-<text x="337" y="155" font-size="12" font-weight="600" fill="#F59E42">id</text>
-<rect x="311" y="162" width="208" height="24" fill="#15122b"/>
-<circle cx="324" cy="174" r="2.5" fill="#2e2a52"/>
-<text x="337" y="179" font-size="12" font-weight="400" fill="#ccc8f0">username</text>
-<rect x="311" y="186" width="208" height="24" fill="#1b1735"/>
-<circle cx="324" cy="198" r="2.5" fill="#2e2a52"/>
-<text x="337" y="203" font-size="12" font-weight="400" fill="#ccc8f0">email</text>
-<rect x="311" y="210" width="208" height="24" fill="#15122b"/>
-<circle cx="324" cy="222" r="2.5" fill="#2e2a52"/>
-<text x="337" y="227" font-size="12" font-weight="400" fill="#ccc8f0">password_hash</text>
-<rect x="311" y="234" width="208" height="24" fill="#1b1735"/>
-<circle cx="324" cy="246" r="2.5" fill="#2e2a52"/>
-<text x="337" y="251" font-size="12" font-weight="400" fill="#ccc8f0">avatar_url</text>
-<rect x="311" y="258" width="208" height="24" fill="#15122b"/>
-<circle cx="324" cy="270" r="2.5" fill="#2e2a52"/>
-<text x="337" y="275" font-size="12" font-weight="400" fill="#ccc8f0">is_online</text>
-<rect x="311" y="282" width="208" height="24" fill="#1b1735"/>
-<circle cx="324" cy="294" r="2.5" fill="#2e2a52"/>
-<text x="337" y="299" font-size="12" font-weight="400" fill="#ccc8f0">role</text>
-<rect x="311" y="306" width="208" height="24" fill="#15122b"/>
-<circle cx="324" cy="318" r="2.5" fill="#2e2a52"/>
-<text x="337" y="323" font-size="12" font-weight="400" fill="#ccc8f0">totp_secret</text>
-<rect x="311" y="330" width="208" height="24" fill="#1b1735"/>
-<circle cx="324" cy="342" r="2.5" fill="#2e2a52"/>
-<text x="337" y="347" font-size="12" font-weight="400" fill="#ccc8f0">totp_enabled</text>
-<rect x="311" y="354" width="208" height="34" rx="0" fill="#15122b"/>
-<rect x="310" y="378" width="210" height="10" rx="0" fill="#15122b"/>
-<circle cx="324" cy="366" r="2.5" fill="#2e2a52"/>
-<text x="337" y="371" font-size="12" font-weight="400" fill="#ccc8f0">created_at</text>
-<rect x="310" y="100" width="210" height="288" rx="10" fill="none" stroke="#2e2a52" stroke-width="0.8"/>
-<rect x="40" y="100" width="210" height="144" rx="10" fill="#15122b" filter="url(#sh)"/>
-<rect x="40" y="100" width="210" height="38" rx="10" fill="#1a1640"/>
-<rect x="40" y="128" width="210" height="10" fill="#1a1640"/>
-<rect x="40" y="100" width="4" height="38" rx="2" fill="#7C6AFA"/>
-<text x="56" y="124" font-size="13" font-weight="700" fill="#e0ddff">sessions</text>
-<rect x="218" y="111" width="24" height="16" rx="8" fill="#7C6AFA" opacity="0.2"/>
-<text x="230" y="123" font-size="10" font-weight="600" fill="#7C6AFA" text-anchor="middle">2</text>
-<line x1="40" y1="138" x2="250" y2="138" stroke="#2e2a52" stroke-width="0.5"/>
-<rect x="41" y="138" width="208" height="24" fill="#1b1735"/>
-<circle cx="54" cy="150" r="5" fill="#F59E42"/>
-<text x="54" y="154" font-size="7" font-weight="800" fill="#1a0a00" text-anchor="middle">PK</text>
-<text x="67" y="155" font-size="12" font-weight="600" fill="#F59E42">token</text>
-<rect x="41" y="162" width="208" height="24" fill="#15122b"/>
-<circle cx="54" cy="174" r="5" fill="#7C6AFA" opacity="0.75"/>
-<text x="54" y="178" font-size="7" font-weight="800" fill="white" text-anchor="middle">FK</text>
-<text x="67" y="179" font-size="12" font-weight="500" fill="#7C6AFA">user_id</text>
-<rect x="41" y="186" width="208" height="24" fill="#1b1735"/>
-<circle cx="54" cy="198" r="2.5" fill="#2e2a52"/>
-<text x="67" y="203" font-size="12" font-weight="400" fill="#ccc8f0">expires_at</text>
-<rect x="41" y="210" width="208" height="34" rx="0" fill="#15122b"/>
-<rect x="40" y="234" width="210" height="10" rx="0" fill="#15122b"/>
-<circle cx="54" cy="222" r="2.5" fill="#2e2a52"/>
-<text x="67" y="227" font-size="12" font-weight="400" fill="#ccc8f0">created_at</text>
-<rect x="40" y="100" width="210" height="144" rx="10" fill="none" stroke="#2e2a52" stroke-width="0.8"/>
-<rect x="40" y="290" width="210" height="168" rx="10" fill="#15122b" filter="url(#sh)"/>
-<rect x="40" y="290" width="210" height="38" rx="10" fill="#1a1640"/>
-<rect x="40" y="318" width="210" height="10" fill="#1a1640"/>
-<rect x="40" y="290" width="4" height="38" rx="2" fill="#7C6AFA"/>
-<text x="56" y="314" font-size="13" font-weight="700" fill="#e0ddff">friendships</text>
-<rect x="218" y="301" width="24" height="16" rx="8" fill="#7C6AFA" opacity="0.2"/>
-<text x="230" y="313" font-size="10" font-weight="600" fill="#7C6AFA" text-anchor="middle">4</text>
-<line x1="40" y1="328" x2="250" y2="328" stroke="#2e2a52" stroke-width="0.5"/>
-<rect x="41" y="328" width="208" height="24" fill="#1b1735"/>
-<circle cx="54" cy="340" r="5" fill="#F59E42"/>
-<text x="54" y="344" font-size="7" font-weight="800" fill="#1a0a00" text-anchor="middle">PK</text>
-<text x="67" y="345" font-size="12" font-weight="600" fill="#F59E42">id</text>
-<rect x="41" y="352" width="208" height="24" fill="#15122b"/>
-<circle cx="54" cy="364" r="5" fill="#7C6AFA" opacity="0.75"/>
-<text x="54" y="368" font-size="7" font-weight="800" fill="white" text-anchor="middle">FK</text>
-<text x="67" y="369" font-size="12" font-weight="500" fill="#7C6AFA">user_id</text>
-<rect x="41" y="376" width="208" height="24" fill="#1b1735"/>
-<circle cx="54" cy="388" r="5" fill="#7C6AFA" opacity="0.75"/>
-<text x="54" y="392" font-size="7" font-weight="800" fill="white" text-anchor="middle">FK</text>
-<text x="67" y="393" font-size="12" font-weight="500" fill="#7C6AFA">friend_id</text>
-<rect x="41" y="400" width="208" height="24" fill="#15122b"/>
-<circle cx="54" cy="412" r="2.5" fill="#2e2a52"/>
-<text x="67" y="417" font-size="12" font-weight="400" fill="#ccc8f0">status</text>
-<rect x="41" y="424" width="208" height="34" rx="0" fill="#1b1735"/>
-<rect x="40" y="448" width="210" height="10" rx="0" fill="#15122b"/>
-<circle cx="54" cy="436" r="2.5" fill="#2e2a52"/>
-<text x="67" y="441" font-size="12" font-weight="400" fill="#ccc8f0">created_at</text>
-<rect x="40" y="290" width="210" height="168" rx="10" fill="none" stroke="#2e2a52" stroke-width="0.8"/>
-<rect x="40" y="504" width="210" height="192" rx="10" fill="#15122b" filter="url(#sh)"/>
-<rect x="40" y="504" width="210" height="38" rx="10" fill="#1a1640"/>
-<rect x="40" y="532" width="210" height="10" fill="#1a1640"/>
-<rect x="40" y="504" width="4" height="38" rx="2" fill="#7C6AFA"/>
-<text x="56" y="528" font-size="13" font-weight="700" fill="#e0ddff">messages</text>
-<rect x="218" y="515" width="24" height="16" rx="8" fill="#7C6AFA" opacity="0.2"/>
-<text x="230" y="527" font-size="10" font-weight="600" fill="#7C6AFA" text-anchor="middle">7</text>
-<line x1="40" y1="542" x2="250" y2="542" stroke="#2e2a52" stroke-width="0.5"/>
-<rect x="41" y="542" width="208" height="24" fill="#1b1735"/>
-<circle cx="54" cy="554" r="5" fill="#F59E42"/>
-<text x="54" y="558" font-size="7" font-weight="800" fill="#1a0a00" text-anchor="middle">PK</text>
-<text x="67" y="559" font-size="12" font-weight="600" fill="#F59E42">id</text>
-<rect x="41" y="566" width="208" height="24" fill="#15122b"/>
-<circle cx="54" cy="578" r="5" fill="#7C6AFA" opacity="0.75"/>
-<text x="54" y="582" font-size="7" font-weight="800" fill="white" text-anchor="middle">FK</text>
-<text x="67" y="583" font-size="12" font-weight="500" fill="#7C6AFA">sender_id</text>
-<rect x="41" y="590" width="208" height="24" fill="#1b1735"/>
-<circle cx="54" cy="602" r="5" fill="#7C6AFA" opacity="0.75"/>
-<text x="54" y="606" font-size="7" font-weight="800" fill="white" text-anchor="middle">FK</text>
-<text x="67" y="607" font-size="12" font-weight="500" fill="#7C6AFA">receiver_id</text>
-<rect x="41" y="614" width="208" height="24" fill="#15122b"/>
-<circle cx="54" cy="626" r="2.5" fill="#2e2a52"/>
-<text x="67" y="631" font-size="12" font-weight="400" fill="#ccc8f0">content</text>
-<rect x="41" y="638" width="208" height="24" fill="#1b1735"/>
-<circle cx="54" cy="650" r="2.5" fill="#2e2a52"/>
-<text x="67" y="655" font-size="12" font-weight="400" fill="#ccc8f0">is_read</text>
-<rect x="41" y="662" width="208" height="34" rx="0" fill="#15122b"/>
-<rect x="40" y="686" width="210" height="10" rx="0" fill="#15122b"/>
-<circle cx="54" cy="674" r="2.5" fill="#2e2a52"/>
-<text x="67" y="679" font-size="12" font-weight="400" fill="#ccc8f0">sent_at</text>
-<rect x="40" y="504" width="210" height="192" rx="10" fill="none" stroke="#2e2a52" stroke-width="0.8"/>
-<rect x="40" y="742" width="210" height="240" rx="10" fill="#15122b" filter="url(#sh)"/>
-<rect x="40" y="742" width="210" height="38" rx="10" fill="#1a1640"/>
-<rect x="40" y="770" width="210" height="10" fill="#1a1640"/>
-<rect x="40" y="742" width="4" height="38" rx="2" fill="#7C6AFA"/>
-<text x="56" y="766" font-size="13" font-weight="700" fill="#e0ddff">matches</text>
-<rect x="218" y="753" width="24" height="16" rx="8" fill="#7C6AFA" opacity="0.2"/>
-<text x="230" y="765" font-size="10" font-weight="600" fill="#7C6AFA" text-anchor="middle">10</text>
-<line x1="40" y1="780" x2="250" y2="780" stroke="#2e2a52" stroke-width="0.5"/>
-<rect x="41" y="780" width="208" height="24" fill="#1b1735"/>
-<circle cx="54" cy="792" r="5" fill="#F59E42"/>
-<text x="54" y="796" font-size="7" font-weight="800" fill="#1a0a00" text-anchor="middle">PK</text>
-<text x="67" y="797" font-size="12" font-weight="600" fill="#F59E42">id</text>
-<rect x="41" y="804" width="208" height="24" fill="#15122b"/>
-<circle cx="54" cy="816" r="5" fill="#7C6AFA" opacity="0.75"/>
-<text x="54" y="820" font-size="7" font-weight="800" fill="white" text-anchor="middle">FK</text>
-<text x="67" y="821" font-size="12" font-weight="500" fill="#7C6AFA">player1_id</text>
-<rect x="41" y="828" width="208" height="24" fill="#1b1735"/>
-<circle cx="54" cy="840" r="5" fill="#7C6AFA" opacity="0.75"/>
-<text x="54" y="844" font-size="7" font-weight="800" fill="white" text-anchor="middle">FK</text>
-<text x="67" y="845" font-size="12" font-weight="500" fill="#7C6AFA">player2_id</text>
-<rect x="41" y="852" width="208" height="24" fill="#15122b"/>
-<circle cx="54" cy="864" r="2.5" fill="#2e2a52"/>
-<text x="67" y="869" font-size="12" font-weight="400" fill="#ccc8f0">score1</text>
-<rect x="41" y="876" width="208" height="24" fill="#1b1735"/>
-<circle cx="54" cy="888" r="2.5" fill="#2e2a52"/>
-<text x="67" y="893" font-size="12" font-weight="400" fill="#ccc8f0">score2</text>
-<rect x="41" y="900" width="208" height="24" fill="#15122b"/>
-<circle cx="54" cy="912" r="5" fill="#7C6AFA" opacity="0.75"/>
-<text x="54" y="916" font-size="7" font-weight="800" fill="white" text-anchor="middle">FK</text>
-<text x="67" y="917" font-size="12" font-weight="500" fill="#7C6AFA">winner_id</text>
-<rect x="41" y="924" width="208" height="24" fill="#1b1735"/>
-<circle cx="54" cy="936" r="2.5" fill="#2e2a52"/>
-<text x="67" y="941" font-size="12" font-weight="400" fill="#ccc8f0">game_type</text>
-<rect x="41" y="948" width="208" height="34" rx="0" fill="#15122b"/>
-<rect x="40" y="972" width="210" height="10" rx="0" fill="#15122b"/>
-<circle cx="54" cy="960" r="2.5" fill="#2e2a52"/>
-<text x="67" y="965" font-size="12" font-weight="400" fill="#ccc8f0">played_at</text>
-<rect x="40" y="742" width="210" height="240" rx="10" fill="none" stroke="#2e2a52" stroke-width="0.8"/>
-<rect x="580" y="100" width="210" height="192" rx="10" fill="#15122b" filter="url(#sh)"/>
-<rect x="580" y="100" width="210" height="38" rx="10" fill="#1a1640"/>
-<rect x="580" y="128" width="210" height="10" fill="#1a1640"/>
-<rect x="580" y="100" width="4" height="38" rx="2" fill="#7C6AFA"/>
-<text x="596" y="124" font-size="13" font-weight="700" fill="#e0ddff">user_stats</text>
-<rect x="758" y="111" width="24" height="16" rx="8" fill="#7C6AFA" opacity="0.2"/>
-<text x="770" y="123" font-size="10" font-weight="600" fill="#7C6AFA" text-anchor="middle">3</text>
-<line x1="580" y1="138" x2="790" y2="138" stroke="#2e2a52" stroke-width="0.5"/>
-<rect x="581" y="138" width="208" height="24" fill="#1b1735"/>
-<circle cx="594" cy="150" r="5" fill="#F59E42"/>
-<text x="594" y="154" font-size="7" font-weight="800" fill="#1a0a00" text-anchor="middle">PK</text>
-<text x="607" y="155" font-size="12" font-weight="600" fill="#F59E42">user_id</text>
-<rect x="581" y="162" width="208" height="24" fill="#15122b"/>
-<circle cx="594" cy="174" r="2.5" fill="#2e2a52"/>
-<text x="607" y="179" font-size="12" font-weight="400" fill="#ccc8f0">wins</text>
-<rect x="581" y="186" width="208" height="24" fill="#1b1735"/>
-<circle cx="594" cy="198" r="2.5" fill="#2e2a52"/>
-<text x="607" y="203" font-size="12" font-weight="400" fill="#ccc8f0">losses</text>
-<rect x="581" y="210" width="208" height="24" fill="#15122b"/>
-<circle cx="594" cy="222" r="2.5" fill="#2e2a52"/>
-<text x="607" y="227" font-size="12" font-weight="400" fill="#ccc8f0">xp</text>
-<rect x="581" y="234" width="208" height="24" fill="#1b1735"/>
-<circle cx="594" cy="246" r="2.5" fill="#2e2a52"/>
-<text x="607" y="251" font-size="12" font-weight="400" fill="#ccc8f0">level</text>
-<rect x="581" y="258" width="208" height="34" rx="0" fill="#15122b"/>
-<rect x="580" y="282" width="210" height="10" rx="0" fill="#15122b"/>
-<circle cx="594" cy="270" r="2.5" fill="#2e2a52"/>
-<text x="607" y="275" font-size="12" font-weight="400" fill="#ccc8f0">updated_at</text>
-<rect x="580" y="100" width="210" height="192" rx="10" fill="none" stroke="#2e2a52" stroke-width="0.8"/>
-<rect x="580" y="338" width="210" height="168" rx="10" fill="#15122b" filter="url(#sh)"/>
-<rect x="580" y="338" width="210" height="38" rx="10" fill="#1a1640"/>
-<rect x="580" y="366" width="210" height="10" fill="#1a1640"/>
-<rect x="580" y="338" width="4" height="38" rx="2" fill="#7C6AFA"/>
-<text x="596" y="362" font-size="13" font-weight="700" fill="#e0ddff">tournaments</text>
-<rect x="758" y="349" width="24" height="16" rx="8" fill="#7C6AFA" opacity="0.2"/>
-<text x="770" y="361" font-size="10" font-weight="600" fill="#7C6AFA" text-anchor="middle">5</text>
-<line x1="580" y1="376" x2="790" y2="376" stroke="#2e2a52" stroke-width="0.5"/>
-<rect x="581" y="376" width="208" height="24" fill="#1b1735"/>
-<circle cx="594" cy="388" r="5" fill="#F59E42"/>
-<text x="594" y="392" font-size="7" font-weight="800" fill="#1a0a00" text-anchor="middle">PK</text>
-<text x="607" y="393" font-size="12" font-weight="600" fill="#F59E42">id</text>
-<rect x="581" y="400" width="208" height="24" fill="#15122b"/>
-<circle cx="594" cy="412" r="2.5" fill="#2e2a52"/>
-<text x="607" y="417" font-size="12" font-weight="400" fill="#ccc8f0">name</text>
-<rect x="581" y="424" width="208" height="24" fill="#1b1735"/>
-<circle cx="594" cy="436" r="2.5" fill="#2e2a52"/>
-<text x="607" y="441" font-size="12" font-weight="400" fill="#ccc8f0">status</text>
-<rect x="581" y="448" width="208" height="24" fill="#15122b"/>
-<circle cx="594" cy="460" r="5" fill="#7C6AFA" opacity="0.75"/>
-<text x="594" y="464" font-size="7" font-weight="800" fill="white" text-anchor="middle">FK</text>
-<text x="607" y="465" font-size="12" font-weight="500" fill="#7C6AFA">created_by</text>
-<rect x="581" y="472" width="208" height="34" rx="0" fill="#1b1735"/>
-<rect x="580" y="496" width="210" height="10" rx="0" fill="#15122b"/>
-<circle cx="594" cy="484" r="2.5" fill="#2e2a52"/>
-<text x="607" y="489" font-size="12" font-weight="400" fill="#ccc8f0">created_at</text>
-<rect x="580" y="338" width="210" height="168" rx="10" fill="none" stroke="#2e2a52" stroke-width="0.8"/>
-<rect x="580" y="552" width="210" height="120" rx="10" fill="#15122b" filter="url(#sh)"/>
-<rect x="580" y="552" width="210" height="38" rx="10" fill="#1a1640"/>
-<rect x="580" y="580" width="210" height="10" fill="#1a1640"/>
-<rect x="580" y="552" width="4" height="38" rx="2" fill="#7C6AFA"/>
-<text x="596" y="576" font-size="13" font-weight="700" fill="#e0ddff">tournament_players</text>
-<rect x="758" y="563" width="24" height="16" rx="8" fill="#7C6AFA" opacity="0.2"/>
-<text x="770" y="575" font-size="10" font-weight="600" fill="#7C6AFA" text-anchor="middle">8</text>
-<line x1="580" y1="590" x2="790" y2="590" stroke="#2e2a52" stroke-width="0.5"/>
-<rect x="581" y="590" width="208" height="24" fill="#1b1735"/>
-<circle cx="594" cy="602" r="5" fill="#F59E42"/>
-<text x="594" y="606" font-size="7" font-weight="800" fill="#1a0a00" text-anchor="middle">PK</text>
-<text x="607" y="607" font-size="12" font-weight="600" fill="#F59E42">tournament_id</text>
-<rect x="581" y="614" width="208" height="24" fill="#15122b"/>
-<circle cx="594" cy="626" r="5" fill="#F59E42"/>
-<text x="594" y="630" font-size="7" font-weight="800" fill="#1a0a00" text-anchor="middle">PK</text>
-<text x="607" y="631" font-size="12" font-weight="600" fill="#F59E42">user_id</text>
-<rect x="581" y="638" width="208" height="34" rx="0" fill="#1b1735"/>
-<rect x="580" y="662" width="210" height="10" rx="0" fill="#15122b"/>
-<circle cx="594" cy="650" r="2.5" fill="#2e2a52"/>
-<text x="607" y="655" font-size="12" font-weight="400" fill="#ccc8f0">eliminated</text>
-<rect x="580" y="552" width="210" height="120" rx="10" fill="none" stroke="#2e2a52" stroke-width="0.8"/>
-<rect x="580" y="718" width="210" height="144" rx="10" fill="#15122b" filter="url(#sh)"/>
-<rect x="580" y="718" width="210" height="38" rx="10" fill="#1a1640"/>
-<rect x="580" y="746" width="210" height="10" fill="#1a1640"/>
-<rect x="580" y="718" width="4" height="38" rx="2" fill="#7C6AFA"/>
-<text x="596" y="742" font-size="13" font-weight="700" fill="#e0ddff">tournament_matches</text>
-<rect x="758" y="729" width="24" height="16" rx="8" fill="#7C6AFA" opacity="0.2"/>
-<text x="770" y="741" font-size="10" font-weight="600" fill="#7C6AFA" text-anchor="middle">11</text>
-<line x1="580" y1="756" x2="790" y2="756" stroke="#2e2a52" stroke-width="0.5"/>
-<rect x="581" y="756" width="208" height="24" fill="#1b1735"/>
-<circle cx="594" cy="768" r="5" fill="#F59E42"/>
-<text x="594" y="772" font-size="7" font-weight="800" fill="#1a0a00" text-anchor="middle">PK</text>
-<text x="607" y="773" font-size="12" font-weight="600" fill="#F59E42">id</text>
-<rect x="581" y="780" width="208" height="24" fill="#15122b"/>
-<circle cx="594" cy="792" r="5" fill="#7C6AFA" opacity="0.75"/>
-<text x="594" y="796" font-size="7" font-weight="800" fill="white" text-anchor="middle">FK</text>
-<text x="607" y="797" font-size="12" font-weight="500" fill="#7C6AFA">tournament_id</text>
-<rect x="581" y="804" width="208" height="24" fill="#1b1735"/>
-<circle cx="594" cy="816" r="5" fill="#7C6AFA" opacity="0.75"/>
-<text x="594" y="820" font-size="7" font-weight="800" fill="white" text-anchor="middle">FK</text>
-<text x="607" y="821" font-size="12" font-weight="500" fill="#7C6AFA">match_id</text>
-<rect x="581" y="828" width="208" height="34" rx="0" fill="#15122b"/>
-<rect x="580" y="852" width="210" height="10" rx="0" fill="#15122b"/>
-<circle cx="594" cy="840" r="2.5" fill="#2e2a52"/>
-<text x="607" y="845" font-size="12" font-weight="400" fill="#ccc8f0">round</text>
-<rect x="580" y="718" width="210" height="144" rx="10" fill="none" stroke="#2e2a52" stroke-width="0.8"/>
-<rect x="310" y="838" width="210" height="144" rx="10" fill="#15122b" filter="url(#sh)"/>
-<rect x="310" y="838" width="210" height="38" rx="10" fill="#1a1640"/>
-<rect x="310" y="866" width="210" height="10" fill="#1a1640"/>
-<rect x="310" y="838" width="4" height="38" rx="2" fill="#7C6AFA"/>
-<text x="326" y="862" font-size="13" font-weight="700" fill="#e0ddff">achievements</text>
-<rect x="488" y="849" width="24" height="16" rx="8" fill="#7C6AFA" opacity="0.2"/>
-<text x="500" y="861" font-size="10" font-weight="600" fill="#7C6AFA" text-anchor="middle">12</text>
-<line x1="310" y1="876" x2="520" y2="876" stroke="#2e2a52" stroke-width="0.5"/>
-<rect x="311" y="876" width="208" height="24" fill="#1b1735"/>
-<circle cx="324" cy="888" r="5" fill="#F59E42"/>
-<text x="324" y="892" font-size="7" font-weight="800" fill="#1a0a00" text-anchor="middle">PK</text>
-<text x="337" y="893" font-size="12" font-weight="600" fill="#F59E42">id</text>
-<rect x="311" y="900" width="208" height="24" fill="#15122b"/>
-<circle cx="324" cy="912" r="2.5" fill="#2e2a52"/>
-<text x="337" y="917" font-size="12" font-weight="400" fill="#ccc8f0">key</text>
-<rect x="311" y="924" width="208" height="24" fill="#1b1735"/>
-<circle cx="324" cy="936" r="2.5" fill="#2e2a52"/>
-<text x="337" y="941" font-size="12" font-weight="400" fill="#ccc8f0">name</text>
-<rect x="311" y="948" width="208" height="34" rx="0" fill="#15122b"/>
-<rect x="310" y="972" width="210" height="10" rx="0" fill="#15122b"/>
-<circle cx="324" cy="960" r="2.5" fill="#2e2a52"/>
-<text x="337" y="965" font-size="12" font-weight="400" fill="#ccc8f0">description</text>
-<rect x="310" y="838" width="210" height="144" rx="10" fill="none" stroke="#2e2a52" stroke-width="0.8"/>
-<rect x="310" y="672" width="210" height="120" rx="10" fill="#15122b" filter="url(#sh)"/>
-<rect x="310" y="672" width="210" height="38" rx="10" fill="#1a1640"/>
-<rect x="310" y="700" width="210" height="10" fill="#1a1640"/>
-<rect x="310" y="672" width="4" height="38" rx="2" fill="#7C6AFA"/>
-<text x="326" y="696" font-size="13" font-weight="700" fill="#e0ddff">user_achievements</text>
-<rect x="488" y="683" width="24" height="16" rx="8" fill="#7C6AFA" opacity="0.2"/>
-<text x="500" y="695" font-size="10" font-weight="600" fill="#7C6AFA" text-anchor="middle">9</text>
-<line x1="310" y1="710" x2="520" y2="710" stroke="#2e2a52" stroke-width="0.5"/>
-<rect x="311" y="710" width="208" height="24" fill="#1b1735"/>
-<circle cx="324" cy="722" r="5" fill="#F59E42"/>
-<text x="324" y="726" font-size="7" font-weight="800" fill="#1a0a00" text-anchor="middle">PK</text>
-<text x="337" y="727" font-size="12" font-weight="600" fill="#F59E42">user_id</text>
-<rect x="311" y="734" width="208" height="24" fill="#15122b"/>
-<circle cx="324" cy="746" r="5" fill="#F59E42"/>
-<text x="324" y="750" font-size="7" font-weight="800" fill="#1a0a00" text-anchor="middle">PK</text>
-<text x="337" y="751" font-size="12" font-weight="600" fill="#F59E42">achievement_id</text>
-<rect x="311" y="758" width="208" height="34" rx="0" fill="#1b1735"/>
-<rect x="310" y="782" width="210" height="10" rx="0" fill="#15122b"/>
-<circle cx="324" cy="770" r="2.5" fill="#2e2a52"/>
-<text x="337" y="775" font-size="12" font-weight="400" fill="#ccc8f0">earned_at</text>
-<rect x="310" y="672" width="210" height="120" rx="10" fill="none" stroke="#2e2a52" stroke-width="0.8"/>
-<rect x="310" y="434" width="210" height="192" rx="10" fill="#15122b" filter="url(#sh)"/>
-<rect x="310" y="434" width="210" height="38" rx="10" fill="#1a1640"/>
-<rect x="310" y="462" width="210" height="10" fill="#1a1640"/>
-<rect x="310" y="434" width="4" height="38" rx="2" fill="#7C6AFA"/>
-<text x="326" y="458" font-size="13" font-weight="700" fill="#e0ddff">notifications</text>
-<rect x="488" y="445" width="24" height="16" rx="8" fill="#7C6AFA" opacity="0.2"/>
-<text x="500" y="457" font-size="10" font-weight="600" fill="#7C6AFA" text-anchor="middle">6</text>
-<line x1="310" y1="472" x2="520" y2="472" stroke="#2e2a52" stroke-width="0.5"/>
-<rect x="311" y="472" width="208" height="24" fill="#1b1735"/>
-<circle cx="324" cy="484" r="5" fill="#F59E42"/>
-<text x="324" y="488" font-size="7" font-weight="800" fill="#1a0a00" text-anchor="middle">PK</text>
-<text x="337" y="489" font-size="12" font-weight="600" fill="#F59E42">id</text>
-<rect x="311" y="496" width="208" height="24" fill="#15122b"/>
-<circle cx="324" cy="508" r="5" fill="#7C6AFA" opacity="0.75"/>
-<text x="324" y="512" font-size="7" font-weight="800" fill="white" text-anchor="middle">FK</text>
-<text x="337" y="513" font-size="12" font-weight="500" fill="#7C6AFA">user_id</text>
-<rect x="311" y="520" width="208" height="24" fill="#1b1735"/>
-<circle cx="324" cy="532" r="2.5" fill="#2e2a52"/>
-<text x="337" y="537" font-size="12" font-weight="400" fill="#ccc8f0">type</text>
-<rect x="311" y="544" width="208" height="24" fill="#15122b"/>
-<circle cx="324" cy="556" r="2.5" fill="#2e2a52"/>
-<text x="337" y="561" font-size="12" font-weight="400" fill="#ccc8f0">payload</text>
-<rect x="311" y="568" width="208" height="24" fill="#1b1735"/>
-<circle cx="324" cy="580" r="2.5" fill="#2e2a52"/>
-<text x="337" y="585" font-size="12" font-weight="400" fill="#ccc8f0">is_read</text>
-<rect x="311" y="592" width="208" height="34" rx="0" fill="#15122b"/>
-<rect x="310" y="616" width="210" height="10" rx="0" fill="#15122b"/>
-<circle cx="324" cy="604" r="2.5" fill="#2e2a52"/>
-<text x="337" y="609" font-size="12" font-weight="400" fill="#ccc8f0">created_at</text>
-<rect x="310" y="434" width="210" height="192" rx="10" fill="none" stroke="#2e2a52" stroke-width="0.8"/>
-<!-- ─── spectators table ──────────────────────────────────── -->
-<rect x="310" y="1014" width="210" height="168" rx="10" fill="#15122b" filter="url(#sh)"/>
-<rect x="310" y="1014" width="210" height="38" rx="10" fill="#1a1640"/>
-<rect x="310" y="1042" width="210" height="10" fill="#1a1640"/>
-<rect x="310" y="1014" width="4" height="38" rx="2" fill="#7C6AFA"/>
-<text x="326" y="1038" font-size="13" font-weight="700" fill="#e0ddff">spectators</text>
-<rect x="488" y="1025" width="24" height="16" rx="8" fill="#7C6AFA" opacity="0.2"/>
-<text x="500" y="1037" font-size="10" font-weight="600" fill="#7C6AFA" text-anchor="middle">13</text>
-<line x1="310" y1="1052" x2="520" y2="1052" stroke="#2e2a52" stroke-width="0.5"/>
-<rect x="311" y="1052" width="208" height="24" fill="#1b1735"/>
-<circle cx="324" cy="1064" r="5" fill="#F59E42"/>
-<text x="324" y="1068" font-size="7" font-weight="800" fill="#1a0a00" text-anchor="middle">PK</text>
-<text x="337" y="1069" font-size="12" font-weight="600" fill="#F59E42">id</text>
-<rect x="311" y="1076" width="208" height="24" fill="#15122b"/>
-<circle cx="324" cy="1088" r="5" fill="#7C6AFA" opacity="0.75"/>
-<text x="324" y="1092" font-size="7" font-weight="800" fill="white" text-anchor="middle">FK</text>
-<text x="337" y="1093" font-size="12" font-weight="500" fill="#7C6AFA">user_id</text>
-<rect x="311" y="1100" width="208" height="24" fill="#1b1735"/>
-<circle cx="324" cy="1112" r="2.5" fill="#2e2a52"/>
-<text x="337" y="1117" font-size="12" font-weight="400" fill="#ccc8f0">session_id</text>
-<rect x="311" y="1124" width="208" height="24" fill="#15122b"/>
-<circle cx="324" cy="1136" r="5" fill="#7C6AFA" opacity="0.75"/>
-<text x="324" y="1140" font-size="7" font-weight="800" fill="white" text-anchor="middle">FK</text>
-<text x="337" y="1141" font-size="12" font-weight="500" fill="#7C6AFA">tournament_id</text>
-<rect x="311" y="1148" width="208" height="24" fill="#1b1735"/>
-<circle cx="324" cy="1160" r="2.5" fill="#2e2a52"/>
-<text x="337" y="1165" font-size="12" font-weight="400" fill="#ccc8f0">mode</text>
-<rect x="311" y="1172" width="208" height="10" fill="#15122b"/>
-<circle cx="324" cy="1180" r="2.5" fill="#2e2a52"/>
-<text x="337" y="1177" font-size="12" font-weight="400" fill="#ccc8f0">joined_at / left_at</text>
-<rect x="310" y="1014" width="210" height="168" rx="10" fill="none" stroke="#7C6AFA" stroke-width="0.8" opacity="0.5"/>
-<!-- spectators → users -->
-<path d="M310,1088 C230,1088 230,244 310,244" fill="none" stroke="#7C6AFA" stroke-width="1.5" opacity="0.4" stroke-dasharray="5 3" marker-start="url(#dot)" marker-end="url(#arr)"/>
-<!-- spectators → tournaments -->
-<path d="M520,1136 C600,1136 600,422 790,422" fill="none" stroke="#7C6AFA" stroke-width="1.5" opacity="0.35" stroke-dasharray="5 3" marker-start="url(#dot)" marker-end="url(#arr)"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="1152" viewBox="0 0 960 1152">
+  <!-- Fondo y patrón de puntos -->
+  <rect width="960" height="1152" fill="#0d0b1e"/>
+  <defs>
+    <pattern id="g" x="0" y="0" width="28" height="28" patternUnits="userSpaceOnUse">
+      <circle cx="0" cy="0" r="1" fill="#1a1733"/>
+    </pattern>
+  </defs>
+  <rect width="960" height="1152" fill="url(#g)"/>
+  
+  <!-- Título -->
+  <text x="480" y="22" font-size="11" font-weight="600" fill="#4a4570" text-anchor="middle" font-family="system-ui,sans-serif">Transcendence — ERD</text>
 
-<!-- ─── legend (moved down) ──────────────────────────────── -->
-<rect x="40" y="1192" width="340" height="28" rx="7" fill="#15122b" stroke="#2e2a52" stroke-width="0.8"/>
-<circle cx="56" cy="1206" r="5" fill="#F59E42"/>
-<text x="56" y="1210" font-size="7" font-weight="800" fill="#1a0a00" text-anchor="middle">PK</text>
-<text x="68" y="1210" font-size="11" fill="#7a75a8">Primary key</text>
-<circle cx="152" cy="1206" r="5" fill="#7C6AFA" opacity="0.75"/>
-<text x="152" y="1210" font-size="7" font-weight="800" fill="white" text-anchor="middle">FK</text>
-<text x="164" y="1210" font-size="11" fill="#7a75a8">Foreign key</text>
-<line x1="248" y1="1206" x2="268" y2="1206" stroke="#7C6AFA" stroke-width="1.5" stroke-dasharray="4 2" opacity="0.7"/>
-<circle cx="248" cy="1206" r="3" fill="#7C6AFA" opacity="0.8"/>
-<text x="274" y="1210" font-size="11" fill="#7a75a8">Relation</text>
+  <!-- CONEXIONES (Rutas) -->
+  <g stroke="#7C6AFA" stroke-width="1.3" stroke-dasharray="5 3" fill="none" opacity="0.45">
+    <!-- Del costado izquierdo hacia users -->
+    <path d="M240,129 C300,129 300,357 380,357"/>
+    <path d="M240,279 C300,279 300,357 380,357"/>
+    <path d="M240,301 C300,301 300,357 380,357"/>
+    <path d="M240,489 C300,489 300,357 380,357"/>
+    <path d="M240,511 C300,511 300,357 380,357"/>
+    <path d="M240,709 C300,709 300,357 380,357"/>
+    <path d="M240,1077 C300,1077 300,357 380,357"/>
+    
+    <!-- user_achievements.achievement_id -> achievements.id -->
+    <path d="M40,1099 L20,1099 L20,907 L40,907"/>
+    
+    <!-- Del costado derecho hacia users -->
+    <path d="M720,87 C660,87 660,357 580,357"/>
+    <path d="M720,379 C660,379 660,357 580,357"/>
+    <path d="M720,401 C660,401 660,357 580,357"/>
+    <path d="M720,423 C660,423 660,357 580,357"/>
+    <path d="M720,753 C660,753 660,357 580,357"/>
+    <path d="M720,909 C660,909 660,357 580,357"/>
+    
+    <!-- spectators.user_id -> users.id -->
+    <path d="M380,709 L360,709 L360,357 L380,357"/>
+    
+    <!-- spectators.tournament_id -> tournaments.id -->
+    <path d="M580,753 C650,753 650,687 720,687"/>
+    
+    <!-- tournament_players.tournament_id -> tournaments.id -->
+    <path d="M720,887 L740,887 L740,687 L720,687"/>
+    
+    <!-- tournament_matches.tournament_id -> tournaments.id -->
+    <path d="M720,1059 L740,1059 L740,687 L720,687"/>
+    
+    <!-- tournament_matches.match_id -> matches.id -->
+    <path d="M720,1081 C700,1081 700,357 720,357"/>
+  </g>
 
+  <!-- TABLA: users -->
+  <rect x="381" y="314" width="200" height="266" rx="10" fill="#000" opacity="0.35"/>
+  <rect x="380" y="310" width="200" height="266" rx="10" fill="#15122b"/>
+  <rect x="380" y="310" width="200" height="36" rx="10" fill="#1a1640"/>
+  <rect x="380" y="330" width="200" height="16" fill="#1a1640"/>
+  <rect x="380" y="310" width="4" height="36" rx="2" fill="#7C6AFA"/>
+  <text x="394" y="333" font-size="12" font-weight="700" fill="#e0ddff" font-family="system-ui,sans-serif">users</text>
+  <line x1="380" y1="346" x2="580" y2="346" stroke="#2e2a52" stroke-width="0.5"/>
+  <rect x="380" y="310" width="200" height="266" rx="10" fill="none" stroke="#2e2a52" stroke-width="0.8"/>
+
+  <rect x="381" y="346" width="198" height="22" fill="#1b1735"/>
+  <circle cx="393" cy="357" r="5" fill="#F59E42"/>
+  <text x="393" y="361" font-size="6" font-weight="800" fill="#1a0a00" text-anchor="middle" font-family="system-ui,sans-serif">PK</text>
+  <text x="404" y="361" font-size="11" font-weight="600" fill="#F59E42" font-family="system-ui,sans-serif">id</text>
+
+  <rect x="381" y="368" width="198" height="22" fill="#15122b"/>
+  <circle cx="393" cy="379" r="2" fill="#2e2a52"/>
+  <text x="404" y="383" font-size="11" font-weight="400" fill="#ccc8f0" font-family="system-ui,sans-serif">username</text>
+
+  <rect x="381" y="390" width="198" height="22" fill="#1b1735"/>
+  <circle cx="393" cy="401" r="2" fill="#2e2a52"/>
+  <text x="404" y="405" font-size="11" font-weight="400" fill="#ccc8f0" font-family="system-ui,sans-serif">email</text>
+
+  <rect x="381" y="412" width="198" height="22" fill="#15122b"/>
+  <circle cx="393" cy="423" r="2" fill="#2e2a52"/>
+  <text x="404" y="427" font-size="11" font-weight="400" fill="#ccc8f0" font-family="system-ui,sans-serif">password_hash</text>
+
+  <rect x="381" y="434" width="198" height="22" fill="#1b1735"/>
+  <circle cx="393" cy="445" r="2" fill="#2e2a52"/>
+  <text x="404" y="449" font-size="11" font-weight="400" fill="#ccc8f0" font-family="system-ui,sans-serif">avatar_url</text>
+
+  <rect x="381" y="456" width="198" height="22" fill="#15122b"/>
+  <circle cx="393" cy="467" r="2" fill="#2e2a52"/>
+  <text x="404" y="471" font-size="11" font-weight="400" fill="#ccc8f0" font-family="system-ui,sans-serif">is_online</text>
+
+  <rect x="381" y="478" width="198" height="22" fill="#1b1735"/>
+  <circle cx="393" cy="489" r="2" fill="#2e2a52"/>
+  <text x="404" y="493" font-size="11" font-weight="400" fill="#ccc8f0" font-family="system-ui,sans-serif">role</text>
+
+  <rect x="381" y="500" width="198" height="22" fill="#15122b"/>
+  <circle cx="393" cy="511" r="2" fill="#2e2a52"/>
+  <text x="404" y="515" font-size="11" font-weight="400" fill="#ccc8f0" font-family="system-ui,sans-serif">totp_secret</text>
+
+  <rect x="381" y="522" width="198" height="22" fill="#1b1735"/>
+  <circle cx="393" cy="533" r="2" fill="#2e2a52"/>
+  <text x="404" y="537" font-size="11" font-weight="400" fill="#ccc8f0" font-family="system-ui,sans-serif">totp_enabled</text>
+
+  <rect x="381" y="544" width="198" height="22" fill="#15122b"/>
+  <circle cx="393" cy="555" r="2" fill="#2e2a52"/>
+  <text x="404" y="559" font-size="11" font-weight="400" fill="#ccc8f0" font-family="system-ui,sans-serif">created_at</text>
+
+  <!-- TABLA: sessions -->
+  <rect x="41" y="64" width="200" height="112" rx="10" fill="#000" opacity="0.35"/>
+  <rect x="40" y="60" width="200" height="112" rx="10" fill="#15122b"/>
+  <rect x="40" y="60" width="200" height="36" rx="10" fill="#1a1640"/>
+  <rect x="40" y="80" width="200" height="16" fill="#1a1640"/>
+  <rect x="40" y="60" width="4" height="36" rx="2" fill="#7C6AFA"/>
+  <text x="54" y="83" font-size="12" font-weight="700" fill="#e0ddff" font-family="system-ui,sans-serif">sessions</text>
+  <line x1="40" y1="96" x2="240" y2="96" stroke="#2e2a52" stroke-width="0.5"/>
+  <rect x="40" y="60" width="200" height="112" rx="10" fill="none" stroke="#2e2a52" stroke-width="0.8"/>
+
+  <rect x="41" y="96" width="198" height="22" fill="#1b1735"/>
+  <circle cx="53" cy="107" r="5" fill="#F59E42"/>
+  <text x="53" y="111" font-size="6" font-weight="800" fill="#1a0a00" text-anchor="middle" font-family="system-ui,sans-serif">PK</text>
+  <text x="64" y="111" font-size="11" font-weight="600" fill="#F59E42" font-family="system-ui,sans-serif">token</text>
+
+  <rect x="41" y="118" width="198" height="22" fill="#15122b"/>
+  <circle cx="53" cy="129" r="5" fill="#7C6AFA" opacity="0.75"/>
+  <text x="53" y="133" font-size="6" font-weight="800" fill="white" text-anchor="middle" font-family="system-ui,sans-serif">FK</text>
+  <text x="64" y="133" font-size="11" font-weight="500" fill="#7C6AFA" font-family="system-ui,sans-serif">user_id</text>
+
+  <rect x="41" y="140" width="198" height="22" fill="#1b1735"/>
+  <circle cx="53" cy="151" r="2" fill="#2e2a52"/>
+  <text x="64" y="155" font-size="11" font-weight="400" fill="#ccc8f0" font-family="system-ui,sans-serif">expires_at</text>
+
+  <!-- TABLA: friendships -->
+  <rect x="41" y="214" width="200" height="156" rx="10" fill="#000" opacity="0.35"/>
+  <rect x="40" y="210" width="200" height="156" rx="10" fill="#15122b"/>
+  <rect x="40" y="210" width="200" height="36" rx="10" fill="#1a1640"/>
+  <rect x="40" y="230" width="200" height="16" fill="#1a1640"/>
+  <rect x="40" y="210" width="4" height="36" rx="2" fill="#6AD4FA"/>
+  <text x="54" y="233" font-size="12" font-weight="700" fill="#e0ddff" font-family="system-ui,sans-serif">friendships</text>
+  <line x1="40" y1="246" x2="240" y2="246" stroke="#2e2a52" stroke-width="0.5"/>
+  <rect x="40" y="210" width="200" height="156" rx="10" fill="none" stroke="#2e2a52" stroke-width="0.8"/>
+
+  <rect x="41" y="246" width="198" height="22" fill="#1b1735"/>
+  <circle cx="53" cy="257" r="5" fill="#F59E42"/>
+  <text x="53" y="261" font-size="6" font-weight="800" fill="#1a0a00" text-anchor="middle" font-family="system-ui,sans-serif">PK</text>
+  <text x="64" y="261" font-size="11" font-weight="600" fill="#F59E42" font-family="system-ui,sans-serif">id</text>
+
+  <rect x="41" y="268" width="198" height="22" fill="#15122b"/>
+  <circle cx="53" cy="279" r="5" fill="#7C6AFA" opacity="0.75"/>
+  <text x="53" y="283" font-size="6" font-weight="800" fill="white" text-anchor="middle" font-family="system-ui,sans-serif">FK</text>
+  <text x="64" y="283" font-size="11" font-weight="500" fill="#7C6AFA" font-family="system-ui,sans-serif">user_id</text>
+
+  <rect x="41" y="290" width="198" height="22" fill="#1b1735"/>
+  <circle cx="53" cy="301" r="5" fill="#7C6AFA" opacity="0.75"/>
+  <text x="53" y="305" font-size="6" font-weight="800" fill="white" text-anchor="middle" font-family="system-ui,sans-serif">FK</text>
+  <text x="64" y="305" font-size="11" font-weight="500" fill="#7C6AFA" font-family="system-ui,sans-serif">friend_id</text>
+
+  <rect x="41" y="312" width="198" height="22" fill="#15122b"/>
+  <circle cx="53" cy="323" r="2" fill="#2e2a52"/>
+  <text x="64" y="327" font-size="11" font-weight="400" fill="#ccc8f0" font-family="system-ui,sans-serif">status</text>
+
+  <rect x="41" y="334" width="198" height="22" fill="#1b1735"/>
+  <circle cx="53" cy="345" r="2" fill="#2e2a52"/>
+  <text x="64" y="349" font-size="11" font-weight="400" fill="#ccc8f0" font-family="system-ui,sans-serif">updated_at</text>
+
+  <!-- TABLA: messages -->
+  <rect x="41" y="424" width="200" height="178" rx="10" fill="#000" opacity="0.35"/>
+  <rect x="40" y="420" width="200" height="178" rx="10" fill="#15122b"/>
+  <rect x="40" y="420" width="200" height="36" rx="10" fill="#1a1640"/>
+  <rect x="40" y="440" width="200" height="16" fill="#1a1640"/>
+  <rect x="40" y="420" width="4" height="36" rx="2" fill="#6AD4FA"/>
+  <text x="54" y="443" font-size="12" font-weight="700" fill="#e0ddff" font-family="system-ui,sans-serif">messages</text>
+  <line x1="40" y1="456" x2="240" y2="456" stroke="#2e2a52" stroke-width="0.5"/>
+  <rect x="40" y="420" width="200" height="178" rx="10" fill="none" stroke="#2e2a52" stroke-width="0.8"/>
+
+  <rect x="41" y="456" width="198" height="22" fill="#1b1735"/>
+  <circle cx="53" cy="467" r="5" fill="#F59E42"/>
+  <text x="53" y="471" font-size="6" font-weight="800" fill="#1a0a00" text-anchor="middle" font-family="system-ui,sans-serif">PK</text>
+  <text x="64" y="471" font-size="11" font-weight="600" fill="#F59E42" font-family="system-ui,sans-serif">id</text>
+
+  <rect x="41" y="478" width="198" height="22" fill="#15122b"/>
+  <circle cx="53" cy="489" r="5" fill="#7C6AFA" opacity="0.75"/>
+  <text x="53" y="493" font-size="6" font-weight="800" fill="white" text-anchor="middle" font-family="system-ui,sans-serif">FK</text>
+  <text x="64" y="493" font-size="11" font-weight="500" fill="#7C6AFA" font-family="system-ui,sans-serif">sender_id</text>
+
+  <rect x="41" y="500" width="198" height="22" fill="#1b1735"/>
+  <circle cx="53" cy="511" r="5" fill="#7C6AFA" opacity="0.75"/>
+  <text x="53" y="515" font-size="6" font-weight="800" fill="white" text-anchor="middle" font-family="system-ui,sans-serif">FK</text>
+  <text x="64" y="515" font-size="11" font-weight="500" fill="#7C6AFA" font-family="system-ui,sans-serif">receiver_id</text>
+
+  <rect x="41" y="522" width="198" height="22" fill="#15122b"/>
+  <circle cx="53" cy="533" r="2" fill="#2e2a52"/>
+  <text x="64" y="537" font-size="11" font-weight="400" fill="#ccc8f0" font-family="system-ui,sans-serif">content</text>
+
+  <rect x="41" y="544" width="198" height="22" fill="#1b1735"/>
+  <circle cx="53" cy="555" r="2" fill="#2e2a52"/>
+  <text x="64" y="559" font-size="11" font-weight="400" fill="#ccc8f0" font-family="system-ui,sans-serif">is_read</text>
+
+  <rect x="41" y="566" width="198" height="22" fill="#15122b"/>
+  <circle cx="53" cy="577" r="2" fill="#2e2a52"/>
+  <text x="64" y="581" font-size="11" font-weight="400" fill="#ccc8f0" font-family="system-ui,sans-serif">sent_at</text>
+
+  <!-- TABLA: notifications -->
+  <rect x="41" y="644" width="200" height="178" rx="10" fill="#000" opacity="0.35"/>
+  <rect x="40" y="640" width="200" height="178" rx="10" fill="#15122b"/>
+  <rect x="40" y="640" width="200" height="36" rx="10" fill="#1a1640"/>
+  <rect x="40" y="660" width="200" height="16" fill="#1a1640"/>
+  <rect x="40" y="640" width="4" height="36" rx="2" fill="#6AD4FA"/>
+  <text x="54" y="663" font-size="12" font-weight="700" fill="#e0ddff" font-family="system-ui,sans-serif">notifications</text>
+  <line x1="40" y1="676" x2="240" y2="676" stroke="#2e2a52" stroke-width="0.5"/>
+  <rect x="40" y="640" width="200" height="178" rx="10" fill="none" stroke="#2e2a52" stroke-width="0.8"/>
+
+  <rect x="41" y="676" width="198" height="22" fill="#1b1735"/>
+  <circle cx="53" cy="687" r="5" fill="#F59E42"/>
+  <text x="53" y="691" font-size="6" font-weight="800" fill="#1a0a00" text-anchor="middle" font-family="system-ui,sans-serif">PK</text>
+  <text x="64" y="691" font-size="11" font-weight="600" fill="#F59E42" font-family="system-ui,sans-serif">id</text>
+
+  <rect x="41" y="698" width="198" height="22" fill="#15122b"/>
+  <circle cx="53" cy="709" r="5" fill="#7C6AFA" opacity="0.75"/>
+  <text x="53" y="713" font-size="6" font-weight="800" fill="white" text-anchor="middle" font-family="system-ui,sans-serif">FK</text>
+  <text x="64" y="713" font-size="11" font-weight="500" fill="#7C6AFA" font-family="system-ui,sans-serif">user_id</text>
+
+  <rect x="41" y="720" width="198" height="22" fill="#1b1735"/>
+  <circle cx="53" cy="731" r="2" fill="#2e2a52"/>
+  <text x="64" y="735" font-size="11" font-weight="400" fill="#ccc8f0" font-family="system-ui,sans-serif">type</text>
+
+  <rect x="41" y="742" width="198" height="22" fill="#15122b"/>
+  <circle cx="53" cy="753" r="2" fill="#2e2a52"/>
+  <text x="64" y="757" font-size="11" font-weight="400" fill="#ccc8f0" font-family="system-ui,sans-serif">payload</text>
+
+  <rect x="41" y="764" width="198" height="22" fill="#1b1735"/>
+  <circle cx="53" cy="775" r="2" fill="#2e2a52"/>
+  <text x="64" y="779" font-size="11" font-weight="400" fill="#ccc8f0" font-family="system-ui,sans-serif">is_read</text>
+
+  <rect x="41" y="786" width="198" height="22" fill="#15122b"/>
+  <circle cx="53" cy="797" r="2" fill="#2e2a52"/>
+  <text x="64" y="801" font-size="11" font-weight="400" fill="#ccc8f0" font-family="system-ui,sans-serif">created_at</text>
+
+  <!-- TABLA: achievements -->
+  <rect x="41" y="864" width="200" height="134" rx="10" fill="#000" opacity="0.35"/>
+  <rect x="40" y="860" width="200" height="134" rx="10" fill="#15122b"/>
+  <rect x="40" y="860" width="200" height="36" rx="10" fill="#1a1640"/>
+  <rect x="40" y="880" width="200" height="16" fill="#1a1640"/>
+  <rect x="40" y="860" width="4" height="36" rx="2" fill="#FAD46A"/>
+  <text x="54" y="883" font-size="12" font-weight="700" fill="#e0ddff" font-family="system-ui,sans-serif">achievements</text>
+  <line x1="40" y1="896" x2="240" y2="896" stroke="#2e2a52" stroke-width="0.5"/>
+  <rect x="40" y="860" width="200" height="134" rx="10" fill="none" stroke="#2e2a52" stroke-width="0.8"/>
+
+  <rect x="41" y="896" width="198" height="22" fill="#1b1735"/>
+  <circle cx="53" cy="907" r="5" fill="#F59E42"/>
+  <text x="53" y="911" font-size="6" font-weight="800" fill="#1a0a00" text-anchor="middle" font-family="system-ui,sans-serif">PK</text>
+  <text x="64" y="911" font-size="11" font-weight="600" fill="#F59E42" font-family="system-ui,sans-serif">id</text>
+
+  <rect x="41" y="918" width="198" height="22" fill="#15122b"/>
+  <circle cx="53" cy="929" r="2" fill="#2e2a52"/>
+  <text x="64" y="933" font-size="11" font-weight="400" fill="#ccc8f0" font-family="system-ui,sans-serif">key</text>
+
+  <rect x="41" y="940" width="198" height="22" fill="#1b1735"/>
+  <circle cx="53" cy="951" r="2" fill="#2e2a52"/>
+  <text x="64" y="955" font-size="11" font-weight="400" fill="#ccc8f0" font-family="system-ui,sans-serif">name</text>
+
+  <rect x="41" y="962" width="198" height="22" fill="#15122b"/>
+  <circle cx="53" cy="973" r="2" fill="#2e2a52"/>
+  <text x="64" y="977" font-size="11" font-weight="400" fill="#ccc8f0" font-family="system-ui,sans-serif">description</text>
+
+  <!-- TABLA: user_achievements -->
+  <rect x="41" y="1034" width="200" height="112" rx="10" fill="#000" opacity="0.35"/>
+  <rect x="40" y="1030" width="200" height="112" rx="10" fill="#15122b"/>
+  <rect x="40" y="1030" width="200" height="36" rx="10" fill="#1a1640"/>
+  <rect x="40" y="1050" width="200" height="16" fill="#1a1640"/>
+  <rect x="40" y="1030" width="4" height="36" rx="2" fill="#FAD46A"/>
+  <text x="54" y="1053" font-size="12" font-weight="700" fill="#e0ddff" font-family="system-ui,sans-serif">user_achievements</text>
+  <line x1="40" y1="1066" x2="240" y2="1066" stroke="#2e2a52" stroke-width="0.5"/>
+  <rect x="40" y="1030" width="200" height="112" rx="10" fill="none" stroke="#2e2a52" stroke-width="0.8"/>
+
+  <rect x="41" y="1066" width="198" height="22" fill="#1b1735"/>
+  <circle cx="53" cy="1077" r="5" fill="#F59E42"/>
+  <text x="53" y="1081" font-size="6" font-weight="800" fill="#1a0a00" text-anchor="middle" font-family="system-ui,sans-serif">PK</text>
+  <text x="64" y="1081" font-size="11" font-weight="600" fill="#F59E42" font-family="system-ui,sans-serif">user_id</text>
+
+  <rect x="41" y="1088" width="198" height="22" fill="#15122b"/>
+  <circle cx="53" cy="1099" r="5" fill="#F59E42"/>
+  <text x="53" y="1103" font-size="6" font-weight="800" fill="#1a0a00" text-anchor="middle" font-family="system-ui,sans-serif">PK</text>
+  <text x="64" y="1103" font-size="11" font-weight="600" fill="#F59E42" font-family="system-ui,sans-serif">achievement_id</text>
+
+  <rect x="41" y="1110" width="198" height="22" fill="#1b1735"/>
+  <circle cx="53" cy="1121" r="2" fill="#2e2a52"/>
+  <text x="64" y="1125" font-size="11" font-weight="400" fill="#ccc8f0" font-family="system-ui,sans-serif">earned_at</text>
+
+  <!-- TABLA: user_stats -->
+  <rect x="721" y="44" width="200" height="222" rx="10" fill="#000" opacity="0.35"/>
+  <rect x="720" y="40" width="200" height="222" rx="10" fill="#15122b"/>
+  <rect x="720" y="40" width="200" height="36" rx="10" fill="#1a1640"/>
+  <rect x="720" y="60" width="200" height="16" fill="#1a1640"/>
+  <rect x="720" y="40" width="4" height="36" rx="2" fill="#FA8C6A"/>
+  <text x="734" y="63" font-size="12" font-weight="700" fill="#e0ddff" font-family="system-ui,sans-serif">user_stats</text>
+  <line x1="720" y1="76" x2="920" y2="76" stroke="#2e2a52" stroke-width="0.5"/>
+  <rect x="720" y="40" width="200" height="222" rx="10" fill="none" stroke="#2e2a52" stroke-width="0.8"/>
+
+  <rect x="721" y="76" width="198" height="22" fill="#1b1735"/>
+  <circle cx="733" cy="87" r="5" fill="#F59E42"/>
+  <text x="733" y="91" font-size="6" font-weight="800" fill="#1a0a00" text-anchor="middle" font-family="system-ui,sans-serif">PK</text>
+  <text x="744" y="91" font-size="11" font-weight="600" fill="#F59E42" font-family="system-ui,sans-serif">user_id</text>
+
+  <rect x="721" y="98" width="198" height="22" fill="#15122b"/>
+  <circle cx="733" cy="109" r="2" fill="#2e2a52"/>
+  <text x="744" y="113" font-size="11" font-weight="400" fill="#ccc8f0" font-family="system-ui,sans-serif">wins</text>
+
+  <rect x="721" y="120" width="198" height="22" fill="#1b1735"/>
+  <circle cx="733" cy="131" r="2" fill="#2e2a52"/>
+  <text x="744" y="135" font-size="11" font-weight="400" fill="#ccc8f0" font-family="system-ui,sans-serif">losses</text>
+
+  <rect x="721" y="142" width="198" height="22" fill="#15122b"/>
+  <circle cx="733" cy="153" r="2" fill="#2e2a52"/>
+  <text x="744" y="157" font-size="11" font-weight="400" fill="#ccc8f0" font-family="system-ui,sans-serif">draws</text>
+
+  <rect x="721" y="164" width="198" height="22" fill="#1b1735"/>
+  <circle cx="733" cy="175" r="2" fill="#2e2a52"/>
+  <text x="744" y="179" font-size="11" font-weight="400" fill="#ccc8f0" font-family="system-ui,sans-serif">win_streak</text>
+
+  <rect x="721" y="186" width="198" height="22" fill="#15122b"/>
+  <circle cx="733" cy="197" r="2" fill="#2e2a52"/>
+  <text x="744" y="201" font-size="11" font-weight="400" fill="#ccc8f0" font-family="system-ui,sans-serif">best_streak</text>
+
+  <rect x="721" y="208" width="198" height="22" fill="#1b1735"/>
+  <circle cx="733" cy="219" r="2" fill="#2e2a52"/>
+  <text x="744" y="223" font-size="11" font-weight="400" fill="#ccc8f0" font-family="system-ui,sans-serif">xp</text>
+
+  <rect x="721" y="230" width="198" height="22" fill="#15122b"/>
+  <circle cx="733" cy="241" r="2" fill="#2e2a52"/>
+  <text x="744" y="245" font-size="11" font-weight="400" fill="#ccc8f0" font-family="system-ui,sans-serif">level</text>
+
+  <!-- TABLA: matches -->
+  <rect x="721" y="314" width="200" height="266" rx="10" fill="#000" opacity="0.35"/>
+  <rect x="720" y="310" width="200" height="266" rx="10" fill="#15122b"/>
+  <rect x="720" y="310" width="200" height="36" rx="10" fill="#1a1640"/>
+  <rect x="720" y="330" width="200" height="16" fill="#1a1640"/>
+  <rect x="720" y="310" width="4" height="36" rx="2" fill="#FA8C6A"/>
+  <text x="734" y="333" font-size="12" font-weight="700" fill="#e0ddff" font-family="system-ui,sans-serif">matches</text>
+  <line x1="720" y1="346" x2="920" y2="346" stroke="#2e2a52" stroke-width="0.5"/>
+  <rect x="720" y="310" width="200" height="266" rx="10" fill="none" stroke="#2e2a52" stroke-width="0.8"/>
+
+  <rect x="721" y="346" width="198" height="22" fill="#1b1735"/>
+  <circle cx="733" cy="357" r="5" fill="#F59E42"/>
+  <text x="733" y="361" font-size="6" font-weight="800" fill="#1a0a00" text-anchor="middle" font-family="system-ui,sans-serif">PK</text>
+  <text x="744" y="361" font-size="11" font-weight="600" fill="#F59E42" font-family="system-ui,sans-serif">id</text>
+
+  <rect x="721" y="368" width="198" height="22" fill="#15122b"/>
+  <circle cx="733" cy="379" r="5" fill="#7C6AFA" opacity="0.75"/>
+  <text x="733" y="383" font-size="6" font-weight="800" fill="white" text-anchor="middle" font-family="system-ui,sans-serif">FK</text>
+  <text x="744" y="383" font-size="11" font-weight="500" fill="#7C6AFA" font-family="system-ui,sans-serif">player1_id</text>
+
+  <rect x="721" y="390" width="198" height="22" fill="#1b1735"/>
+  <circle cx="733" cy="401" r="5" fill="#7C6AFA" opacity="0.75"/>
+  <text x="733" y="405" font-size="6" font-weight="800" fill="white" text-anchor="middle" font-family="system-ui,sans-serif">FK</text>
+  <text x="744" y="405" font-size="11" font-weight="500" fill="#7C6AFA" font-family="system-ui,sans-serif">player2_id</text>
+
+  <rect x="721" y="412" width="198" height="22" fill="#15122b"/>
+  <circle cx="733" cy="423" r="5" fill="#7C6AFA" opacity="0.75"/>
+  <text x="733" y="427" font-size="6" font-weight="800" fill="white" text-anchor="middle" font-family="system-ui,sans-serif">FK</text>
+  <text x="744" y="427" font-size="11" font-weight="500" fill="#7C6AFA" font-family="system-ui,sans-serif">winner_id</text>
+
+  <rect x="721" y="434" width="198" height="22" fill="#1b1735"/>
+  <circle cx="733" cy="445" r="2" fill="#2e2a52"/>
+  <text x="744" y="449" font-size="11" font-weight="400" fill="#ccc8f0" font-family="system-ui,sans-serif">score1</text>
+
+  <rect x="721" y="456" width="198" height="22" fill="#15122b"/>
+  <circle cx="733" cy="467" r="2" fill="#2e2a52"/>
+  <text x="744" y="471" font-size="11" font-weight="400" fill="#ccc8f0" font-family="system-ui,sans-serif">score2</text>
+
+  <rect x="721" y="478" width="198" height="22" fill="#1b1735"/>
+  <circle cx="733" cy="489" r="2" fill="#2e2a52"/>
+  <text x="744" y="493" font-size="11" font-weight="400" fill="#ccc8f0" font-family="system-ui,sans-serif">game_type</text>
+
+  <rect x="721" y="500" width="198" height="22" fill="#15122b"/>
+  <circle cx="733" cy="511" r="2" fill="#2e2a52"/>
+  <text x="744" y="515" font-size="11" font-weight="400" fill="#ccc8f0" font-family="system-ui,sans-serif">played_at</text>
+
+  <rect x="721" y="522" width="198" height="22" fill="#1b1735"/>
+  <circle cx="733" cy="533" r="2" fill="#2e2a52"/>
+  <text x="744" y="537" font-size="11" font-weight="400" fill="#ccc8f0" font-family="system-ui,sans-serif">ended_at</text>
+
+  <rect x="721" y="544" width="198" height="22" fill="#15122b"/>
+  <circle cx="733" cy="555" r="2" fill="#2e2a52"/>
+  <text x="744" y="559" font-size="11" font-weight="400" fill="#ccc8f0" font-family="system-ui,sans-serif">duration_s</text>
+
+  <!-- TABLA: tournaments -->
+  <rect x="721" y="644" width="200" height="156" rx="10" fill="#000" opacity="0.35"/>
+  <rect x="720" y="640" width="200" height="156" rx="10" fill="#15122b"/>
+  <rect x="720" y="640" width="200" height="36" rx="10" fill="#1a1640"/>
+  <rect x="720" y="660" width="200" height="16" fill="#1a1640"/>
+  <rect x="720" y="640" width="4" height="36" rx="2" fill="#6AFAD4"/>
+  <text x="734" y="663" font-size="12" font-weight="700" fill="#e0ddff" font-family="system-ui,sans-serif">tournaments</text>
+  <line x1="720" y1="676" x2="920" y2="676" stroke="#2e2a52" stroke-width="0.5"/>
+  <rect x="720" y="640" width="200" height="156" rx="10" fill="none" stroke="#2e2a52" stroke-width="0.8"/>
+
+  <rect x="721" y="676" width="198" height="22" fill="#1b1735"/>
+  <circle cx="733" cy="687" r="5" fill="#F59E42"/>
+  <text x="733" y="691" font-size="6" font-weight="800" fill="#1a0a00" text-anchor="middle" font-family="system-ui,sans-serif">PK</text>
+  <text x="744" y="691" font-size="11" font-weight="600" fill="#F59E42" font-family="system-ui,sans-serif">id</text>
+
+  <rect x="721" y="698" width="198" height="22" fill="#15122b"/>
+  <circle cx="733" cy="709" r="2" fill="#2e2a52"/>
+  <text x="744" y="713" font-size="11" font-weight="400" fill="#ccc8f0" font-family="system-ui,sans-serif">name</text>
+
+  <rect x="721" y="720" width="198" height="22" fill="#1b1735"/>
+  <circle cx="733" cy="731" r="2" fill="#2e2a52"/>
+  <text x="744" y="735" font-size="11" font-weight="400" fill="#ccc8f0" font-family="system-ui,sans-serif">status</text>
+
+  <rect x="721" y="742" width="198" height="22" fill="#15122b"/>
+  <circle cx="733" cy="753" r="5" fill="#7C6AFA" opacity="0.75"/>
+  <text x="733" y="757" font-size="6" font-weight="800" fill="white" text-anchor="middle" font-family="system-ui,sans-serif">FK</text>
+  <text x="744" y="757" font-size="11" font-weight="500" fill="#7C6AFA" font-family="system-ui,sans-serif">created_by</text>
+
+  <rect x="721" y="764" width="198" height="22" fill="#1b1735"/>
+  <circle cx="733" cy="775" r="2" fill="#2e2a52"/>
+  <text x="744" y="779" font-size="11" font-weight="400" fill="#ccc8f0" font-family="system-ui,sans-serif">created_at</text>
+
+  <!-- TABLA: tournament_players -->
+  <rect x="721" y="844" width="200" height="112" rx="10" fill="#000" opacity="0.35"/>
+  <rect x="720" y="840" width="200" height="112" rx="10" fill="#15122b"/>
+  <rect x="720" y="840" width="200" height="36" rx="10" fill="#1a1640"/>
+  <rect x="720" y="860" width="200" height="16" fill="#1a1640"/>
+  <rect x="720" y="840" width="4" height="36" rx="2" fill="#6AFAD4"/>
+  <text x="734" y="863" font-size="12" font-weight="700" fill="#e0ddff" font-family="system-ui,sans-serif">tournament_players</text>
+  <line x1="720" y1="876" x2="920" y2="876" stroke="#2e2a52" stroke-width="0.5"/>
+  <rect x="720" y="840" width="200" height="112" rx="10" fill="none" stroke="#2e2a52" stroke-width="0.8"/>
+
+  <rect x="721" y="876" width="198" height="22" fill="#1b1735"/>
+  <circle cx="733" cy="887" r="5" fill="#F59E42"/>
+  <text x="733" y="891" font-size="6" font-weight="800" fill="#1a0a00" text-anchor="middle" font-family="system-ui,sans-serif">PK</text>
+  <text x="744" y="891" font-size="11" font-weight="600" fill="#F59E42" font-family="system-ui,sans-serif">tournament_id</text>
+
+  <rect x="721" y="898" width="198" height="22" fill="#15122b"/>
+  <circle cx="733" cy="909" r="5" fill="#F59E42"/>
+  <text x="733" y="913" font-size="6" font-weight="800" fill="#1a0a00" text-anchor="middle" font-family="system-ui,sans-serif">PK</text>
+  <text x="744" y="913" font-size="11" font-weight="600" fill="#F59E42" font-family="system-ui,sans-serif">user_id</text>
+
+  <rect x="721" y="920" width="198" height="22" fill="#1b1735"/>
+  <circle cx="733" cy="931" r="2" fill="#2e2a52"/>
+  <text x="744" y="935" font-size="11" font-weight="400" fill="#ccc8f0" font-family="system-ui,sans-serif">eliminated</text>
+
+  <!-- TABLA: tournament_matches -->
+  <rect x="721" y="994" width="200" height="156" rx="10" fill="#000" opacity="0.35"/>
+  <rect x="720" y="990" width="200" height="156" rx="10" fill="#15122b"/>
+  <rect x="720" y="990" width="200" height="36" rx="10" fill="#1a1640"/>
+  <rect x="720" y="1010" width="200" height="16" fill="#1a1640"/>
+  <rect x="720" y="990" width="4" height="36" rx="2" fill="#6AFAD4"/>
+  <text x="734" y="1013" font-size="12" font-weight="700" fill="#e0ddff" font-family="system-ui,sans-serif">tournament_matches</text>
+  <line x1="720" y1="1026" x2="920" y2="1026" stroke="#2e2a52" stroke-width="0.5"/>
+  <rect x="720" y="990" width="200" height="156" rx="10" fill="none" stroke="#2e2a52" stroke-width="0.8"/>
+
+  <rect x="721" y="1026" width="198" height="22" fill="#1b1735"/>
+  <circle cx="733" cy="1037" r="5" fill="#F59E42"/>
+  <text x="733" y="1041" font-size="6" font-weight="800" fill="#1a0a00" text-anchor="middle" font-family="system-ui,sans-serif">PK</text>
+  <text x="744" y="1041" font-size="11" font-weight="600" fill="#F59E42" font-family="system-ui,sans-serif">id</text>
+
+  <rect x="721" y="1048" width="198" height="22" fill="#15122b"/>
+  <circle cx="733" cy="1059" r="5" fill="#7C6AFA" opacity="0.75"/>
+  <text x="733" y="1063" font-size="6" font-weight="800" fill="white" text-anchor="middle" font-family="system-ui,sans-serif">FK</text>
+  <text x="744" y="1063" font-size="11" font-weight="500" fill="#7C6AFA" font-family="system-ui,sans-serif">tournament_id</text>
+
+  <rect x="721" y="1070" width="198" height="22" fill="#1b1735"/>
+  <circle cx="733" cy="1081" r="5" fill="#7C6AFA" opacity="0.75"/>
+  <text x="733" y="1085" font-size="6" font-weight="800" fill="white" text-anchor="middle" font-family="system-ui,sans-serif">FK</text>
+  <text x="744" y="1085" font-size="11" font-weight="500" fill="#7C6AFA" font-family="system-ui,sans-serif">match_id</text>
+
+  <rect x="721" y="1092" width="198" height="22" fill="#15122b"/>
+  <circle cx="733" cy="1103" r="2" fill="#2e2a52"/>
+  <text x="744" y="1107" font-size="11" font-weight="400" fill="#ccc8f0" font-family="system-ui,sans-serif">round</text>
+
+  <rect x="721" y="1114" width="198" height="22" fill="#1b1735"/>
+  <circle cx="733" cy="1125" r="2" fill="#2e2a52"/>
+  <text x="744" y="1129" font-size="11" font-weight="400" fill="#ccc8f0" font-family="system-ui,sans-serif">match_order</text>
+
+  <!-- TABLA: spectators -->
+  <rect x="381" y="644" width="200" height="200" rx="10" fill="#000" opacity="0.35"/>
+  <rect x="380" y="640" width="200" height="200" rx="10" fill="#15122b"/>
+  <rect x="380" y="640" width="200" height="36" rx="10" fill="#1a1640"/>
+  <rect x="380" y="660" width="200" height="16" fill="#1a1640"/>
+  <rect x="380" y="640" width="4" height="36" rx="2" fill="#D46AFA"/>
+  <text x="394" y="663" font-size="12" font-weight="700" fill="#e0ddff" font-family="system-ui,sans-serif">spectators</text>
+  <line x1="380" y1="676" x2="580" y2="676" stroke="#2e2a52" stroke-width="0.5"/>
+  <rect x="380" y="640" width="200" height="200" rx="10" fill="none" stroke="#2e2a52" stroke-width="0.8"/>
+
+  <rect x="381" y="676" width="198" height="22" fill="#1b1735"/>
+  <circle cx="393" cy="687" r="5" fill="#F59E42"/>
+  <text x="393" y="691" font-size="6" font-weight="800" fill="#1a0a00" text-anchor="middle" font-family="system-ui,sans-serif">PK</text>
+  <text x="404" y="691" font-size="11" font-weight="600" fill="#F59E42" font-family="system-ui,sans-serif">id</text>
+
+  <rect x="381" y="698" width="198" height="22" fill="#15122b"/>
+  <circle cx="393" cy="709" r="5" fill="#7C6AFA" opacity="0.75"/>
+  <text x="393" y="713" font-size="6" font-weight="800" fill="white" text-anchor="middle" font-family="system-ui,sans-serif">FK</text>
+  <text x="404" y="713" font-size="11" font-weight="500" fill="#7C6AFA" font-family="system-ui,sans-serif">user_id</text>
+
+  <rect x="381" y="720" width="198" height="22" fill="#1b1735"/>
+  <circle cx="393" cy="731" r="2" fill="#2e2a52"/>
+  <text x="404" y="735" font-size="11" font-weight="400" fill="#ccc8f0" font-family="system-ui,sans-serif">session_id</text>
+
+  <rect x="381" y="742" width="198" height="22" fill="#15122b"/>
+  <circle cx="393" cy="753" r="5" fill="#7C6AFA" opacity="0.75"/>
+  <text x="393" y="757" font-size="6" font-weight="800" fill="white" text-anchor="middle" font-family="system-ui,sans-serif">FK</text>
+  <text x="404" y="757" font-size="11" font-weight="500" fill="#7C6AFA" font-family="system-ui,sans-serif">tournament_id</text>
+
+  <rect x="381" y="764" width="198" height="22" fill="#1b1735"/>
+  <circle cx="393" cy="775" r="2" fill="#2e2a52"/>
+  <text x="404" y="779" font-size="11" font-weight="400" fill="#ccc8f0" font-family="system-ui,sans-serif">mode</text>
+
+  <rect x="381" y="786" width="198" height="22" fill="#15122b"/>
+  <circle cx="393" cy="797" r="2" fill="#2e2a52"/>
+  <text x="404" y="801" font-size="11" font-weight="400" fill="#ccc8f0" font-family="system-ui,sans-serif">joined_at</text>
+
+  <rect x="381" y="808" width="198" height="22" fill="#1b1735"/>
+  <circle cx="393" cy="819" r="2" fill="#2e2a52"/>
+  <text x="404" y="823" font-size="11" font-weight="400" fill="#ccc8f0" font-family="system-ui,sans-serif">left_at</text>
+
+  <!-- LEYENDA (centrada en la parte inferior) -->
+  <rect x="315" y="1110" width="330" height="22" rx="6" fill="#15122b" stroke="#2e2a52" stroke-width="0.7"/>
+  <circle cx="331" cy="1121" r="5" fill="#F59E42"/>
+  <text x="331" y="1125" font-size="6" font-weight="800" fill="#1a0a00" text-anchor="middle" font-family="system-ui,sans-serif">PK</text>
+  <text x="343" y="1125" font-size="10" fill="#7a75a8" font-family="system-ui,sans-serif">Primary key</text>
+  
+  <circle cx="417" cy="1121" r="5" fill="#7C6AFA" opacity="0.75"/>
+  <text x="417" y="1125" font-size="6" font-weight="800" fill="white" text-anchor="middle" font-family="system-ui,sans-serif">FK</text>
+  <text x="429" y="1125" font-size="10" fill="#7a75a8" font-family="system-ui,sans-serif">Foreign key</text>
+  
+  <line x1="513" y1="1121" x2="539" y2="1121" stroke="#7C6AFA" stroke-width="1.5" stroke-dasharray="4 2" opacity="0.7"/>
+  <circle cx="513" cy="1121" r="2.5" fill="#7C6AFA" opacity="0.7"/>
+  <text x="545" y="1125" font-size="10" fill="#7a75a8" font-family="system-ui,sans-serif">Relación FK</text>
 </svg>
