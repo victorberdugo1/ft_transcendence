@@ -4,7 +4,9 @@ WORKDIR /build
 
 RUN git clone --depth 1 --branch 5.0 https://github.com/raysan5/raylib.git && \
     cd raylib/src && \
-    make PLATFORM=PLATFORM_WEB -j$(nproc)
+    make PLATFORM=PLATFORM_WEB \
+    CUSTOM_CFLAGS="-DSUPPORT_FILEFORMAT_JPG=1" \
+    -j$(nproc)
 
 COPY game/src/ ./src/
 
@@ -14,6 +16,9 @@ RUN emcc src/main.c \
     -I raylib/src \
     -I src \
     -DPLATFORM_WEB \
+    -Wall \
+    -Wextra \
+    -Werror \
     -s USE_GLFW=3 \
     -s TOTAL_MEMORY=268435456 \
     -s ALLOW_MEMORY_GROWTH=1 \

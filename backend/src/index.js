@@ -240,9 +240,45 @@ const VOLTAGE_SCALE_ATTACK  = 1.0;
 const VOLTAGE_SCALE_DEFEND  = 1.0;
 
 function voltageMultiplier(v) {
-    if (v >= VOLTAGE_MAX) return 5.0;
+    if (v >= VOLTAGE_MAX) return 6.0;
     return 1.0 + Math.log(1 + v / 40) * 0.38;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  HITSTOP SYSTEM  (estilo Smash Bros / HAL Laboratory)
+//
+//  El hitstop es una PAUSA PURA: toda física e input se congela durante
+//  exactamente N frames.  No hay bullet-time parcial — el freeze es total
+//  y la salida explosiva.  La duración escala con el voltaje del atacante.
+//
+//  Duraciones (a 60 Hz):
+//    voltage <  30  →  3 frames  (~50 ms)  — micro-stop, apenas perceptible
+//    30 –  79       →  6 frames  (~100 ms) — golpe normal con peso
+//    80 – 149       → 10 frames  (~167 ms) — golpe fuerte, claramente visible
+//   150 – 199       → 15 frames  (~250 ms) — heavy, bullet time notable
+//    200 (maxed)    → 22 frames  (~367 ms) — ultra, espectacular
+// ─────────────────────────────────────────────────────────────────────────────
+function calcHitstop(attackerVoltage) {
+    const v = attackerVoltage;
+    if (v >= 200) {
+        return { durationFrames: 22, tier: 'ultra' };
+    } else if (v >= 150) {
+        const t = (v - 150) / 50;
+        return { durationFrames: Math.round(15 + t * 7), tier: 'heavy' };
+    } else if (v >= 80) {
+        const t = (v - 80) / 70;
+        return { durationFrames: Math.round(10 + t * 5), tier: 'medium' };
+    } else if (v >= 30) {
+        const t = (v - 30) / 50;
+        return { durationFrames: Math.round(6 + t * 4), tier: 'light' };
+    } else {
+        return { durationFrames: 3, tier: 'micro' };
+    }
+}
+
+// Estado global de hitstop por sesión.
+// hitstopBySession[sessionId] = { framesLeft, tier } | null
+const hitstopBySession = {};
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  BLOCK SYSTEM
@@ -406,6 +442,51 @@ function broadcastStateToSpectators() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+//  CHARACTER DEFINITIONS  (stats por personaje)
+//  moveSpeed      → velocidad de movimiento (base: 5.0)
+//  dashSpeed      → velocidad de dash (base: 14.0)
+//  attackKnockback→ fuerza de knockback (base: 14.0)
+//  attackRange    → alcance del ataque (base: 0.525)
+// ─────────────────────────────────────────────────────────────────────────────
+const CHARACTER_DEFS = {
+    eld: { name: 'Eldwin',  moveSpeed: 4.5,  dashSpeed: 13.0, attackKnockback: 16.0, attackRange: 0.55  },
+    hil: { name: 'Hilda',   moveSpeed: 5.5,  dashSpeed: 15.0, attackKnockback: 12.0, attackRange: 0.50  },
+    qui: { name: 'Quimbur', moveSpeed: 3.8,  dashSpeed: 11.0, attackKnockback: 18.0, attackRange: 0.60  },
+    gab: { name: 'Gabriel', moveSpeed: 6.0,  dashSpeed: 16.0, attackKnockback: 11.0, attackRange: 0.48  },
+};
+
+const CHARACTER_ASSETS = {
+    eld: { texCfg: 'data/textures/eld/bone_textures.txt', texSets: 'data/textures/eld/texture_sets.txt', animBase: 'data/animations/eld/', portrait: 'data/eldwin_portrait.jpg'  },
+    hil: { texCfg: 'data/textures/hil/bone_textures.txt', texSets: 'data/textures/hil/texture_sets.txt', animBase: 'data/animations/hil/', portrait: 'data/hilda_portrait.jpg'   },
+    qui: { texCfg: 'data/textures/qui/bone_textures.txt', texSets: 'data/textures/qui/texture_sets.txt', animBase: 'data/animations/qui/', portrait: 'data/quimbur_portrait.jpg' },
+    gab: { texCfg: 'data/textures/gab/bone_textures.txt', texSets: 'data/textures/gab/texture_sets.txt', animBase: 'data/animations/gab/', portrait: 'data/gabriel_portrait.jpg' },
+};
+const CHAR_IDS = ['eld', 'hil', 'qui', 'gab'];
+
+function buildCharSelectAck(selectorCharId, selectorClientId, stageId) {
+    const playerIds  = Object.keys(players).map(Number);
+    const usedChars  = new Set([selectorCharId]);
+    const playersOut = {};
+    let   altIdx     = 0;
+
+    for (let i = 0; i < Math.min(playerIds.length, 8); i++) {
+        const cid = playerIds[i];
+        let charId;
+        if (cid === selectorClientId) {
+            charId = selectorCharId;
+        } else {
+            while (altIdx < CHAR_IDS.length && usedChars.has(CHAR_IDS[altIdx])) altIdx++;
+            charId = CHAR_IDS[altIdx % CHAR_IDS.length];
+            usedChars.add(charId);
+            altIdx++;
+        }
+        const a = CHARACTER_ASSETS[charId] ?? CHARACTER_ASSETS.eld;
+        playersOut[i] = { clientId: cid, charId, texCfg: a.texCfg, texSets: a.texSets, animBase: a.animBase };
+    }
+    return { type: 'char_select_ack', charId: selectorCharId, selectorClient: selectorClientId, stageId, players: playersOut };
+}
+
 //  WEBSOCKET UPGRADE
 // ─────────────────────────────────────────────────────────────────────────────
 server.on('upgrade', (req, socket, head) => {
@@ -569,6 +650,17 @@ wss.on('connection', async (ws, req) => {
         players[clientId].dbUserId = dbUserId;
         delete lastState[clientId];
 
+        // Restaurar personaje si ya lo había elegido antes (reconexión)
+        const restoredChar = playerCharSelected.get(clientId);
+        if (restoredChar) {
+            const def = CHARACTER_DEFS[restoredChar] ?? CHARACTER_DEFS.eld;
+            players[clientId].charId          = restoredChar;
+            players[clientId].moveSpeed       = def.moveSpeed;
+            players[clientId].dashSpeed       = def.dashSpeed;
+            players[clientId].attackKnockback = def.attackKnockback;
+            players[clientId].attackRange     = def.attackRange;
+        }
+
         isSpectator = false;
         mode = 'player';
 
@@ -576,11 +668,18 @@ wss.on('connection', async (ws, req) => {
             type: 'init',
             clientId,
             config: {
-                attackRange:     ATTACK_RANGE,
+                attackRange:     players[clientId]?.attackRange ?? ATTACK_RANGE,
                 attackRangeY:    ATTACK_RANGE_Y,
                 dashAttackRange: DASH_ATTACK_RANGE_X,
             },
         }));
+
+        // Si ya tenía personaje elegido, reenviar el ack para que el cliente
+        // no muestre el selector de nuevo
+        if (restoredChar) {
+            const ack = buildCharSelectAck(restoredChar, clientId, 0);
+            ws.send(JSON.stringify(ack));
+        }
 
         if (initialMsg && initialMsg.type === 'input') {
             const p = players[clientId];
@@ -660,11 +759,17 @@ wss.on('connection', async (ws, req) => {
                     type: 'init',
                     clientId,
                     config: {
-                        attackRange:     ATTACK_RANGE,
+                        attackRange:     players[clientId]?.attackRange ?? ATTACK_RANGE,
                         attackRangeY:    ATTACK_RANGE_Y,
                         dashAttackRange: DASH_ATTACK_RANGE_X,
                     },
                 }));
+                // Reenviar char_select_ack si ya había elegido personaje
+                const savedChar = playerCharSelected.get(clientId);
+                if (savedChar) {
+                    const ack = buildCharSelectAck(savedChar, clientId, 0);
+                    ws.send(JSON.stringify(ack));
+                }
                 return;
             }
 
@@ -753,6 +858,35 @@ wss.on('connection', async (ws, req) => {
         if (spectators[clientId] && msg.type === 'spectator_ping') {
             sendStateToSpectator(spectators[clientId]);
         }
+
+        if (msg.type === 'char_select') {
+            const charId  = CHAR_IDS.includes(msg.charId) ? msg.charId : 'eld';
+            const stageId = (msg.stageId ?? 0) | 0;
+
+            // Aplicar stats al jugador que seleccionó
+            const p = players[clientId];
+            if (p) {
+                const def = CHARACTER_DEFS[charId] ?? CHARACTER_DEFS.eld;
+                p.charId          = charId;
+                p.moveSpeed       = def.moveSpeed;
+                p.dashSpeed       = def.dashSpeed;
+                p.attackKnockback = def.attackKnockback;
+                p.attackRange     = def.attackRange;
+            }
+
+            // Registrar personaje elegido (persiste para reconexiones)
+            playerCharSelected.set(clientId, charId);
+
+            // Broadcast ack con assets a todos
+            const ack = buildCharSelectAck(charId, clientId, stageId);
+            const raw = JSON.stringify(ack);
+            for (const pl   of Object.values(players))    if (pl.ws   && pl.ws.readyState   === WebSocket.OPEN) pl.ws.send(raw);
+            for (const spec of Object.values(spectators)) if (spec.ws && spec.ws.readyState === WebSocket.OPEN) spec.ws.send(raw);
+            console.log(`[CHAR_SELECT] client=${clientId} char=${charId} moveSpeed=${players[clientId]?.moveSpeed}`);
+
+            // Intentar arrancar combate si hay ≥2 jugadores libres con personaje elegido
+            tryAutoMatch();
+        }
     });
 
     ws.on('close', async () => {
@@ -783,10 +917,15 @@ wss.on('connection', async (ws, req) => {
             x:        p.x,
             y:        p.y,
             onGround: p.onGround,
-            timer:    setTimeout(() => delete lastState[clientId], GHOST_TTL),
+            // Al expirar el ghost TTL, borrar también la selección de personaje
+            timer:    setTimeout(() => {
+                delete lastState[clientId];
+                playerCharSelected.delete(clientId);
+            }, GHOST_TTL),
         };
         delete players[clientId];
         playerSession.delete(clientId);
+        // NO borramos playerCharSelected aquí — se conserva para reconexión (rejoin)
         console.log(`[SERVER] Player ${clientId} disconnected`);
         broadcastState();
     });
@@ -843,6 +982,12 @@ function createPlayer(id, saved, ws) {
             block: false, dashAttack: false,
         },
         ws,
+        /* Stats por personaje — sobreescritos por char_select */
+        charId:          null,
+        moveSpeed:       MOVE_SPEED,
+        dashSpeed:       DASH_SPEED,
+        attackKnockback: ATTACK_KNOCKBACK,
+        attackRange:     ATTACK_RANGE,
     };
 }
 
@@ -860,14 +1005,37 @@ function tick() {
         if (sess?.finished) frozenIds.add(cid);
     }
 
-    const alive = Object.values(players).filter(p => !p.respawning && !frozenIds.has(p.id));
+    // ── Pre-tick: limpiar hitstops expirados del tick anterior ───────────────
+    for (const [sessId, hs] of Object.entries(hitstopBySession)) {
+        if (!hs || hs.framesLeft <= 0) delete hitstopBySession[sessId];
+    }
 
+    // Todos los jugadores vivos corren tickPlayer (incluye detección de golpes).
+    // Si un golpe ocurre aquí, applyHit() escribe en hitstopBySession ahora mismo.
+    const aliveAll = Object.values(players).filter(p => !p.respawning && !frozenIds.has(p.id));
     tickRespawn();
-    for (const p of alive) tickPlayer(p);
+    for (const p of aliveAll) tickPlayer(p);
+
+    // ── Post-tickPlayer: evaluar hitstop con los datos RECIÉN generados ───────
+    // Ahora sí sabemos qué sesiones acaban de recibir un golpe este tick.
+    const hitstopFrozenIds = new Set();
+    for (const [sessId, hs] of Object.entries(hitstopBySession)) {
+        if (!hs || hs.framesLeft <= 0) { delete hitstopBySession[sessId]; continue; }
+        const session = gameSessions.get(sessId);
+        if (session) {
+            for (const cid of session.playerIds) hitstopFrozenIds.add(cid);
+        }
+        hs.framesLeft--;
+        if (hs.framesLeft <= 0) delete hitstopBySession[sessId];
+    }
+
+    // alive para física = los que NO están congelados por hitstop
+    const alive = aliveAll.filter(p => !hitstopFrozenIds.has(p.id));
+    const aliveForAnim = Object.values(players).filter(p => !frozenIds.has(p.id));
     tickPhysics(alive);
     tickCollisions(alive);
     tickPlatforms(alive);
-    tickAnimations(alive);
+    tickAnimations(aliveForAnim);
 
     broadcastState();
 }
@@ -935,7 +1103,7 @@ function tickDash(p, dash, dashDir, moveX, block, crouch) {
     }
     if (p.dashing) {
         p.dashTimer -= TICK_DT;
-        p.vx         = p.dashDir * DASH_SPEED;
+        p.vx         = p.dashDir * (p.dashSpeed ?? DASH_SPEED);
         if (p.dashTimer <= 0) {
             p.dashing        = false;
             p.vx             = 0;
@@ -949,11 +1117,11 @@ function tickDash(p, dash, dashDir, moveX, block, crouch) {
 function tickMovement(p, moveX, jump, crouch) {
     if (!p.dashing) {
         if (p.blocking) {
-            p.vx = moveX * MOVE_SPEED * BLOCK_MOVE_FACTOR;
+            p.vx = moveX * (p.moveSpeed ?? MOVE_SPEED) * BLOCK_MOVE_FACTOR;
         } else if (crouch) {
             p.vx = 0;
         } else if (moveX !== 0) {
-            p.vx     = moveX * MOVE_SPEED;
+            p.vx     = moveX * (p.moveSpeed ?? MOVE_SPEED);
             p.facing = Math.sign(moveX);
         } else {
             p.vx = 0;
@@ -968,7 +1136,7 @@ function tickMovement(p, moveX, jump, crouch) {
         p.animation = 'jump';
         p.animTimer = ANIM_DURATIONS.jump;
         if (!p.dashing && moveX !== 0) {
-            p.vx     = moveX * MOVE_SPEED;
+            p.vx     = moveX * (p.moveSpeed ?? MOVE_SPEED);
             p.facing = Math.sign(moveX);
         }
     }
@@ -1016,7 +1184,7 @@ function resolveAttackAnim(p, isDashAttack, crouch) {
 
 function resolveHits(p) {
     const alive  = Object.values(players).filter(t => !t.respawning);
-    const rangeX = p._isDashAttack ? DASH_ATTACK_RANGE_X : ATTACK_RANGE;
+    const rangeX = p._isDashAttack ? DASH_ATTACK_RANGE_X : (p.attackRange ?? ATTACK_RANGE);
     const hbCX   = p.x + p.facing * (rangeX / 2);
     const hbCY   = p.y + 0.5;
     const hbHW   = rangeX / 2;
@@ -1041,7 +1209,7 @@ function applyHit(attacker, target) {
     const defenderMult = voltageMultiplier(target.voltage)   * VOLTAGE_SCALE_DEFEND;
     const dashMult     = attacker._isDashAttack ? DASH_ATTACK_KB_MULT : 1.0;
     const totalMult    = attackerMult * defenderMult * dashMult;
-    let kbx = dir * ATTACK_KNOCKBACK * totalMult;
+    let kbx = dir * (attacker.attackKnockback ?? ATTACK_KNOCKBACK) * totalMult;
     let kby = ATTACK_KB_UP           * totalMult;
     const isBlocking = target.blocking && target.voltage < VOLTAGE_MAX;
     if (isBlocking) {
@@ -1068,6 +1236,31 @@ function applyHit(attacker, target) {
         });
     }
     attacker.hitTargets.add(target.id);
+
+    // ── Hitstop: calcular según voltaje del atacante ───────────────────────
+    const hs = calcHitstop(attacker.voltage);
+
+    const sessId = playerSession.get(attacker.id);
+    if (sessId) {
+        const existing = hitstopBySession[sessId];
+        // Solo sobreescribir si el nuevo hitstop es más largo
+        if (!existing || hs.durationFrames > existing.framesLeft) {
+            hitstopBySession[sessId] = {
+                framesLeft: hs.durationFrames,
+                tier:       hs.tier,
+            };
+            const session = gameSessions.get(sessId);
+            if (session) {
+                broadcastToSession(session, {
+                    type:       'hitstop',
+                    tier:       hs.tier,
+                    frames:     hs.durationFrames,
+                    attackerId: attacker.id,
+                    targetId:   target.id,
+                });
+            }
+        }
+    }
 }
 
 function tickPhysics(alive) {
@@ -1206,6 +1399,8 @@ function decideAnim(p) {
 const gameSessions = new Map();
 let nextSessionId = 1;
 const playerSession = new Map();
+// clientIds que ya han elegido personaje (persiste entre reconexiones)
+const playerCharSelected = new Map(); // clientId → charId
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  ⚠️  DEBUG AUTO-MATCHMAKING — ELIMINAR CUANDO SE IMPLEMENTE EL LOBBY
@@ -1218,8 +1413,8 @@ let DEBUG_AUTO_MATCH = true;
 
 /**
  * Intenta iniciar una sesión brawl con todos los jugadores libres.
- * Se llama reactivamente cada vez que un jugador se une o termina una partida.
- * No hace nada si ya hay una sesión activa (no FINISHED) o si hay <2 jugadores libres.
+ * Solo arranca si ≥2 jugadores libres YA eligieron personaje.
+ * Se llama reactivamente al unirse/terminar partida/elegir personaje.
  */
 function tryAutoMatch() {
     if (!DEBUG_AUTO_MATCH) return;
@@ -1228,13 +1423,14 @@ function tryAutoMatch() {
     const activeSessions = [...gameSessions.values()].filter(s => !s.finished);
     if (activeSessions.length > 0) return;
 
-    const free = Object.values(players)
-        .filter(p => !playerSession.has(p.id))
+    // Solo jugadores libres que ya eligieron personaje
+    const ready = Object.values(players)
+        .filter(p => !playerSession.has(p.id) && playerCharSelected.has(p.id))
         .map(p => p.id);
 
-    if (free.length < 2) return;
+    if (ready.length < 2) return;
 
-    const sess = startBrawl(free);
+    const sess = startBrawl(ready);
     console.log(`[AUTO-MATCH] Sesión brawl ${sess.id} con jugadores: ${[...sess.playerIds].join(', ')}`);
 }
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1562,6 +1758,7 @@ async function resolveMatchWinner(session, winnerClientId, loserClientId) {
 
     setTimeout(() => {
         gameSessions.delete(session.id);
+        delete hitstopBySession[session.id];   // limpiar estado de hitstop
 
         // Reasignar espectadores que miraban esta sesión
         const nextSession = [...gameSessions.values()].find(s => !s.finished)?.id ?? null;

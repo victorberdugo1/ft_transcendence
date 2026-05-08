@@ -121,6 +121,10 @@ typedef struct {
 	float attackFlashTimer;
 	float attackFlashFacing;
 
+	/* Hit shake — applied to worldPos when this player is the target of a hit */
+	float hitShakeAmt;    /* current shake amplitude (world units), decays to 0 */
+	float hitShakeTimer;  /* time remaining (seconds) */
+
 	/* Skeleton reference frame for stable foot placement */
 	Vector3 referenceCenter;
 	bool    hasReferenceCenter;
@@ -129,6 +133,9 @@ typedef struct {
 
 	/* Bones animation controller */
 	AnimatedCharacter *character;
+
+	char charId[32];
+	int  slotIndex;
 } Player;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -149,6 +156,10 @@ static bool   match_over          = false;
 static int    winner_id           = -1;
 static char   winner_message[80]  = {0};
 
+/* Camera shake — independiente del hitstop, decae por sí solo */
+static float  g_camShakeAmt   = 0.0f;   /* amplitud actual (unidades de mundo) */
+static float  g_camShakeTimer = 0.0f;   /* tiempo restante (segundos) */
+
 /* Deferred player-init queue — one InitPlayer per frame to avoid hitches. */
 #define MAX_PENDING 8
 static int pending_ids[MAX_PENDING];
@@ -168,6 +179,9 @@ int   ws_get_victory_winner(void);
 void  ws_consume_victory(void);
 int   ws_get_countdown(void);
 float ws_get_countdown_elapsed(void);
+int   ws_get_hitstop_frames_left(void);
+float ws_get_hitstop_shake(void);
+int   ws_get_hitstop_target_id(void);
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  JAVASCRIPT BRIDGE  (EM_JS — inline JS called from C)
@@ -225,6 +239,44 @@ EM_JS(void, ws_consume_victory, (void), {
 });
 
 /**
+ * Consulta el estado de hitstop activo.
+ * Devuelve el número de frames restantes (>0 = freeze activo, 0 = sin hitstop).
+ * Decrementa framesLeft en cada llamada (una por frame de render).
+ */
+EM_JS(int, ws_get_hitstop_frames_left, (void), {
+    var hs = window._hitstopState;
+    if (!hs || hs.framesLeft <= 0) {
+        window._hitstopState = null;
+        return 0;
+    }
+    var f = hs.framesLeft;
+    hs.framesLeft--;
+    return f;
+});
+
+/**
+ * Devuelve la intensidad de shake del hitstop activo [0.0–1.0], o 0 si no hay.
+ * Normalizado: 1.0 al inicio del hitstop, decrece linealmente hacia 0.
+ */
+EM_JS(float, ws_get_hitstop_shake, (void), {
+    var hs = window._hitstopState;
+    if (!hs || !hs.shakeAmt || hs.startFrames <= 0) return 0.0;
+    /* t va de 1.0 (inicio) a 0.0 (fin) */
+    var t = hs.framesLeft / hs.startFrames;
+    if (t < 0.0) t = 0.0;
+    return hs.shakeAmt * t;
+});
+
+/**
+ * Devuelve el clientId del target del hitstop activo, o -1 si no hay.
+ */
+EM_JS(int, ws_get_hitstop_target_id, (void), {
+    var hs = window._hitstopState;
+    if (!hs) return -1;
+    return (hs.targetId | 0);
+});
+
+/**
  * Devuelve la fase del countdown:
  *   0 = sin countdown / terminado
  *   1 = READY  (0 – 1.2 s)
@@ -262,7 +314,7 @@ EM_JS(int, ws_get_match_overlay, (char *buf, int len), {
 		stringToUTF8('Waiting for next match...', buf, len);
 		return 3;
 		}
-		stringToUTF8('', buf, len);
+		stringToUTF8("", buf, len);
 		return 0;
 		});
 
@@ -280,10 +332,10 @@ EM_JS(void, ws_consume_match_result, (void), {
 EM_JS(int, ws_get_match_winner, (char *buf, int len), {
 		buf = buf | 0;
 		if (!window._lastMatchResult || window._matchResultConsumed) {
-		stringToUTF8('', buf, len);
+		stringToUTF8("", buf, len);
 		return -1;
 		}
-		const msg = window._lastMatchResult.message || '';
+		const msg = window._lastMatchResult.message || "";
 		stringToUTF8(msg, buf, len);
 		return (window._lastMatchResult.winner | 0);
 		});
@@ -316,6 +368,85 @@ EM_JS(int, ws_get_player, (int idx, char *buf, int len), {
 		].join('|');
 		stringToUTF8(fields, buf, len);
 		return 1;
+});
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  PERSONAJES
+// ─────────────────────────────────────────────────────────────────────────────
+typedef struct { const char *charId, *name, *texCfg, *texSets, *animBase, *portrait; } CharDef;
+
+static const CharDef CHARS[4] = {
+    { "eld", "Eldwin",  "data/textures/eld/bone_textures.txt", "data/textures/eld/texture_sets.txt", "data/animations/eld/", "data/eldwin_portrait.jpg"  },
+    { "hil", "Hilda",   "data/textures/hil/bone_textures.txt", "data/textures/hil/texture_sets.txt", "data/animations/hil/", "data/hilda_portrait.jpg"   },
+    { "qui", "Quimbur", "data/textures/qui/bone_textures.txt", "data/textures/qui/texture_sets.txt", "data/animations/qui/", "data/quimbur_portrait.jpg" },
+    { "gab", "Gabriel", "data/textures/gab/bone_textures.txt", "data/textures/gab/texture_sets.txt", "data/animations/gab/", "data/gabriel_portrait.jpg" },
+};
+#define CHARS_COUNT 4
+
+/* Fases del selector:
+   CSS_SELECTING    — el jugador elige personaje
+   CSS_WAITING_ACK  — esperando que el servidor confirme (char_select_ack)
+   CSS_WAITING_GAME — ack recibido, esperando oponente / match_start
+   CSS_DONE         — match_start recibido, entramos al juego
+*/
+typedef enum { CSS_SELECTING, CSS_WAITING_ACK, CSS_WAITING_GAME, CSS_DONE } CssPhase;
+
+static struct {
+    CssPhase  phase;
+    int       hovered;
+    int       selected;
+    Texture2D portraits[CHARS_COUNT];
+    bool      portraitsLoaded;
+    float     confirmTimer;
+    char      savedCharId[32]; /* charId restaurado desde sessionStorage */
+} g_css = { CSS_SELECTING, 0, -1, {0}, false, 0.0f, "" };
+
+/* Lee window._charSelectData del servidor (true = ya llegó el ack) */
+EM_JS(int, ws_char_select_ready, (void), {
+    return (window._charSelectData && window._charSelectData.charId) ? 1 : 0;
+});
+
+/* Lee el charId del slot slotIdx desde window._charSelectData */
+EM_JS(int, ws_get_slot_char_id, (int slotIdx, char *buf, int len), {
+    buf = buf | 0;
+    if (!window._charSelectData || !window._charSelectData.players) { stringToUTF8("", buf, len); return 0; }
+    var p = window._charSelectData.players[slotIdx];
+    if (!p || !p.charId) { stringToUTF8("", buf, len); return 0; }
+    stringToUTF8(p.charId, buf, len);
+    return 1;
+});
+
+/* Envía char_select al servidor y persiste en sessionStorage */
+EM_JS(void, ws_send_char_select, (const char *charId, int charIdx, int stageId), {
+    var id = UTF8ToString(charId);
+    try { sessionStorage.setItem('pendingCharSelect', JSON.stringify({charId:id,charIdx:charIdx,stageId:stageId})); } catch(e){}
+    if (typeof window.sendCharSelect === 'function') window.sendCharSelect(id, charIdx, stageId);
+});
+
+/* Comprueba si match_start ya fue recibido (el countdown comenzó) */
+EM_JS(int, ws_match_started, (void), {
+    return (window._countdownStart != null || window._countdownDone === true) ? 1 : 0;
+});
+
+/* Lee el charId guardado en sessionStorage (reconexión). Retorna 1 si existe. */
+EM_JS(int, ws_get_saved_char_id, (char *buf, int len), {
+    buf = buf | 0;
+    try {
+        var raw = sessionStorage.getItem('charSelectData');
+        if (!raw) { stringToUTF8("", buf, len); return 0; }
+        var d = JSON.parse(raw);
+        if (!d || !d.charId) { stringToUTF8("", buf, len); return 0; }
+        /* Restaurar en window._charSelectData para que el resto del código lo lea */
+        window._charSelectData = d;
+        stringToUTF8(d.charId, buf, len);
+        return 1;
+    } catch(e) { stringToUTF8("", buf, len); return 0; }
+});
+
+EM_JS(void, ws_clear_char_select, (void), {
+    window._charSelectData = null;
+    try { sessionStorage.removeItem('pendingCharSelect'); sessionStorage.removeItem('charSelectData'); } catch(e){}
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -544,6 +675,30 @@ static void FlushOnePlayerInit(void) {
 // ─────────────────────────────────────────────────────────────────────────────
 //  PLAYER LIFECYCLE
 // ─────────────────────────────────────────────────────────────────────────────
+
+static const CharDef *FindCharDef(const char *id) {
+    if (!id || !id[0]) return NULL;
+    for (int i = 0; i < CHARS_COUNT; i++)
+        if (strcmp(id, CHARS[i].charId) == 0) return &CHARS[i];
+    return NULL;
+}
+
+static void LoadPlayerAnim(Player *p, int animIdx) {
+    const CharDef *cd = FindCharDef(p->charId);
+    const char *base  = (cd && cd->animBase[0]) ? cd->animBase : NULL;
+    const char *origJson = ANIM_JSON[animIdx];
+    const char *origMeta = ANIM_META[animIdx];
+    if (base) {
+        const char *jf = strrchr(origJson, '/'); jf = jf ? jf+1 : origJson;
+        const char *mf = strrchr(origMeta, '/'); mf = mf ? mf+1 : origMeta;
+        static char aj[256], am[256];
+        snprintf(aj, sizeof(aj), "%s%s", base, jf);
+        snprintf(am, sizeof(am), "%s%s", base, mf);
+        if (FileExists(aj) && FileExists(am)) { LoadAnimWithOffset(p, aj, am); return; }
+    }
+    LoadAnimWithOffset(p, origJson, origMeta);
+}
+
 static void InitPlayer(Player *p, int id) {
 	/* Preserve visual state across re-init (e.g. re-connection). */
 	const Player prev = *p;
@@ -563,17 +718,27 @@ static void InitPlayer(Player *p, int id) {
 	p->referenceCenter    = prev.referenceCenter;
 	p->hasReferenceCenter = prev.hasReferenceCenter;
 	strcpy_safe(p->animation, prev.animation, sizeof(p->animation));
+	strncpy(p->charId, prev.charId, sizeof(p->charId)-1);
+	p->slotIndex = prev.slotIndex;
 
-	p->character = CreateAnimatedCharacter(
-			"data/textures/zeta/bone_textures.txt",
-			"data/textures/zeta/texture_sets.txt"
-			);
+	/* Si aún no tiene charId, intentar leerlo del ack del servidor */
+	if (!p->charId[0]) {
+		char cid[32] = {0};
+		if (ws_get_slot_char_id(p->slotIndex, cid, sizeof(cid)) && cid[0])
+			strncpy(p->charId, cid, sizeof(p->charId)-1);
+	}
+
+	const CharDef *cd   = FindCharDef(p->charId);
+	const char *texCfg  = cd ? cd->texCfg  : "data/textures/eld/bone_textures.txt";
+	const char *texSets = cd ? cd->texSets : "data/textures/eld/texture_sets.txt";
+
+	p->character = CreateAnimatedCharacter(texCfg, texSets);
 
 	if (p->character) {
 		LockAnimationRootXZ(p->character, true);
 		SetCharacterBillboards(p->character, true, true);
 		SetCharacterAutoPlay(p->character, true);
-		LoadAnimWithOffset(p, ANIM_JSON[p->animIndex], ANIM_META[p->animIndex]);
+		LoadPlayerAnim(p, p->animIndex);
 	}
 }
 
@@ -666,6 +831,8 @@ static void FetchState(void) {
 		if (!players[slot].active) {
 			players[slot].id        = pid;
 			players[slot].active    = 2;
+			players[slot].slotIndex = slot;
+			{ char _cid[32]={0}; if(ws_get_slot_char_id(slot,_cid,sizeof(_cid))&&_cid[0]) strncpy(players[slot].charId,_cid,sizeof(players[slot].charId)-1); }
 			players[slot].animIndex = AnimIndex(panim);
 			strcpy_safe(players[slot].animation, panim, sizeof(players[slot].animation));
 			QueuePlayerInit(pid);
@@ -690,7 +857,7 @@ static void FetchState(void) {
 			players[slot].hitId = phitId;
 			if (players[slot].character) {
 				int ai = AnimIndex("hurt");
-				LoadAnimWithOffset(&players[slot], ANIM_JSON[ai], ANIM_META[ai]);
+				LoadPlayerAnim(&players[slot], ai);
 				SetCharacterAutoPlay(players[slot].character, true);
 				players[slot].animIndex = ai;
 				strcpy_safe(players[slot].animation, "hurt", sizeof(players[slot].animation));
@@ -699,7 +866,7 @@ static void FetchState(void) {
 			players[slot].jumpId = pjumpId;
 			if (players[slot].character) {
 				int ai = AnimIndex("jump");
-				LoadAnimWithOffset(&players[slot], ANIM_JSON[ai], ANIM_META[ai]);
+				LoadPlayerAnim(&players[slot], ai);
 				SetCharacterAutoPlay(players[slot].character, true);
 				players[slot].animIndex = ai;
 				strcpy_safe(players[slot].animation, "jump", sizeof(players[slot].animation));
@@ -707,7 +874,7 @@ static void FetchState(void) {
 		} else if (strncmp(players[slot].animation, panim, sizeof(players[slot].animation)) != 0) {
 			int ai = AnimIndex(panim);
 			if (ai != players[slot].animIndex && players[slot].character) {
-				LoadAnimWithOffset(&players[slot], ANIM_JSON[ai], ANIM_META[ai]);
+				LoadPlayerAnim(&players[slot], ai);
 				SetCharacterAutoPlay(players[slot].character, true);
 				players[slot].animIndex = ai;
 			}
@@ -773,7 +940,7 @@ static Color VoltageBarColor(float t) {
 //  FIX: when no local player exists, compute centroid of all active players
 //  and use that as the camera target so the view is never blank.
 // ─────────────────────────────────────────────────────────────────────────────
-static float SpectatorCamX(float currentCamX, float dt) {
+static float SpectatorCamX(float currentCamX) {
 	float sumX = 0.0f;
 	int   n    = 0;
 	for (int s = 0; s < MAX_PLAYERS; s++) {
@@ -804,10 +971,61 @@ static void DrawGame(void) {
 
 	const float dt = GetFrameTime();
 
+	/* ── Hitstop: freeze de animaciones + seed de shakes ────────────────────
+	   El servidor ya congeló la física.  El cliente congela las animaciones
+	   poniendo animDt=0 durante el freeze, y dispara los shakes en el frame
+	   exacto en que llega el hitstop.
+	   ──────────────────────────────────────────────────────────────────── */
+	int   hitstopFrames = ws_get_hitstop_frames_left();
+	float shakeAmt      = ws_get_hitstop_shake();
+	int   targetId      = ws_get_hitstop_target_id();
+
+	/* animDt = 0 durante freeze, dt normal fuera */
+	float animDt = (hitstopFrames > 0) ? 0.0f : dt;
+
+	/* Acumular shake de cámara — solo en el frame de INICIO del hitstop
+	   (cuando framesLeft acaba de decrementarse desde startFrames a startFrames-1).
+	   Usamos shakeAmt > 0 como proxy; si ya hay shake activo no lo sobreescribimos
+	   a menos que el nuevo sea más fuerte. */
+	if (shakeAmt > 0.0f && shakeAmt > g_camShakeAmt) {
+		g_camShakeAmt   = shakeAmt;
+		g_camShakeTimer = 0.18f;   /* duración base del shake de cámara (s) */
+	}
+
+	/* Acumular shake en el personaje objetivo */
+	if (shakeAmt > 0.0f && targetId >= 0) {
+		for (int s = 0; s < MAX_PLAYERS; s++) {
+			if (!players[s].active || players[s].id != targetId) continue;
+			if (shakeAmt > players[s].hitShakeAmt) {
+				players[s].hitShakeAmt   = shakeAmt * 1.6f;  /* personaje vibra más que la cámara */
+				players[s].hitShakeTimer = 0.22f;
+			}
+			break;
+		}
+	}
+
+	/* Decay del camera shake */
+	float camShakeOffX = 0.0f, camShakeOffY = 0.0f;
+	if (g_camShakeTimer > 0.0f) {
+		g_camShakeTimer -= dt;
+		if (g_camShakeTimer < 0.0f) {
+			g_camShakeTimer = 0.0f;
+			g_camShakeAmt   = 0.0f;
+		} else {
+			/* Decaimiento exponencial: empieza fuerte y se apaga rápido */
+			float decay = g_camShakeTimer / 0.18f;
+			float amp   = g_camShakeAmt * decay * decay;
+			/* Ruido de alta frecuencia — sinusoides desfasadas para parecer random */
+			float t = (float)GetTime();
+			camShakeOffX = amp * sinf(t * 97.3f);
+			camShakeOffY = amp * sinf(t * 113.7f + 1.4f) * 0.5f;
+		}
+	}
+
 	/* ── Camera ── */
 	if (is_spectator) {
 		/* FIX: spectator camera follows centroid of all players */
-		camX = SpectatorCamX(camX, dt);
+		camX = SpectatorCamX(camX);
 	} else {
 		/* Player camera: smooth follow of local player, clamped to stage. */
 		for (int s = 0; s < MAX_PLAYERS; s++) {
@@ -820,8 +1038,8 @@ static void DrawGame(void) {
 		if (camX + CAM_HALF_W > STAGE_RIGHT) camX = STAGE_RIGHT - CAM_HALF_W;
 	}
 
-	scene_cam.position = (Vector3){ camX, 1.2f, 9.0f };
-	scene_cam.target   = (Vector3){ camX, 1.2f, 0.0f };
+	scene_cam.position = (Vector3){ camX + camShakeOffX, 1.2f + camShakeOffY, 9.0f };
+	scene_cam.target   = (Vector3){ camX + camShakeOffX, 1.2f + camShakeOffY, 0.0f };
 	scene_cam.up       = (Vector3){ 0.0f, 1.0f, 0.0f };
 
 	/* ── Background ── */
@@ -858,7 +1076,7 @@ static void DrawGame(void) {
 			p->character->forceUpdate  = true;
 		}
 
-		UpdateAnimatedCharacter(p->character, dt);
+		UpdateAnimatedCharacter(p->character, animDt);
 
 		/* Handle end-of-clip: freeze on last frame (crouch/jump/victory) or return to idle. */
 		if (p->character->animController && !p->character->animController->playing) {
@@ -878,7 +1096,7 @@ static void DrawGame(void) {
 			} else if (p->animIndex != AnimIndex("idle")) {
 				strcpy_safe(p->animation, "idle", sizeof(p->animation));
 				p->animIndex = AnimIndex("idle");
-				LoadAnimWithOffset(p, ANIM_JSON[0], ANIM_META[0]);
+				LoadPlayerAnim(p, 0);
 				SetCharacterAutoPlay(p->character, true);
 			}
 		}
@@ -900,7 +1118,26 @@ static void DrawGame(void) {
 		}
 
 		float    visualY  = p->wy - (p->hasAnchorY ? p->anchorYOffset : 0.0f);
-		Vector3  worldPos = { p->wx, visualY, 0.0f };
+
+		/* Hit shake: vibración del personaje objetivo tras recibir el golpe.
+		   Decaimiento exponencial rápido — como en Smash Bros. */
+		float playerShakeX = 0.0f, playerShakeY = 0.0f;
+		if (p->hitShakeTimer > 0.0f) {
+			p->hitShakeTimer -= dt;
+			if (p->hitShakeTimer < 0.0f) {
+				p->hitShakeTimer = 0.0f;
+				p->hitShakeAmt   = 0.0f;
+			} else {
+				float decay = p->hitShakeTimer / 0.22f;
+				float amp   = p->hitShakeAmt * decay * decay;
+				float t     = (float)GetTime();
+				/* Frecuencia alta para vibración de impacto — ligeramente distinta a la cámara */
+				playerShakeX = amp * sinf(t * 141.2f + (float)p->id * 2.3f);
+				playerShakeY = amp * sinf(t * 127.8f + (float)p->id * 3.7f) * 0.4f;
+			}
+		}
+
+		Vector3  worldPos = { p->wx + playerShakeX, visualY + playerShakeY, 0.0f };
 		float    drawRot  = p->visualRotation + (float)M_PI_2;
 
 		DrawAnimatedCharacterTransformed(p->character, scene_cam, worldPos, drawRot);
@@ -1133,8 +1370,172 @@ static void DrawGame(void) {
 // ─────────────────────────────────────────────────────────────────────────────
 //  MAIN LOOP  (called by Emscripten each browser frame)
 // ─────────────────────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  CHAR-SELECT SCREEN
+//  Aparece DESPUÉS de conectarse al servidor, ANTES del match_start.
+//  En reconexión se salta automáticamente si hay charSelectData en sessionStorage.
+// ─────────────────────────────────────────────────────────────────────────────
+
+static void CSS_LoadPortraits(void) {
+    if (g_css.portraitsLoaded) return;
+    for (int i = 0; i < CHARS_COUNT; i++) g_css.portraits[i] = LoadTexture(CHARS[i].portrait);
+    g_css.portraitsLoaded = true;
+}
+
+static void CSS_UnloadPortraits(void) {
+    if (!g_css.portraitsLoaded) return;
+    for (int i = 0; i < CHARS_COUNT; i++) UnloadTexture(g_css.portraits[i]);
+    g_css.portraitsLoaded = false;
+}
+
+/* Llama a esta función cada frame mientras g_css.phase != CSS_DONE.
+   Retorna true en el frame en que se detecta el match_start. */
+static bool CSS_UpdateAndDraw(void) {
+
+    /* ── Reconexión: si sessionStorage ya tiene charSelectData, saltamos el selector ── */
+    if (g_css.phase == CSS_SELECTING && !g_css.savedCharId[0]) {
+        char saved[32] = {0};
+        if (ws_get_saved_char_id(saved, sizeof(saved)) && saved[0]) {
+            strncpy(g_css.savedCharId, saved, sizeof(g_css.savedCharId)-1);
+            /* Buscar índice del personaje guardado */
+            for (int i = 0; i < CHARS_COUNT; i++) {
+                if (strcmp(CHARS[i].charId, saved) == 0) { g_css.selected = i; break; }
+            }
+            /* Reenviar char_select al servidor (por si acaso) */
+            ws_send_char_select(saved, g_css.selected >= 0 ? g_css.selected : 0, 0);
+            g_css.phase = CSS_WAITING_ACK;
+        }
+    }
+
+    /* ── Ack recibido → entrar al juego inmediatamente (sin esperar oponente) ── */
+    if (g_css.phase == CSS_WAITING_ACK && ws_char_select_ready()) {
+        /* Propagar charId elegido a nuestro slot */
+        for (int s = 0; s < MAX_PLAYERS; s++) {
+            if (players[s].active && players[s].id == my_id) {
+                if (g_css.selected >= 0)
+                    strncpy(players[s].charId, CHARS[g_css.selected].charId, sizeof(players[s].charId)-1);
+                else if (g_css.savedCharId[0])
+                    strncpy(players[s].charId, g_css.savedCharId, sizeof(players[s].charId)-1);
+                break;
+            }
+        }
+        g_css.phase = CSS_DONE;
+        CSS_UnloadPortraits();
+        return true;
+    }
+
+    /* ── CSS_WAITING_GAME: llegamos aquí solo si match_start llegó antes del ack ── */
+    if (g_css.phase == CSS_WAITING_GAME) {
+        if (ws_match_started()) {
+            for (int s = 0; s < MAX_PLAYERS; s++) {
+                if (players[s].active && players[s].id == my_id) {
+                    if (g_css.selected >= 0)
+                        strncpy(players[s].charId, CHARS[g_css.selected].charId, sizeof(players[s].charId)-1);
+                    else if (g_css.savedCharId[0])
+                        strncpy(players[s].charId, g_css.savedCharId, sizeof(players[s].charId)-1);
+                    break;
+                }
+            }
+            g_css.phase = CSS_DONE;
+            CSS_UnloadPortraits();
+            return true;
+        }
+        /* Mientras esperamos match_start, dibujar el personaje elegido */
+        {
+            ClearBackground((Color){10, 10, 20, 255});
+            const char *sel = (g_css.selected >= 0) ? CHARS[g_css.selected].name
+                                                     : (g_css.savedCharId[0] ? g_css.savedCharId : "?");
+            char line[64];
+            snprintf(line, sizeof(line), "Listo: %s", sel);
+            int sw2 = GetScreenWidth(), sh2 = GetScreenHeight();
+            DrawText(line, (sw2 - MeasureText(line, 28)) / 2, sh2/2, 28, GOLD);
+        }
+        return false;
+    }
+
+    /* ── Selector de personaje ── */
+    CSS_LoadPortraits();
+
+    int sw = GetScreenWidth(), sh = GetScreenHeight();
+    ClearBackground((Color){10, 10, 20, 255});
+    const char *title = (g_css.phase == CSS_WAITING_ACK)
+                      ? "Confirmando seleccion..."
+                      : "Elige tu personaje";
+    DrawText(title, (sw - MeasureText(title, 36)) / 2, 40, 36, WHITE);
+
+    int cardW = 160, cardH = 220, gap = 24;
+    int totalW = CHARS_COUNT * cardW + (CHARS_COUNT - 1) * gap;
+    int startX = (sw - totalW) / 2;
+    int startY = (sh - cardH) / 2 - 20;
+
+    Vector2 mouse = GetMousePosition();
+    if (g_css.phase == CSS_SELECTING) {
+        for (int i = 0; i < CHARS_COUNT; i++) {
+            Rectangle card = { startX + i*(cardW+gap), startY, cardW, cardH };
+            if (CheckCollisionPointRec(mouse, card)) g_css.hovered = i;
+        }
+        if (IsKeyPressed(KEY_LEFT)  || IsKeyPressed(KEY_A)) g_css.hovered = (g_css.hovered + CHARS_COUNT - 1) % CHARS_COUNT;
+        if (IsKeyPressed(KEY_RIGHT) || IsKeyPressed(KEY_D)) g_css.hovered = (g_css.hovered + 1) % CHARS_COUNT;
+    }
+
+    for (int i = 0; i < CHARS_COUNT; i++) {
+        Rectangle card = { startX + i*(cardW+gap), startY, cardW, cardH };
+        bool hover  = (g_css.phase == CSS_SELECTING && i == g_css.hovered);
+        bool chosen = (i == g_css.selected);
+        Color border = chosen ? GOLD : (hover ? WHITE : (Color){80,80,80,255});
+        Color bg     = chosen ? (Color){40,30,10,255} : (hover ? (Color){30,30,50,255} : (Color){20,20,35,255});
+        DrawRectangleRec(card, bg);
+        DrawRectangleLinesEx(card, chosen ? 3.0f : 2.0f, border);
+
+        Texture2D tex = g_css.portraits[i];
+        if (tex.id > 0) {
+            float scale = (float)(cardW - 8) / tex.width;
+            int   ph    = (int)(tex.height * scale);
+            if (ph > cardH - 50) ph = cardH - 50;
+            Rectangle src = { 0, 0, tex.width, tex.height };
+            Rectangle dst = { card.x + 4, card.y + 4, cardW - 8, ph };
+            DrawTexturePro(tex, src, dst, (Vector2){0,0}, 0.0f, WHITE);
+        }
+        const char *nm = CHARS[i].name;
+        DrawText(nm, card.x + (cardW - MeasureText(nm, 20)) / 2, card.y + cardH - 42, 20, border);
+
+        if (chosen && g_css.phase == CSS_WAITING_ACK) {
+            g_css.confirmTimer += GetFrameTime();
+            if ((int)(g_css.confirmTimer * 4) % 2 == 0)
+                DrawRectangleLinesEx(card, 4.0f, GOLD);
+        }
+    }
+
+    if (g_css.phase == CSS_SELECTING) {
+        const char *hint = "Click o ENTER para confirmar";
+        DrawText(hint, (sw - MeasureText(hint, 18)) / 2, sh - 60, 18, GRAY);
+
+        Rectangle hcard = { startX + g_css.hovered*(cardW+gap), startY, cardW, cardH };
+        bool click = IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && CheckCollisionPointRec(mouse, hcard);
+        bool enter = IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE);
+        if (click || enter) {
+            g_css.selected     = g_css.hovered;
+            g_css.confirmTimer = 0.0f;
+            g_css.phase        = CSS_WAITING_ACK;
+            ws_send_char_select(CHARS[g_css.selected].charId, g_css.selected, 0);
+        }
+    }
+
+    return false;
+}
+
 static void MainLoop(void) {
 	if (!game_ready) return;
+
+	/* Selector de personaje — bloquea MainLoop hasta el match_start */
+	if (g_css.phase != CSS_DONE) {
+		BeginDrawing();
+		CSS_UpdateAndDraw();
+		EndDrawing();
+		return;
+	}
+
 
 	/* Leer estado de espectador desde JS cada frame */
 	is_spectator = (bool)ws_is_spectator();
@@ -1198,11 +1599,11 @@ static void MainLoop(void) {
 			for (int s = 0; s < MAX_PLAYERS; s++) {
 				if (!players[s].active || players[s].id != winner_id) continue;
 				if (players[s].character) {
-					bool loaded = LoadAnimWithOffset(&players[s],
-					                                ANIM_JSON[vi], ANIM_META[vi]);
+					LoadPlayerAnim(&players[s], vi);
+					bool loaded = true;
 					if (!loaded) {
 						vi = AnimIndex("idle");
-						LoadAnimWithOffset(&players[s], ANIM_JSON[0], ANIM_META[0]);
+						LoadPlayerAnim(&players[s], 0);
 					}
 					SetCharacterAutoPlay(players[s].character, false);
 					int last = players[s].character->animation.frameCount - 1;

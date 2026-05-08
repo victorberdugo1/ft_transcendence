@@ -12,11 +12,6 @@ services:
     networks:
       - app-network
     restart: unless-stopped
-    volumes:
-      # Añadir estos volúmenes para servir archivos estáticos
-      - ./frontend/app:/usr/share/nginx/html/app
-      - ./frontend/js:/usr/share/nginx/html/js
-      - ./frontend/game:/usr/share/nginx/html/game
 
   frontend:
     build:
@@ -25,9 +20,6 @@ services:
     networks:
       - app-network
     restart: unless-stopped
-    # Ya no necesitas el volumen aquí porque nginx sirve los estáticos
-    # volumes:
-    #   - ./frontend/js:/usr/share/nginx/html/js
 
   backend:
     build:

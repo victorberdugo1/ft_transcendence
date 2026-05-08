@@ -10,8 +10,9 @@
     }
 })();
 
-window._myClientId = -1;
-window._ws         = null;
+window._myClientId     = -1;
+window._ws             = null;
+window._charSelectData = null;
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  INPUT CONSTANTS
@@ -158,9 +159,26 @@ setInterval(() => {
 
         // Clear any stale game state from the previous session so C doesn't
         // try to render an inconsistent snapshot while we wait for the server.
-        window._gameState     = { type: 'state', frameId: 0, players: {} };
-        window._isSpectator   = false;
-        window._spectatorMode = null;
+        window._gameState      = { type: 'state', frameId: 0, players: {} };
+        window._isSpectator    = false;
+        window._spectatorMode  = null;
+        // Restaurar char select data desde sessionStorage si existe
+        window._charSelectConfirmed = false;
+        try {
+            const saved = sessionStorage.getItem('charSelectData');
+            if (saved) {
+                window._charSelectData = JSON.parse(saved);
+                window._charSelectConfirmed = true;
+            } else {
+                window._charSelectData = null;
+            }
+        } catch(e) {
+            window._charSelectData = null;
+        }
+
+        // Reenviar char_select si había una pendiente (reconexión)
+        const _pcs = sessionStorage.getItem('pendingCharSelect');
+        if (_pcs) { try { const {charId,charIdx,stageId} = JSON.parse(_pcs); setTimeout(()=>{ if(window._ws&&window._ws.readyState===WebSocket.OPEN) sendCharSelect(charId,charIdx??0,stageId??0); },300); } catch(e){} }
 
         // The server always decides whether this client is a player or spectator
         // based on how many players are currently connected.  We never force
@@ -183,6 +201,13 @@ setInterval(() => {
             window._gameConfig = msg.config;
             sessionStorage.setItem('clientId', msg.clientId);
             window._isSpectator = false;
+
+        } else if (msg.type === 'char_select_ack') {
+            window._charSelectData = msg;
+            try { sessionStorage.setItem('charSelectData', JSON.stringify(msg)); } catch(e){}
+            // Marcar que el personaje está confirmado — el juego puede arrancar
+            window._charSelectConfirmed = true;
+            window.dispatchEvent(new CustomEvent('char_select_ack', { detail: msg }));
 
         } else if (msg.type === 'spectator_mode') {
             window._myClientId  = msg.clientId;
@@ -224,6 +249,25 @@ setInterval(() => {
             }
             window.dispatchEvent(new CustomEvent('spectator_session_changed', { detail: msg }));
 
+        } else if (msg.type === 'hitstop') {
+            // Freeze puro + shake: el C lo lee vía ws_get_hitstop_state()
+            // Intensidad de shake por tier (usada por la cámara y el personaje)
+            const shakeByTier = { micro: 0.012, light: 0.028, medium: 0.055, heavy: 0.10, ultra: 0.18 };
+            const shakeAmt = shakeByTier[msg.tier] ?? 0.02;
+
+            const existing = window._hitstopState;
+            if (!existing || msg.frames > existing.framesLeft) {
+                window._hitstopState = {
+                    framesLeft:  msg.frames,
+                    tier:        msg.tier,
+                    shakeAmt,
+                    attackerId:  msg.attackerId,
+                    targetId:    msg.targetId,
+                    startFrames: msg.frames,   // para normalizar intensidad de shake
+                };
+            }
+            window.dispatchEvent(new CustomEvent('hitstop', { detail: window._hitstopState }));
+
         } else if (msg.type === 'state') {
             window._gameState = msg;
             try { sessionStorage.setItem('gameState', JSON.stringify(msg)); } catch { /* quota */ }
@@ -232,6 +276,9 @@ setInterval(() => {
             // Nueva partida — limpiar cualquier victoria anterior
             window._victoryState    = null;
             window._victoryConsumed = false;
+            window._hitstopState    = null;   // resetear bullet-time
+            // NO limpiar _charSelectData ni _charSelectConfirmed aquí:
+            // se necesitan para reconexión mid-match
             window._matchSession = {
                 sessionId:    msg.sessionId,
                 mode:         msg.mode,
@@ -411,3 +458,24 @@ async function fetchActiveSessions() {
 }
 
 window.fetchActiveSessions = fetchActiveSessions;
+// ─────────────────────────────────────────────────────────────────────────────
+//  CHAR SELECT
+// ─────────────────────────────────────────────────────────────────────────────
+function sendCharSelect(charId, charIdx, stageId) {
+    if (!window._ws || window._ws.readyState !== WebSocket.OPEN) return;
+    window._ws.send(JSON.stringify({ type: 'char_select', charId, charIdx: charIdx ?? 0, stageId: stageId ?? 0 }));
+}
+window.sendCharSelect = sendCharSelect;
+
+function getCharSelectData() { return window._charSelectData ?? null; }
+window.getCharSelectData = getCharSelectData;
+
+function clearCharSelectData() {
+    window._charSelectData      = null;
+    window._charSelectConfirmed = false;
+    try {
+        sessionStorage.removeItem('pendingCharSelect');
+        sessionStorage.removeItem('charSelectData');
+    } catch(e) {}
+}
+window.clearCharSelectData = clearCharSelectData;

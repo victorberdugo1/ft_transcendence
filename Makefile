@@ -1,7 +1,7 @@
 .PHONY: up down build logs clean destroy delete re setup shell-% wasm
 
 wasm:
-	docker compose build frontend
+	docker compose build --no-cache frontend
 	docker compose up -d
 
 up:
