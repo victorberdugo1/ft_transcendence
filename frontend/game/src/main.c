@@ -34,7 +34,7 @@ static const char *ANIM_JSON[ANIM_COUNT] = {
 	"data/animations/attack_crouch.json",
 	"data/animations/dash.json",
 	"data/animations/crouch.json",
-	"data/animations/crouch.json",  // crouch_loop: same file, holds last frame to avoid bobbing
+	"data/animations/crouch.json",  // crouch_loop
 	"data/animations/hurt.json",
 	"data/animations/block.json",
 	"data/animations/attack_dash.json",
@@ -52,7 +52,7 @@ static const char *ANIM_META[ANIM_COUNT] = {
 	"data/animations/attack_crouch.anim",
 	"data/animations/dash.anim",
 	"data/animations/crouch.anim",
-	"data/animations/crouch.anim",  // crouch_loop: same file, holds last frame to avoid bobbing
+	"data/animations/crouch.anim",  // crouch_loop
 	"data/animations/hurt.anim",
 	"data/animations/block.anim",
 	"data/animations/attack_dash.anim",
@@ -1308,9 +1308,23 @@ static bool CSS_UpdateAndDraw(void) {
     const char *title = (g_css.phase == CSS_WAITING_ACK)
                       ? "Confirmando seleccion..."
                       : "Elige tu personaje";
-    DrawText(title, (sw - MeasureText(title, 36)) / 2, 40, 36, WHITE);
 
-    int cardW = 160, cardH = 220, gap = 24;
+    // Scale card size to screen: base design was 160x220 in 800 wide.
+    // Clamp so cards never overflow vertically or look too large on huge screens.
+    int cardW = (int)(sw * 0.13f);
+    if (cardW < 120) cardW = 120;
+    if (cardW > 240) cardW = 240;
+    int cardH = (int)(cardW * 1.375f);   // keep the original aspect ratio
+    int gap   = (int)(cardW * 0.15f);
+    if (gap < 12) gap = 12;
+
+    // Scale font sizes with screen width
+    int titleSz = (int)(sw * 0.028f); if (titleSz < 22) titleSz = 22; if (titleSz > 52) titleSz = 52;
+    int nameSz  = (int)(sw * 0.016f); if (nameSz  < 14) nameSz  = 14; if (nameSz  > 30) nameSz  = 30;
+    int hintSz  = (int)(sw * 0.013f); if (hintSz  < 12) hintSz  = 12; if (hintSz  > 24) hintSz  = 24;
+    int titleY  = (int)(sh * 0.05f);
+
+    DrawText(title, (sw - MeasureText(title, titleSz)) / 2, titleY, titleSz, WHITE);
     int totalW = CHARS_COUNT * cardW + (CHARS_COUNT - 1) * gap;
     int startX = (sw - totalW) / 2;
     int startY = (sh - cardH) / 2 - 20;
@@ -1336,15 +1350,23 @@ static bool CSS_UpdateAndDraw(void) {
 
         Texture2D tex = g_css.portraits[i];
         if (tex.id > 0) {
-            float scale = (float)(cardW - 8) / tex.width;
-            int   ph    = (int)(tex.height * scale);
-            if (ph > cardH - 50) ph = cardH - 50;
+            int   maxPw = cardW - 8;
+            int   maxPh = cardH - nameSz - 14;   // leave room for the name label
+            // Fit the whole portrait inside the available area (no cropping)
+            float scaleW = (float)maxPw / tex.width;
+            float scaleH = (float)maxPh / tex.height;
+            float scale  = (scaleW < scaleH) ? scaleW : scaleH;
+            int   pw     = (int)(tex.width  * scale);
+            int   ph     = (int)(tex.height * scale);
+            // Center horizontally inside the card
+            int   px     = card.x + (cardW - pw) / 2;
+            int   py     = card.y + 4;
             Rectangle src = { 0, 0, tex.width, tex.height };
-            Rectangle dst = { card.x + 4, card.y + 4, cardW - 8, ph };
+            Rectangle dst = { px, py, pw, ph };
             DrawTexturePro(tex, src, dst, (Vector2){0,0}, 0.0f, WHITE);
         }
         const char *nm = CHARS[i].name;
-        DrawText(nm, card.x + (cardW - MeasureText(nm, 20)) / 2, card.y + cardH - 42, 20, border);
+        DrawText(nm, card.x + (cardW - MeasureText(nm, nameSz)) / 2, card.y + cardH - (int)(cardH * 0.18f), nameSz, border);
 
         if (chosen && g_css.phase == CSS_WAITING_ACK) {
             g_css.confirmTimer += GetFrameTime();
@@ -1355,7 +1377,7 @@ static bool CSS_UpdateAndDraw(void) {
 
     if (g_css.phase == CSS_SELECTING) {
         const char *hint = "Click o ENTER para confirmar";
-        DrawText(hint, (sw - MeasureText(hint, 18)) / 2, sh - 60, 18, GRAY);
+        DrawText(hint, (sw - MeasureText(hint, hintSz)) / 2, sh - (int)(sh * 0.06f), hintSz, GRAY);
 
         Rectangle hcard = { startX + g_css.hovered*(cardW+gap), startY, cardW, cardH };
         bool click = IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && CheckCollisionPointRec(mouse, hcard);
@@ -1374,6 +1396,14 @@ static bool CSS_UpdateAndDraw(void) {
 static void MainLoop(void) {
 	if (!game_ready) return;
 
+	// --- Resize check: must happen every frame, including during char select ---
+	int newW = js_canvas_width();
+	int newH = js_canvas_height();
+	if (newW > 0 && newH > 0 && (newW != SCREEN_W || newH != SCREEN_H)) {
+		SCREEN_W = newW;
+		SCREEN_H = newH;
+		SetWindowSize(SCREEN_W, SCREEN_H);
+	}
 
 	if (g_css.phase != CSS_DONE) {
 		BeginDrawing();
@@ -1409,14 +1439,6 @@ static void MainLoop(void) {
 		}
 	}
 
-
-	int newW = js_canvas_width();
-	int newH = js_canvas_height();
-	if (newW != SCREEN_W || newH != SCREEN_H) {
-		SCREEN_W = newW;
-		SCREEN_H = newH;
-		SetWindowSize(SCREEN_W, SCREEN_H);
-	}
 
 	FetchState();
 	FlushOnePlayerInit();
