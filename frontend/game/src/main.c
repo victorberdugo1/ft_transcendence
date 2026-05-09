@@ -145,6 +145,7 @@ static void DrawGame(void);
 int   ws_get_victory_state(void);
 int   ws_get_victory_winner(void);
 void  ws_consume_victory(void);
+int   ws_overlay_ready(void);
 int   ws_get_countdown(void);
 float ws_get_countdown_elapsed(void);
 int   ws_get_hitstop_frames_left(void);
@@ -192,6 +193,11 @@ EM_JS(int, ws_get_victory_winner, (void), {
 
 EM_JS(void, ws_consume_victory, (void), {
     window._victoryConsumed = true;
+    window._overlayReady    = false;
+});
+
+EM_JS(int, ws_overlay_ready, (void), {
+    return (window._overlayReady && !window._victoryConsumed) ? 1 : 0;
 });
 
 EM_JS(int, ws_get_hitstop_frames_left, (void), {
@@ -301,7 +307,7 @@ static struct {
 
 
 EM_JS(int, ws_char_select_ready, (void), {
-    return (window._charSelectData && window._charSelectData.charId) ? 1 : 0;
+    return (window._charSelectConfirmed && window._charSelectData && window._charSelectData.charId) ? 1 : 0;
 });
 
 
@@ -698,14 +704,25 @@ static void FetchState(void) {
 			players[slot].slotIndex = slot;
 			{
 				char _cid[32] = {0};
-				// Priority 1: read charId from the server state snapshot (works for all players)
 				if (ws_get_player_char_id_by_client(pid, _cid, sizeof(_cid)) && _cid[0]) {
 					strncpy(players[slot].charId, _cid, sizeof(players[slot].charId)-1);
-				// Priority 2: fallback to char_select_ack data (only reliable for local player)
 				} else if (ws_get_slot_char_id(slot, _cid, sizeof(_cid)) && _cid[0]) {
 					strncpy(players[slot].charId, _cid, sizeof(players[slot].charId)-1);
 				}
 			}
+
+			// Do not queue this player for initialisation until we have a confirmed
+			// charId. Without one the wrong textures would be loaded for everyone.
+			if (!players[slot].charId[0]) {
+				// Keep the slot reserved (active=2, id=pid) so the same slot is
+				// reused next frame when the char_select_ack arrives.
+				// Discarding it (active=0/id=-1) caused a new slot to be picked
+				// each frame, which meant the charId was never populated correctly
+				// for late-joining clients who missed the original broadcast.
+				seen[slot] = 1;
+				continue;
+			}
+
 			players[slot].animIndex = AnimIndex(panim);
 			strcpy_safe(players[slot].animation, panim, sizeof(players[slot].animation));
 			QueuePlayerInit(pid);
@@ -713,6 +730,28 @@ static void FetchState(void) {
 
 		seen[slot] = 1;
 
+		// If the server snapshot now carries a confirmed charId that differs
+		// from what we have loaded (e.g. we initialised with the 'eld' default
+		// before this player had selected), tear down and re-init with the
+		// correct textures.  This is the main fix for "first client always sees
+		// rivals with the generic texture".
+		{
+			char _newCid[32] = {0};
+			ws_get_player_char_id_by_client(pid, _newCid, sizeof(_newCid));
+			if (_newCid[0] && strncmp(_newCid, players[slot].charId, sizeof(players[slot].charId)) != 0) {
+				strncpy(players[slot].charId, _newCid, sizeof(players[slot].charId)-1);
+				if (players[slot].character) {
+					DestroyAnimatedCharacter(players[slot].character);
+					players[slot].character = NULL;
+				}
+				players[slot].active             = 2;
+				players[slot].hasReferenceCenter = false;
+				players[slot].hasAnchorY         = false;
+				players[slot].animIndex          = AnimIndex(panim);
+				strcpy_safe(players[slot].animation, panim, sizeof(players[slot].animation));
+				QueuePlayerInit(pid);
+			}
+		}
 
 		players[slot].wx           = px;
 		players[slot].wy           = py;
@@ -1164,9 +1203,9 @@ static void DrawGame(void) {
 			         (Color){ 200, 180, 80, 180 });
 
 		} else {
-
-			const char *line1 = is_spectator ? "FIN DE LA PARTIDA" : "DERROTA";
-			int fsize1 = is_spectator ? 26 : 34;
+			bool isDefeated = (strcmp(winner_message, "DERROTA") == 0);
+			const char *line1 = isDefeated ? "DERROTA" : "FIN DE LA PARTIDA";
+			int fsize1        = isDefeated ? 34 : 26;
 			int l1w = MeasureText(line1, fsize1);
 			DrawText(line1, BOX_X + (BOX_W - l1w) / 2, BOX_Y + 16, fsize1,
 			         (Color){ 80, 200, 255, 255 });
@@ -1308,29 +1347,26 @@ static bool CSS_UpdateAndDraw(void) {
     const char *title = (g_css.phase == CSS_WAITING_ACK)
                       ? "Confirmando seleccion..."
                       : "Elige tu personaje";
-    // All sizes scale with the actual canvas resolution.
-    // Card width ~13% of screen, clamped to a sensible range.
-    int cardW = (int)(sw * 0.13f);
-    if (cardW < 100) cardW = 100;
-    if (cardW > 280) cardW = 280;
-    // Portraits are 720x1280 (9:16). Card = portrait area + name label.
-    int labelH = (int)(cardW * 0.20f); if (labelH < 22) labelH = 22;
+    int cardW = (int)(sw * 0.88f / 4.15f);
+    if (cardW < 120) cardW = 120;
+    if (cardW > 380) cardW = 380;
+    int labelH = (int)(cardW * 0.20f); if (labelH < 26) labelH = 26;
     int cardH  = (int)(cardW * (1280.0f / 720.0f)) + labelH;
-    int gap    = (int)(cardW * 0.12f); if (gap < 10) gap = 10;
+    int gap    = (int)(cardW * 0.05f); if (gap < 8) gap = 8;
 
-    // Font sizes proportional to screen width
-    int titleSz = (int)(sw * 0.030f); if (titleSz < 20) titleSz = 20; if (titleSz > 56) titleSz = 56;
-    int nameSz  = (int)(sw * 0.016f); if (nameSz  < 13) nameSz  = 13; if (nameSz  > 32) nameSz  = 32;
-    int hintSz  = (int)(sw * 0.013f); if (hintSz  < 11) hintSz  = 11; if (hintSz  > 24) hintSz  = 24;
+    int titleSz = (int)(sw * 0.038f); if (titleSz < 24) titleSz = 24; if (titleSz > 64) titleSz = 64;
+    int nameSz  = (int)(sw * 0.020f); if (nameSz  < 15) nameSz  = 15; if (nameSz  > 36) nameSz  = 36;
+    int hintSz  = (int)(sw * 0.015f); if (hintSz  < 12) hintSz  = 12; if (hintSz  > 26) hintSz  = 26;
 
     int titleY = (int)(sh * 0.04f);
     DrawText(title, (sw - MeasureText(title, titleSz)) / 2, titleY, titleSz, WHITE);
 
     int totalW = CHARS_COUNT * cardW + (CHARS_COUNT - 1) * gap;
     int startX = (sw - totalW) / 2;
-    int startY = titleY + titleSz + (int)(sh * 0.04f);
-    // Prevent cards from running off the bottom edge
-    int bottomLimit = sh - hintSz - (int)(sh * 0.06f);
+    int hintAreaH = hintSz + (int)(sh * 0.05f);
+    int availH    = sh - (titleY + titleSz + (int)(sh * 0.02f)) - hintAreaH;
+    int startY    = (titleY + titleSz + (int)(sh * 0.02f)) + (availH - cardH) / 2;
+    int bottomLimit = sh - hintAreaH - 4;
     if (startY + cardH > bottomLimit) startY = bottomLimit - cardH;
     if (startY < titleY + titleSz + 8) startY = titleY + titleSz + 8;
 
@@ -1413,10 +1449,36 @@ static void MainLoop(void) {
 	}
 
 	if (g_css.phase != CSS_DONE) {
+		// Track connected players but do NOT load any textures — charIds are not
+		// final until every player has confirmed their selection.
+		FetchState();
 		BeginDrawing();
 		CSS_UpdateAndDraw();
 		EndDrawing();
 		return;
+	}
+
+	// First frame after char select: free any stale players and re-init with
+	// the correct charIds now confirmed in the server snapshot.
+	static bool post_css_reinit_done = false;
+	if (!post_css_reinit_done) {
+		post_css_reinit_done = true;
+		for (int s = 0; s < MAX_PLAYERS; s++) {
+			if (players[s].active) {
+				char cid[32] = {0};
+				if (ws_get_player_char_id_by_client(players[s].id, cid, sizeof(cid)) && cid[0])
+					strncpy(players[s].charId, cid, sizeof(players[s].charId)-1);
+				if (players[s].character) {
+					DestroyAnimatedCharacter(players[s].character);
+					players[s].character = NULL;
+				}
+				players[s].active             = 2;
+				players[s].hasReferenceCenter = false;
+				players[s].hasAnchorY         = false;
+				QueuePlayerInit(players[s].id);
+			}
+		}
+		while (pending_count > 0) FlushOnePlayerInit();
 	}
 
 
@@ -1463,9 +1525,6 @@ static void MainLoop(void) {
 			else
 				snprintf(winner_message, sizeof(winner_message), "DERROTA");
 
-			// Start victory animation from the beginning with autoplay.
-			// match_over and ws_consume_victory() are called only once
-			// the animation finishes (in the DrawGame animation loop).
 			int vi = AnimIndex("victory");
 			for (int s = 0; s < MAX_PLAYERS; s++) {
 				if (!players[s].active || players[s].id != winner_id) continue;
@@ -1481,6 +1540,12 @@ static void MainLoop(void) {
 				break;
 			}
 		}
+	}
+
+	if (!match_over && victory_pending && ws_overlay_ready()) {
+		match_over      = true;
+		victory_pending = false;
+		ws_consume_victory();
 	}
 
 	DrawGame();

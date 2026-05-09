@@ -644,7 +644,10 @@ wss.on('connection', async (ws, req) => {
             },
         }));
 
-
+        // Send the new player the charId of every player who has already
+        // selected. Without this the late-joiner never receives their rivals'
+        // char_select_ack and renders everyone with the generic/default texture.
+        sendAllCharSelectsTo(ws);
 
 
 
@@ -768,6 +771,9 @@ wss.on('connection', async (ws, req) => {
                     },
                 }));
 
+                // Re-send all known char selections so the rejoining player
+                // has the correct textures for every rival, not just their own.
+                sendAllCharSelectsTo(ws);
 
                 const savedChar = playerCharSelected.get(clientId);
                 if (savedChar) {
@@ -1055,19 +1061,26 @@ function sendAllCharSelectsTo(ws) {
 }
 
 function createPlayer(id, saved, ws) {
-    const spawnX   = (Math.random() - 0.5) * 4;
-    const onGround = saved ? (saved.onGround ?? true) : true;
+    const onGround   = saved ? (saved.onGround ?? true) : true;
+    // Alternate spawn sides so players always face each other.
+    // Even player count  -> left side  (x < 0, facing right)
+    // Odd player count   -> right side (x > 0, facing left)
+    const playerCount = Object.keys(players).length;
+    const side        = playerCount % 2 === 0 ? -1 : 1;  // -1 = left, +1 = right
+    const spawnX      = side * (1.5 + Math.random() * 1.5); // 1.5..3.0 from centre
+    const initX       = saved ? saved.x : spawnX;
+    const initFacing  = initX >= 0 ? -1 : 1;
 
     return {
         id,
         dbUserId: null,
-        x:  saved ? saved.x : spawnX,
+        x:  initX,
         y:  saved ? saved.y : GROUND_Y,
         vx: 0, vy: 0,
         kbx: 0, kby: 0,
         onGround,
         jumpsLeft:      onGround ? 2 : 1,
-        facing:         1,
+        facing:         initFacing,
         dashing:        false,
         dashTimer:      0,
         dashDir:        0,

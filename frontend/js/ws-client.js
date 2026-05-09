@@ -185,10 +185,14 @@ setInterval(() => {
 
         } else if (msg.type === 'char_select_ack') {
             window._charSelectData = msg;
-            try { sessionStorage.setItem('charSelectData', JSON.stringify(msg)); } catch(e){}
 
-
-            window._charSelectConfirmed = true;
+            // Only mark confirmed and persist if this ack is for OUR own selection.
+            // The server broadcasts to everyone when any player selects — treating
+            // another player's ack as our own would skip our char select screen.
+            if (msg.selectorClient === window._myClientId) {
+                window._charSelectConfirmed = true;
+                try { sessionStorage.setItem('charSelectData', JSON.stringify(msg)); } catch(e){}
+            }
             window.dispatchEvent(new CustomEvent('char_select_ack', { detail: msg }));
 
         } else if (msg.type === 'spectator_mode') {
@@ -306,13 +310,13 @@ setInterval(() => {
                 window._victoryIsWinner = false;
                 window._victoryActive   = true;
                 window._victoryConsumed = false;
+                window._overlayReady    = false;
                 window._victoryState = {
                     winner:         msg.winner,
                     loser:          msg.loser,
                     isWinner:       false,
                     reloadRequired: msg.reloadRequired ?? true,
                 };
-                // Freeze winner animation in local state so it renders correctly
                 if (window._gameState && window._gameState.players) {
                     const wp = window._gameState.players[msg.winner];
                     if (wp) { wp.animation = 'victory'; wp.frozen = true; }
@@ -320,9 +324,8 @@ setInterval(() => {
                 window.dispatchEvent(new CustomEvent('victory_spectator', { detail: {
                     winner: msg.winner, loser: msg.loser, isWinner: false, spectating: true,
                 }}));
-                // Delay the overlay so the victory animation can play and there is
-                // time to position the camera before the UI appears.
                 setTimeout(() => {
+                    window._overlayReady = true;
                     window.dispatchEvent(new CustomEvent('victory', { detail: window._victoryState }));
                 }, window._victoryOverlayDelayMs ?? 3000);
                 return;
