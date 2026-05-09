@@ -394,22 +394,37 @@ function buildCharSelectAck(selectorCharId, selectorClientId, stageId) {
     const playerIds  = Object.keys(players).map(Number);
     const usedChars  = new Set([selectorCharId]);
     const playersOut = {};
-    let   altIdx     = 0;
 
+    // First pass: assign known selections from playerCharSelected
     for (let i = 0; i < Math.min(playerIds.length, 8); i++) {
         const cid = playerIds[i];
         let charId;
         if (cid === selectorClientId) {
             charId = selectorCharId;
         } else {
+            // Use the character this player actually selected, if any
+            charId = playerCharSelected.get(cid) ?? null;
+        }
+        if (charId) usedChars.add(charId);
+        playersOut[i] = { clientId: cid, charId };
+    }
+
+    // Second pass: fill in players who haven't selected yet with auto-assigned chars
+    let altIdx = 0;
+    for (let i = 0; i < Math.min(playerIds.length, 8); i++) {
+        if (!playersOut[i].charId) {
             while (altIdx < CHAR_IDS.length && usedChars.has(CHAR_IDS[altIdx])) altIdx++;
-            charId = CHAR_IDS[altIdx % CHAR_IDS.length];
+            const charId = CHAR_IDS[altIdx % CHAR_IDS.length];
             usedChars.add(charId);
             altIdx++;
+            playersOut[i].charId = charId;
         }
+        const cid    = playersOut[i].clientId;
+        const charId = playersOut[i].charId;
         const a = CHARACTER_ASSETS[charId] ?? CHARACTER_ASSETS.eld;
         playersOut[i] = { clientId: cid, charId, texCfg: a.texCfg, texSets: a.texSets, animBase: a.animBase };
     }
+
     return { type: 'char_select_ack', charId: selectorCharId, selectorClient: selectorClientId, stageId, players: playersOut };
 }
 
