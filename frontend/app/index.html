@@ -8,6 +8,41 @@
       * { margin: 0; padding: 0; box-sizing: border-box; }
       html, body { overflow: hidden; width: 100%; height: 100%; background: #000; }
     </style>
+    <script>
+      // ── Polyfill 1: Element.setCapture() is deprecated.
+      // Emscripten's library_html5.js calls it internally on mousedown events.
+      // We redirect it to the standard setPointerCapture() API.
+      if (typeof Element !== 'undefined' && 'setCapture' in Element.prototype) {
+        Element.prototype.setCapture = function () {
+          var el = this;
+          el.addEventListener('pointerdown', function (e) {
+            try { el.setPointerCapture(e.pointerId); } catch (_) {}
+          }, { once: true });
+        };
+        document.releaseCapture = function () {};
+      }
+
+      // ── Polyfill 2: Non-passive scroll-blocking event listeners.
+      // Emscripten (GLFW + html5 API) registers touchstart, touchmove, wheel and
+      // mousewheel without { passive: true }, triggering browser violations.
+      // Since the game runs fullscreen with overflow:hidden, there is no scroll to
+      // prevent, so forcing passive:true on these events is safe.
+      (function () {
+        var SCROLL_EVENTS = new Set(['touchstart', 'touchmove', 'wheel', 'mousewheel']);
+        var orig = EventTarget.prototype.addEventListener;
+        EventTarget.prototype.addEventListener = function (type, fn, options) {
+          if (SCROLL_EVENTS.has(type)) {
+            if (typeof options === 'object' && options !== null) {
+              options = Object.assign({}, options, { passive: true });
+            } else {
+              // options was a boolean capture flag or undefined
+              options = { capture: !!options, passive: true };
+            }
+          }
+          return orig.call(this, type, fn, options);
+        };
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
