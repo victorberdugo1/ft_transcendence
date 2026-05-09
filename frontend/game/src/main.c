@@ -34,7 +34,7 @@ static const char *ANIM_JSON[ANIM_COUNT] = {
 	"data/animations/attack_crouch.json",
 	"data/animations/dash.json",
 	"data/animations/crouch.json",
-	"data/animations/crouch.json",
+	"data/animations/crouch.json",  // crouch_loop: same file, holds last frame to avoid bobbing
 	"data/animations/hurt.json",
 	"data/animations/block.json",
 	"data/animations/attack_dash.json",
@@ -52,7 +52,7 @@ static const char *ANIM_META[ANIM_COUNT] = {
 	"data/animations/attack_crouch.anim",
 	"data/animations/dash.anim",
 	"data/animations/crouch.anim",
-	"data/animations/crouch.anim",
+	"data/animations/crouch.anim",  // crouch_loop: same file, holds last frame to avoid bobbing
 	"data/animations/hurt.anim",
 	"data/animations/block.anim",
 	"data/animations/attack_dash.anim",

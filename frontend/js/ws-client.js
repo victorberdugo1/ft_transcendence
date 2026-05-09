@@ -13,7 +13,7 @@ window._charSelectData = null;
 
 const ACTION_KEY     = 'Space';
 
-const ACTION_KEY_ALT = 'KeyG';
+const ACTION_KEY_ALT = 'KeyG'; // alternative block/attack key (gamepad-friendly layout)
 
 const DASH_TAP_MS    = 300;
 
@@ -154,20 +154,17 @@ setInterval(() => {
             window._charSelectData = null;
         }
 
-
-
+        // Re-send a pending char select from before the disconnect (e.g. page reload mid-selection)
         const _pcs = sessionStorage.getItem('pendingCharSelect');
-        if (_pcs) { try { const {charId,charIdx,stageId} = JSON.parse(_pcs); setTimeout(()=>{ if(window._ws&&window._ws.readyState===WebSocket.OPEN) sendCharSelect(charId,charIdx??0,stageId??0); },300); } catch(e){} }
-
-
-
-
-
-
-
-
-
-
+        if (_pcs) {
+            try {
+                const { charId, charIdx, stageId } = JSON.parse(_pcs);
+                setTimeout(() => {
+                    if (window._ws && window._ws.readyState === WebSocket.OPEN)
+                        sendCharSelect(charId, charIdx ?? 0, stageId ?? 0);
+                }, 300);
+            } catch (e) {}
+        }
 
         if (savedId) {
             ws.send(JSON.stringify({ type: 'rejoin', clientId: parseInt(savedId, 10) }));

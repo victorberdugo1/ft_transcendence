@@ -284,6 +284,8 @@ const lastState  = {};
 const spectators = {};
 let frameId = 0;
 
+let tournamentWaitingWinners = {};
+
 async function getLastWatchedSession(dbUserId) {
     if (!dbUserId) return null;
     try {
@@ -1989,8 +1991,6 @@ async function finalizeTournament(tournamentId, championClientId) {
     console.log(`[TOURNAMENT] ${tournamentId} finished — champion: ${championClientId}`);
 }
 
-let tournamentWaitingWinners = {};
-
 async function checkAndGrantAchievements(dbUserId) {
     try {
         const { rows: stats } = await db.query(
@@ -2191,6 +2191,7 @@ app.get('/api/spectators/:sessionId', requireAuth, async (req, res) => {
     }
 });
 
+// Dev-only endpoints — not protected by requireAuth intentionally
 app.post('/api/dev/duel', (req, res) => {
     const free = Object.values(players)
         .filter(p => !playerSession.has(p.id))
