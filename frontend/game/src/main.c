@@ -613,8 +613,8 @@ static void InitPlayer(Player *p, int id) {
 	}
 
 	const CharDef *cd   = FindCharDef(p->charId);
-	const char *texCfg  = cd ? cd->texCfg  : "data/textures/eld/bone_textures.txt";
-	const char *texSets = cd ? cd->texSets : "data/textures/eld/texture_sets.txt";
+	const char *texCfg  = cd ? cd->texCfg  : "data/textures/default/bone_textures.txt";
+	const char *texSets = cd ? cd->texSets : "data/textures/default/texture_sets.txt";
 
 	p->character = CreateAnimatedCharacter(texCfg, texSets);
 
@@ -711,16 +711,13 @@ static void FetchState(void) {
 				}
 			}
 
-			// Do not queue this player for initialisation until we have a confirmed
-			// charId. Without one the wrong textures would be loaded for everyone.
+			// Si aún no hay charId confirmado, usamos "default" como placeholder
+			// para que el jugador sea visible en la arena desde el principio
+			// (con default.png). El bloque de re-init que viene a continuación
+			// detectará el cambio de "default" al charId real en cuanto llegue
+			// la selección confirmada del servidor.
 			if (!players[slot].charId[0]) {
-				// Keep the slot reserved (active=2, id=pid) so the same slot is
-				// reused next frame when the char_select_ack arrives.
-				// Discarding it (active=0/id=-1) caused a new slot to be picked
-				// each frame, which meant the charId was never populated correctly
-				// for late-joining clients who missed the original broadcast.
-				seen[slot] = 1;
-				continue;
+				strncpy(players[slot].charId, "default", sizeof(players[slot].charId)-1);
 			}
 
 			players[slot].animIndex = AnimIndex(panim);

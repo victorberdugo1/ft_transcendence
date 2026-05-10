@@ -345,7 +345,7 @@ function sendStateToSpectator(spec) {
         if (sessionIds && !sessionIds.has(Number(id))) continue;
         snapshot[id] = {
             id:           p.id,
-            charId:       p.charId ?? 'eld',
+            charId:       p.charId ?? null,   // null = aún no ha elegido → cliente usará default.png
             x:            +p.x.toFixed(3),
             y:            +p.y.toFixed(3),
             rotation:     p.facing === -1 ? Math.PI : 0,
@@ -2076,7 +2076,7 @@ function broadcastState() {
     for (const [id, p] of Object.entries(players)) {
         snapshot[id] = {
             id:           p.id,
-            charId:       p.charId ?? 'eld',
+            charId:       p.charId ?? null,   // null = aún no ha elegido → cliente usará default.png
             x:            +p.x.toFixed(3),
             y:            +p.y.toFixed(3),
             rotation:     p.facing === -1 ? Math.PI : 0,
