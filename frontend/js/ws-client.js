@@ -1,3 +1,31 @@
+// ─── NOTE ON window._ GLOBALS ─────────────────────────────────────────────────
+// This file exposes state via window._ intentionally.
+// main.c (compiled with Emscripten) reads these values through EM_JS macros —
+// that is the ABI between C/WASM and JS. Do NOT refactor away from window._
+// without also updating every EM_JS block in main.c and recompiling the WASM.
+//
+// Globals used by main.c (do not rename):
+//   window._myClientId, window._isSpectator, window._gameState,
+//   window._gameConfig, window._victoryActive, window._victoryConsumed,
+//   window._victoryIsWinner, window._victoryWinner, window._overlayReady,
+//   window._hitstopState, window._countdownStart, window._countdownDone,
+//   window._canvasWidth, window._canvasHeight
+//
+// Globals used only by React UI (safe to rename with a coordinated frontend PR):
+//   window._spectatorMode, window._matchSession, window._lastMatchResult,
+//   window._tournamentResult, window._eliminatedFromSession,
+//   window._charSelectData, window._charSelectConfirmed
+// ──────────────────────────────────────────────────────────────────────────────
+
+// HITSTOP_SHAKE is imported from constants so that shake amplitudes and
+// hitstop tier thresholds are defined in a single place. Changing a tier's
+// feel only requires editing constants.js — no need to touch this file.
+//
+// In the browser build, constants.js is loaded as a plain <script> before
+// this file, so HITSTOP_SHAKE is available as a global. The Node/backend
+// build uses require() and never loads this file.
+/* global HITSTOP_SHAKE */
+
 (function restoreLastState() {
     try {
         const saved = sessionStorage.getItem('gameState');
@@ -12,31 +40,22 @@ window._ws             = null;
 window._charSelectData = null;
 
 const ACTION_KEY     = 'Space';
-
-const ACTION_KEY_ALT = 'KeyG'; // alternative block/attack key (gamepad-friendly layout)
-
+const ACTION_KEY_ALT = 'KeyG';
 const DASH_TAP_MS    = 300;
-
 const DASH_ATTACK_MS = 200;
-
 const ACTION_HOLD_MS = 350;
 
-
 const keys = {};
-
 window.addEventListener('keydown', e => { keys[e.code] = true;  });
 window.addEventListener('keyup',   e => { keys[e.code] = false; });
-
 
 const EMPTY_FRAME = Object.freeze({
     jump: false, attack: false, dash: false, dashDir: 0, dashAttack: false,
 });
 
-
 const frameEvents = { ...EMPTY_FRAME };
 
 let actionDownAt = 0;
-
 let actionFired  = false;
 
 function isActionKey(code) {
@@ -51,17 +70,12 @@ window.addEventListener('keydown', (e) => {
 
 window.addEventListener('keyup', (e) => {
     if (!isActionKey(e.code)) return;
-
     const heldMs = Date.now() - actionDownAt;
-
-
-
     if (!actionFired && heldMs < ACTION_HOLD_MS) {
         const sinceDash = Date.now() - dashEndTime;
         if (dashEndTime > 0 && sinceDash < DASH_ATTACK_MS) {
             frameEvents.dashAttack = true;
             dashEndTime = 0;
-
         } else {
             frameEvents.attack = true;
         }
@@ -80,13 +94,10 @@ const DASH_KEYS = new Set(['ArrowLeft', 'KeyA', 'ArrowRight', 'KeyD']);
 
 window.addEventListener('keydown', (e) => {
     if (e.repeat || !DASH_KEYS.has(e.code)) return;
-
     const now = Date.now();
     if (e.code === lastTap.code && now - lastTap.time < DASH_TAP_MS) {
         frameEvents.dash    = true;
         frameEvents.dashDir = (e.code === 'ArrowRight' || e.code === 'KeyD') ? 1 : -1;
-
-
         dashEndTime = now + 120;
     }
     lastTap = { code: e.code, time: now };
@@ -131,15 +142,10 @@ setInterval(() => {
         setStatus('⬤ Connected');
         const savedId = sessionStorage.getItem('clientId');
 
-
-
-
-
         window._gameState      = { type: 'state', frameId: 0, players: {} };
         window._isSpectator    = false;
         window._spectatorMode  = null;
         window._eliminatedFromSession = null;
-
 
         window._charSelectConfirmed = false;
         try {
@@ -154,7 +160,6 @@ setInterval(() => {
             window._charSelectData = null;
         }
 
-        // Re-send a pending char select from before the disconnect (e.g. page reload mid-selection)
         const _pcs = sessionStorage.getItem('pendingCharSelect');
         if (_pcs) {
             try {
@@ -185,10 +190,6 @@ setInterval(() => {
 
         } else if (msg.type === 'char_select_ack') {
             window._charSelectData = msg;
-
-            // Only mark confirmed and persist if this ack is for OUR own selection.
-            // The server broadcasts to everyone when any player selects — treating
-            // another player's ack as our own would skip our char select screen.
             if (msg.selectorClient === window._myClientId) {
                 window._charSelectConfirmed = true;
                 try { sessionStorage.setItem('charSelectData', JSON.stringify(msg)); } catch(e){}
@@ -204,8 +205,6 @@ setInterval(() => {
                 activeSessions:  msg.activeSessions,
                 eliminated:      msg.eliminated ?? false,
             };
-            // If we were just eliminated, mark it so victory events are treated
-            // as "spectator watching the end" and not as personal defeat screen.
             if (msg.eliminated) {
                 window._eliminatedFromSession = msg.watchingSession ?? null;
             }
@@ -213,14 +212,7 @@ setInterval(() => {
             if (!window._gameState || !window._gameState.players) {
                 window._gameState = { type: 'state', frameId: 0, players: {} };
             }
-
-
-
-
-
-
             window.dispatchEvent(new CustomEvent('spectator_mode', { detail: window._spectatorMode }));
-
             if (!msg.watchingSession) {
                 _spectatorAutoWatch();
             }
@@ -244,13 +236,14 @@ setInterval(() => {
             window.dispatchEvent(new CustomEvent('spectator_session_changed', { detail: msg }));
 
         } else if (msg.type === 'hitstop') {
+            // HITSTOP_SHAKE comes from constants.js — single source of truth.
+            // If the global is missing (e.g. tests without a browser), fall back
+            // to a safe default rather than silently producing NaN.
+            const shakeTable = (typeof HITSTOP_SHAKE !== 'undefined')
+                ? HITSTOP_SHAKE
+                : { micro: 0.012, light: 0.028, medium: 0.055, heavy: 0.10, ultra: 0.18 };
 
-
-
-
-            const shakeByTier = { micro: 0.012, light: 0.028, medium: 0.055, heavy: 0.10, ultra: 0.18 };
-            const shakeAmt = shakeByTier[msg.tier] ?? 0.02;
-
+            const shakeAmt = shakeTable[msg.tier] ?? 0.02;
             const existing = window._hitstopState;
             if (!existing || msg.frames > existing.framesLeft) {
                 window._hitstopState = {
@@ -260,31 +253,22 @@ setInterval(() => {
                     attackerId:  msg.attackerId,
                     targetId:    msg.targetId,
                     startFrames: msg.frames,
-
                 };
             }
             window.dispatchEvent(new CustomEvent('hitstop', { detail: window._hitstopState }));
 
         } else if (msg.type === 'state') {
             window._gameState = msg;
-            // Re-apply victory animation patch so server state updates don't
-            // clobber the winner's animation while the victory sequence plays.
             if (window._victoryActive && window._victoryWinner >= 0) {
                 const wp = window._gameState.players[window._victoryWinner];
                 if (wp) { wp.animation = 'victory'; wp.frozen = true; }
             }
-            try { sessionStorage.setItem('gameState', JSON.stringify(msg)); } catch {   }
+            try { sessionStorage.setItem('gameState', JSON.stringify(msg)); } catch { }
 
         } else if (msg.type === 'match_start') {
-
-
             window._victoryState    = null;
             window._victoryConsumed = false;
             window._hitstopState    = null;
-
-
-
-
 
             window._matchSession = {
                 sessionId:    msg.sessionId,
@@ -302,9 +286,6 @@ setInterval(() => {
             window.dispatchEvent(new CustomEvent('match_start', { detail: window._matchSession }));
 
         } else if (msg.type === 'victory') {
-            // If this client was eliminated earlier and is now watching as a spectator,
-            // show them the defeat/end overlay (same as any loser) and also dispatch
-            // the spectator event for the UI layer.
             if (window._isSpectator && window._eliminatedFromSession) {
                 window._victoryWinner   = msg.winner | 0;
                 window._victoryIsWinner = false;
@@ -331,49 +312,26 @@ setInterval(() => {
                 return;
             }
 
-
-
-
-
-
             const isWinner = (msg.winner === window._myClientId);
             window._victoryWinner   = msg.winner | 0;
             window._victoryIsWinner = isWinner;
             window._victoryActive   = true;
-
             window._victoryConsumed = false;
-
-
-
             window._victoryState = {
                 winner:         msg.winner,
                 loser:          msg.loser,
                 isWinner,
                 reloadRequired: msg.reloadRequired ?? true,
             };
-
-
-
             if (window._gameState && window._gameState.players) {
                 const wp = window._gameState.players[msg.winner];
-                if (wp) {
-                    wp.animation = 'victory';
-                    wp.frozen    = true;
-                }
+                if (wp) { wp.animation = 'victory'; wp.frozen = true; }
             }
-
-            // Delay the overlay so the victory animation can finish and there is
-            // time to position the camera before the UI appears.
-            // Tune window._victoryOverlayDelayMs (default 3000 ms) to adjust the wait.
             setTimeout(() => {
                 window.dispatchEvent(new CustomEvent('victory', { detail: window._victoryState }));
-                if (isWinner) console.log('[GAME] Victory! Reload para la próxima partida.');
             }, window._victoryOverlayDelayMs ?? 3000);
 
         } else if (msg.type === 'match_finished') {
-            // The session is permanently over. Clear all persisted identity so that
-            // any reload (winner or spectator) starts a brand-new connection instead
-            // of trying to rejoin a session that no longer exists.
             try {
                 sessionStorage.removeItem('clientId');
                 sessionStorage.removeItem('charSelectData');
@@ -381,16 +339,15 @@ setInterval(() => {
                 sessionStorage.removeItem('watchSession');
                 sessionStorage.removeItem('gameState');
             } catch(e) {}
-            window._myClientId         = -1;
-            window._charSelectData     = null;
+            window._myClientId          = -1;
+            window._charSelectData      = null;
             window._charSelectConfirmed = false;
-            window._victoryConsumed    = true;
+            window._victoryConsumed     = true;
             window.dispatchEvent(new CustomEvent('match_finished', { detail: { sessionId: msg.sessionId } }));
 
         } else if (msg.type === 'match_end') {
             const isWinnerMe = msg.winner === window._myClientId;
             window._lastMatchResult = { winner: msg.winner, loser: msg.loser, isWinner: isWinnerMe, matchId: msg.matchId };
-            // Clear eliminated-spectator flag now that the match is fully over
             window._eliminatedFromSession = null;
             window.dispatchEvent(new CustomEvent('match_end', { detail: window._lastMatchResult }));
             window._matchSession = null;
@@ -427,16 +384,8 @@ setInterval(() => {
 
 function sendInput(frame) {
     if (!window._ws || window._ws.readyState !== WebSocket.OPEN) return;
-
-
     if (window._isSpectator) return;
-
-
-    // Block all input from the moment victory is declared until the
-    // victory animation finishes and the overlay is consumed.
     if (window._victoryActive) return;
-
-
     if (window._countdownStart && !window._countdownDone) return;
 
     window._ws.send(JSON.stringify({
@@ -473,7 +422,7 @@ function _spectatorAutoWatch() {
                 watchSession(sessions[0].sessionId);
                 return;
             }
-        } catch (e) {   }
+        } catch (e) { }
         window._spectatorAutoWatchTimer = setTimeout(attempt, 1000);
     }
 
@@ -499,10 +448,12 @@ async function fetchActiveSessions() {
 
 window.fetchActiveSessions = fetchActiveSessions;
 
+
 function sendCharSelect(charId, charIdx, stageId) {
     if (!window._ws || window._ws.readyState !== WebSocket.OPEN) return;
     window._ws.send(JSON.stringify({ type: 'char_select', charId, charIdx: charIdx ?? 0, stageId: stageId ?? 0 }));
 }
+
 window.sendCharSelect = sendCharSelect;
 
 function getCharSelectData() { return window._charSelectData ?? null; }
@@ -516,4 +467,5 @@ function clearCharSelectData() {
         sessionStorage.removeItem('charSelectData');
     } catch(e) {}
 }
+
 window.clearCharSelectData = clearCharSelectData;
