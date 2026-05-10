@@ -16,16 +16,27 @@ const {
     tickPhysics, tickCollisions, tickPlatforms, tickAnimations,
 } = require('./physics');
 
+// Stub until aprenafe delivers achievements.js.
+// Once achievements.js exists, this no-op is replaced automatically.
+let checkAndGrantAchievements = async () => {};
+let updateStatsAfterMatch     = async () => {};
+try {
+    ({ checkAndGrantAchievements } = require('./achievements'));
+} catch { /* achievements.js not yet available */ }
+try {
+    ({ updateStatsAfterMatch } = require('./stats'));
+} catch { /* stats.js not yet available */ }
+
 // ─── Shared mutable state (owned by this module) ──────────────────────────────
 
 const players    = {};
 const spectators = {};
 const lastState  = {};
 
-const gameSessions      = new Map();
-const playerSession     = new Map();
+const gameSessions       = new Map();
+const playerSession      = new Map();
 const playerCharSelected = new Map();
-const hitstopBySession  = {};
+const hitstopBySession   = {};
 
 let nextClientId  = 1;
 let nextSessionId = 1;
@@ -176,7 +187,7 @@ function sendAllCharSelectsTo(ws) {
 // ─── Player factory ───────────────────────────────────────────────────────────
 
 function createPlayer(id, saved, ws) {
-    const onGround   = saved ? (saved.onGround ?? true) : true;
+    const onGround    = saved ? (saved.onGround ?? true) : true;
     const playerCount = Object.keys(players).length;
     const side        = playerCount % 2 === 0 ? -1 : 1;
     const spawnX      = side * (1.5 + Math.random() * 1.5);
@@ -234,6 +245,17 @@ function createPlayer(id, saved, ws) {
     };
 }
 
+// ─── playerFlags helpers ──────────────────────────────────────────────────────
+// playerFlags tracks per-player in-match events used by achievements.js.
+// Each entry: { tookDamage: bool, completedCombo: bool }
+
+function initPlayerFlags(session, clientIds) {
+    session.playerFlags = {};
+    for (const cid of clientIds) {
+        session.playerFlags[cid] = { tookDamage: false, completedCombo: false };
+    }
+}
+
 // ─── Match modes ──────────────────────────────────────────────────────────────
 
 function startBrawl(clientIds) {
@@ -244,7 +266,10 @@ function startBrawl(clientIds) {
         eliminated: new Set(),
         tournamentId: null, round: null, matchDbId: null,
         startedAt: new Date(), finished: false,
+        loserDbId: null, loserStocks: 0,
+        playerFlags: {},
     };
+    initPlayerFlags(session, clientIds);
     gameSessions.set(id, session);
     for (const cid of clientIds) {
         playerSession.set(cid, id);
@@ -273,7 +298,10 @@ function startDuel(clientId1, clientId2) {
         eliminated: new Set(),
         tournamentId: null, round: null, matchDbId: null,
         startedAt: new Date(), finished: false,
+        loserDbId: null, loserStocks: 0,
+        playerFlags: {},
     };
+    initPlayerFlags(session, [clientId1, clientId2]);
     gameSessions.set(id, session);
     playerSession.set(clientId1, id);
     playerSession.set(clientId2, id);
@@ -291,7 +319,10 @@ async function startTournamentMatch(clientId1, clientId2, tournamentId, round) {
         eliminated: new Set(),
         tournamentId, round, matchDbId: null,
         startedAt: new Date(), finished: false,
+        loserDbId: null, loserStocks: 0,
+        playerFlags: {},
     };
+    initPlayerFlags(session, [clientId1, clientId2]);
     gameSessions.set(id, session);
     playerSession.set(clientId1, id);
     playerSession.set(clientId2, id);
@@ -344,6 +375,10 @@ function tryAutoMatch() {
         for (const cid of ready) {
             sess.playerIds.add(cid);
             playerSession.set(cid, sess.id);
+            // Init playerFlags for the new late-joiner
+            if (sess.playerFlags && !sess.playerFlags[cid]) {
+                sess.playerFlags[cid] = { tookDamage: false, completedCombo: false };
+            }
             const p = players[cid];
             if (p && p.prevSessionId !== sess.id) p.stocks = 3;
             if (p) p.prevSessionId = null;
@@ -406,9 +441,9 @@ function handleElimination(loser) {
 async function resolveMatchWinner(session, winnerClientId, loserClientId) {
     session.finished = true;
 
-    const winner     = players[winnerClientId];
-    const winnerDbId = winner?.dbUserId ?? null;
-    const loserDbId  = session.loserDbId ?? null;
+    const winner      = players[winnerClientId];
+    const winnerDbId  = winner?.dbUserId ?? null;
+    const loserDbId   = session.loserDbId ?? null;
     const loserStocks = session.loserStocks ?? 0;
 
     broadcastToSession(session, { type: 'victory', winner: winnerClientId, loser: loserClientId, reloadRequired: true });
@@ -430,6 +465,17 @@ async function resolveMatchWinner(session, winnerClientId, loserClientId) {
             );
         }
 
+        // updateStatsAfterMatch handles win_streak, best_streak, and duration_s (aprenafe — stats.js)
+        await updateStatsAfterMatch({
+            db,
+            winnerDbId,
+            loserDbId,
+            matchId:      session.matchDbId,
+            startedAt:    session.startedAt,
+            winnerStocks: winner?.stocks ?? 0,
+            loserStocks,
+        });
+
         if (winnerDbId) {
             await db.query(
                 `UPDATE user_stats SET wins = wins + 1, xp = xp + 100,
@@ -437,7 +483,14 @@ async function resolveMatchWinner(session, winnerClientId, loserClientId) {
                  updated_at = NOW() WHERE user_id = $1`,
                 [winnerDbId]
             );
-            await checkAndGrantAchievements(winnerDbId);
+            // checkAndGrantAchievements is owned by aprenafe (achievements.js)
+            await checkAndGrantAchievements(winnerDbId, {
+                tookDamage:      session.playerFlags?.[winnerClientId]?.tookDamage  ?? true,
+                completedCombo:  session.playerFlags?.[winnerClientId]?.completedCombo ?? false,
+                durationS:       Math.round((Date.now() - session.startedAt) / 1000),
+                winnerStocks:    winner?.stocks ?? 0,
+                isTournamentWin: session.mode === 'tournament',
+            });
         }
         if (loserDbId) {
             await db.query(
@@ -445,6 +498,7 @@ async function resolveMatchWinner(session, winnerClientId, loserClientId) {
                 [loserDbId]
             );
         }
+
     } catch (err) {
         console.error('[GAME] DB write error on match resolve:', err.message);
     }
@@ -529,29 +583,6 @@ async function finalizeTournament(tournamentId, championClientId) {
     console.log(`[TOURNAMENT] ${tournamentId} finished — champion: ${championClientId}`);
 }
 
-// ─── Achievements ─────────────────────────────────────────────────────────────
-
-async function checkAndGrantAchievements(dbUserId) {
-    try {
-        const { rows: stats } = await db.query('SELECT wins FROM user_stats WHERE user_id = $1', [dbUserId]);
-        if (!stats.length) return;
-        const { wins } = stats[0];
-        const toGrant = [];
-        if (wins >= 1)  toGrant.push('first_win');
-        if (wins >= 10) toGrant.push('veteran');
-        for (const key of toGrant) {
-            await db.query(
-                `INSERT INTO user_achievements (user_id, achievement_id)
-                 SELECT $1, id FROM achievements WHERE key = $2
-                 ON CONFLICT DO NOTHING`,
-                [dbUserId, key]
-            );
-        }
-    } catch (err) {
-        console.error('[ACH] error:', err.message);
-    }
-}
-
 // ─── DB helpers for spectator ─────────────────────────────────────────────────
 
 async function getLastWatchedSession(dbUserId) {
@@ -589,13 +620,37 @@ function tickRespawn() {
     }
 }
 
+// hitCtx is passed to physics.js functions so they can broadcast hitstop
+// and notify session.js of hit/combo events (for playerFlags).
 const hitCtx = {
-    get players()     { return players; },
-    get playerSession() { return playerSession; },
-    get gameSessions()  { return gameSessions; },
+    get players()          { return players; },
+    get playerSession()    { return playerSession; },
+    get gameSessions()     { return gameSessions; },
     get hitstopBySession() { return hitstopBySession; },
     broadcastToSession,
     WebSocket,
+
+    // Called by applyHit when a hit connects (not a block).
+    // Sets playerFlags[targetId].tookDamage = true on the session.
+    onHit(attackerClientId, targetClientId) {
+        const sessId = playerSession.get(attackerClientId);
+        if (!sessId) return;
+        const sess = gameSessions.get(sessId);
+        if (sess?.playerFlags?.[targetClientId]) {
+            sess.playerFlags[targetClientId].tookDamage = true;
+        }
+    },
+
+    // Called by tickAttack when attack_combo_3 finishes landing.
+    // Sets playerFlags[attackerClientId].completedCombo = true on the session.
+    onCombo3(attackerClientId) {
+        const sessId = playerSession.get(attackerClientId);
+        if (!sessId) return;
+        const sess = gameSessions.get(sessId);
+        if (sess?.playerFlags?.[attackerClientId]) {
+            sess.playerFlags[attackerClientId].completedCombo = true;
+        }
+    },
 };
 
 function tick() {

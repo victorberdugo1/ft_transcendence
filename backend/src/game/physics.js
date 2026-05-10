@@ -66,9 +66,17 @@ function resolveAttackAnim(p, isDashAttack, crouch) {
 
 /**
  * applyHit is called with the active players map and session context so it can
- * broadcast hitstop. The caller (session.js) passes broadcastToSession.
+ * broadcast hitstop and notify session.js of hit events (playerFlags).
+ *
+ * ctx shape (from session.js hitCtx):
+ *   players, playerSession, gameSessions, hitstopBySession,
+ *   broadcastToSession, WebSocket,
+ *   onHit(attackerClientId, targetClientId)   ← sets playerFlags.tookDamage
+ *   onCombo3(attackerClientId)                ← sets playerFlags.completedCombo
  */
-function applyHit(attacker, target, { players, playerSession, gameSessions, hitstopBySession, broadcastToSession, WebSocket }) {
+function applyHit(attacker, target, ctx) {
+    const { players, playerSession, gameSessions, hitstopBySession, broadcastToSession, WebSocket } = ctx;
+
     const dir          = target.x >= attacker.x ? 1 : -1;
     const attackerMult = voltageMultiplier(attacker.voltage);
     const defenderMult = voltageMultiplier(target.voltage);
@@ -84,6 +92,9 @@ function applyHit(attacker, target, { players, playerSession, gameSessions, hits
         target.voltage = Math.min(VOLTAGE_MAX, target.voltage + VOLTAGE_PER_HIT * 0.25);
     } else {
         target.voltage = Math.min(VOLTAGE_MAX, target.voltage + VOLTAGE_PER_HIT);
+        // Notify session.js that this target took real damage (not blocked).
+        // Used by achievements.js for the 'untouchable' achievement check.
+        if (ctx.onHit) ctx.onHit(attacker.id, target.id);
     }
     if (target.voltage >= VOLTAGE_MAX) {
         target.voltage      = VOLTAGE_MAX;
@@ -135,8 +146,8 @@ function resolveHits(p, players, ctx) {
     for (const target of alive) {
         if (target.id === p.id) continue;
         if (p.hitTargets.has(target.id)) continue;
-        const tCX     = target.x;
-        const tCY     = target.y + 0.36;
+        const tCX      = target.x;
+        const tCY      = target.y + 0.36;
         const overlapX = Math.abs(hbCX - tCX) < (hbHW + hurtHW);
         const overlapY = Math.abs(hbCY - tCY) < (hbHH + hurtHH);
         if (!overlapX || !overlapY) continue;
@@ -226,20 +237,27 @@ function tickAttack(p, attack, dashAttack, crouch, players, ctx) {
         p.attacking     = true;
         p.attackTimer   = ATTACK_DURATION;
         p._isDashAttack = isDashAttack;
-        const animName      = resolveAttackAnim(p, isDashAttack, crouch);
+        const animName   = resolveAttackAnim(p, isDashAttack, crouch);
         p.animation      = animName;
         p.animTimer      = ANIM_DURATIONS[animName];
         p.comboWindow    = p.animTimer + COMBO_WINDOW;
         p.attackCooldown = p.comboStep > 0 ? 0.1 : ATTACK_COOLDOWN;
         p.hitTargets     = new Set();
         if (isDashAttack) p.dashEndWindow = 0;
+        // Track when a combo_3 was started so we can fire onCombo3 when it lands.
+        p._pendingCombo3 = (animName === 'attack_combo_3');
     }
     if (p.attackTimer > 0) {
         p.attackTimer -= TICK_DT;
         resolveHits(p, players, ctx);
         if (p.attackTimer <= 0) {
-            p.attacking     = false;
-            p._isDashAttack = false;
+            // If this was a combo_3 attack that hit at least one target, notify session.js.
+            if (p._pendingCombo3 && p.hitTargets.size > 0 && ctx.onCombo3) {
+                ctx.onCombo3(p.id);
+            }
+            p._pendingCombo3 = false;
+            p.attacking      = false;
+            p._isDashAttack  = false;
         }
     }
 }
