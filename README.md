@@ -39,7 +39,7 @@ Up to 8 players connect simultaneously and fight in live matches. The game suppo
 - **Task tracking:** GitHub Issues — one issue per feature, assigned to the responsible developer
 - **Branches:** `feat/<feature>-<login>` per feature; PRs reviewed by at least one other member before merge
 - **Meetings:** weekly sync to review progress and resolve blockers
-- **Communication:** Discord — dedicated channels per module and general coordination
+- **Communication:** Whasapp — dedicated group and general coordination
 
 ---
 
