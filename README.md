@@ -223,24 +223,24 @@ The mandatory part is the shared foundation every team member built and owns col
 | Frontend + backend form validation | isegura- (frontend), vberdugo (backend) |
 | `.env.example` + environment setup | isegura- |
 
-### Chosen modules
+## Chosen modules
 
-| Module | Type | Pts | Owner | Justification |
+| Module | Type | Pts | Owner(s) | Justification |
 |---|---|---|---|---|
 | Use a framework (React + Express) | Major | 2 | All | React 18 + Vite frontend; Express backend — full-stack separation with REST API and SPA routing. |
-| Real-time features via WebSocket | Major | 2 | vberdugo | `ws` library drives the 60 Hz authoritative game loop; all clients stay in sync via state snapshots. |
+| Real-time features via WebSocket | Major | 2 | vberdugo + isegura- | ws library drives the 60 Hz authoritative game loop; all clients stay in sync via state snapshots and frontend live-state synchronization. |
 | Allow users to interact (chat + friends + profile) | Major | 2 | aprenafe + mmarinov | Direct messaging, friends graph with accept/block, and profile pages — core social layer of the app. |
-| Web-based game (Enuma Fighter) | Major | 2 | vberdugo | Raylib → WASM runs in-browser. Server-side physics, 4 characters with distinct move sets and a voltage system. |
-| Remote players | Major | 2 | vberdugo | Players on separate browsers play live via WebSocket with input buffering and reconnection logic. |
+| Web-based game (Enuma Fighter) | Major | 2 | vberdugo + isegura- | Raylib → WASM runs in-browser. Server-side physics, 4 characters with distinct move sets and a voltage system. |
+| Remote players | Major | 2 | vberdugo + isegura- | Players on separate browsers play live via WebSocket with input buffering, reconnect handling, and synchronized frontend state updates. |
 | Multiplayer 3+ players | Major | 2 | vberdugo | Sessions support up to 8 simultaneous players; authoritative server handles sync and fair scoring. |
-| AI Opponent | Major | 2 | vberdugo | `game/ai.js` — heuristic bot with randomized reaction delays injecting synthetic inputs every tick. |
-| Game customization (characters + abilities) | Minor | 1 | vberdugo | 4 selectable characters with distinct stats and abilities; selection screen before each match. |
-| Gamification (achievements + XP + leaderboard) | Minor | 1 | aprenafe | Server-side achievements, XP/level in `user_stats`, top-10 leaderboard — all persisted in PostgreSQL. |
-| Game statistics and match history | Minor | 1 | aprenafe | Per-user wins, losses, streaks in `user_stats`; full match log in `matches`; displayed on the profile page. |
+| AI Opponent | Major | 2 | vberdugo | game/ai.js — heuristic bot with randomized reaction delays injecting synthetic inputs every tick. |
+| Game customization (characters + abilities) | Minor | 1 | vberdugo + isegura- | 4 selectable characters with distinct stats and abilities; character selection and customization UI integrated into the frontend flow. |
+| Gamification (achievements + XP + leaderboard) | Minor | 1 | aprenafe | Server-side achievements, XP/level in user_stats, top-10 leaderboard — all persisted in PostgreSQL. |
+| Game statistics and match history | Minor | 1 | aprenafe | Per-user wins, losses, streaks in user_stats; full match log in matches; displayed on the profile page. |
 | GDPR compliance | Minor | 1 | mmarinov | Endpoints to export all personal data (JSON) and permanently delete an account, accessible from the profile. |
-| Multiple browser support | Minor | 1 | aprenafe | Full feature parity tested on Firefox, Safari, and Edge; browser-specific quirks documented. |
+| Multiple browser support | Minor | 1 | aprenafe + isegura- | Full feature parity tested on Firefox, Safari, and Edge; browser-specific UI and layout fixes documented. |
 | Spectator mode | Minor | 1 | vberdugo | Overflow and voluntary spectators receive live state broadcasts without sending input. |
-| Tournament system | Minor | 1 | isegura- | Single-elimination bracket in `tournaments` / `tournament_matches`; auto-advances on match completion. |
+| Tournament system | Minor | 1 | isegura- | Single-elimination bracket system with automatic progression, dynamic bracket rendering, and responsive tournament visualization. |
 
 **Total: 19 points** (14 mandatory + 5 bonus)
 
