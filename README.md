@@ -1,18 +1,45 @@
-# ft_transcendence
-
-*This project has been created as part of the 42 curriculum by vberdugo, , , .*
+*This project has been created as part of the 42 curriculum by aprenafe, isegura-, mmarinov, vberdugo.*
 
 ---
 
+# Enuma Fighter — ft_transcendence
+
 ## Description
 
-<!-- TODO: brief description of the project -->
+**Enuma Fighter** is a real-time multiplayer brawler game built as a full-stack web application, created as the final project of the 42 Common Core.
 
-Key features:
-- Web-based brawler game ("Enuma Fighter") built with Raylib compiled to WebAssembly
-- Real-time multiplayer via WebSocket (60 Hz authoritative server loop)
+Up to 8 players connect simultaneously and fight in live matches. The game supports 1v1 duels, multi-player free-for-all sessions, and structured tournaments with a single-elimination bracket. Spectators can watch any ongoing match in real time. A full social layer — friends, direct chat, notifications, and profiles — runs alongside the game.
+
+**Key features:**
+- Web-based brawler ("Enuma Fighter") built with Raylib compiled to WebAssembly
+- Real-time multiplayer via WebSocket — 60 Hz authoritative server loop
+- 4 playable characters (Eldwin, Hilda, Quimbur, Gabriel) with distinct stats and move sets
+- Tournament system with single-elimination bracket
+- Spectator mode (overflow + voluntary)
+- Friends system, direct chat, and in-app notifications
+- Achievements, XP/level progression, and leaderboard
 - React frontend + Express backend + PostgreSQL database
-- Fully containerized with Docker
+- Fully containerized with Docker — single command to run
+
+---
+
+## Team Information
+
+| Login | Role | Responsibilities |
+|---|---|---|
+| aprenafe | Project Manager + Developer | Team coordination and progress tracking. Achievements, stats, chat, notifications backend; Achievements/Chat/Leaderboard/Notifications pages; multi-browser support. |
+| isegura- | Developer | Login/Register pages, Tournament UI, Privacy/Terms pages, HTTPS/nginx, frontend form validation, `.env.example`. |
+| mmarinov | Technical Lead + Developer | Architecture decisions and code quality. Friends, profile, GDPR backend; Friends/Game/Home/Notifications/Profile pages. |
+| vberdugo | Product Owner + Developer | Defines priorities and validates completed work. Game engine, physics loop, WebSocket server, auth, matchmaking, AI opponent, spectator routing. |
+
+---
+
+## Project Management
+
+- **Task tracking:** GitHub Issues — one issue per feature, assigned to the responsible developer
+- **Branches:** `feat/<feature>-<login>` per feature; PRs reviewed by at least one other member before merge
+- **Meetings:** weekly sync to review progress and resolve blockers
+- **Communication:** Discord — dedicated channels per module and general coordination
 
 ---
 
@@ -22,46 +49,51 @@ Key features:
 
 - Docker and Docker Compose
 - GNU Make
-- Web browser (latest stable version, e.g., Chrome, Firefox, Safari, Edge)
+- Latest stable Google Chrome (or Firefox / Safari / Edge)
 
 ### Setup and run
 
 ```bash
-make setup      # Creates .env from .env.example — edit it before continuing
-make            # First time only: ~15 min (compiles Raylib → WASM, then starts everything)
+make
 ```
 
-Open https://localhost:8443 in your browser and accept the self-signed certificate.
+On first run this takes approximately 15 minutes (compiles Raylib to WASM, builds all images, starts all containers).
+
+If `.env` does not exist, `make` creates it automatically from `.env.example` — no manual setup required.
+
+Open **https://localhost:8443** in your browser and accept the self-signed certificate.
+
+> To use custom credentials or ports, copy `.env.example` to `.env`, edit it, then run `make`.
 
 ### Make commands
 
 | Command | Description |
 |---|---|
-| `make setup` | Copies `.env.example` to `.env` if it doesn't exist |
-| `make wasm` | Builds the frontend (C→WASM) and starts all containers |
-| `make up` | Starts all containers — reloads any changes to `.js` files without rebuild |
+| `make` | First-time setup + full build + start |
+| `make wasm` | Recompiles `main.c` to WASM only, then restarts |
+| `make up` | Starts all containers without rebuilding |
 | `make dev` | Starts with logs in the terminal (Ctrl+C to stop) |
-| `make build` | Builds all images without starting |
-| `make re` | Stops, rebuilds WASM, and starts again |
+| `make re` | Stops + recompiles WASM + restarts |
 | `make logs` | Streams logs from all services |
-| `make logs-<service>` | Streams logs from a specific service (e.g. `make logs-backend`) |
-| `make shell-<service>` | Opens a shell inside a container (e.g. `make shell-backend`) |
+| `make logs-<service>` | Streams logs from a specific service |
+| `make shell-<service>` | Opens a shell inside a container |
 | `make down` | Stops all containers |
-| `make clean` | Stops everything and removes all images and volumes (full reset) |
+| `make clean` | Full reset — removes all images and volumes |
 
 ---
 
 ## Technical Stack
 
-**Frontend** — React 18 (Vite), with Raylib compiled to WebAssembly via Emscripten. React handles all UI (menus, routing, HUD). The game runs inside a `<canvas>` element rendered by React. The canvas resolution is calculated from the actual viewport size at load time, and a debounced resize listener reloads the page to recalculate it. Changes to React components do not require recompilation. Changes to `main.c` require `make wasm`. Changes to `ws-client.js` or any file under `frontend/js/` and `backend/src/` are served live via Docker volume mounts — `make up` is enough.
-
-**Backend** — Node.js with Express. Runs the authoritative game loop at 60 Hz, handling physics, WebSocket connections, and all REST endpoints under `/api/*`. Authentication uses `bcrypt` (password hashing, 10 rounds) and opaque session tokens stored in PostgreSQL. Nodemon reloads the server automatically on file save.
-
-**Database** — PostgreSQL. Schema defined in `database/init.sql`, applied on first volume creation. To reset: `make clean && make wasm`.
-
-**Proxy** — nginx terminates TLS and routes `/` to the frontend nginx, `/api/*` and `/ws` to the backend.
-
-**Containerization** — Docker Compose orchestrates all four services (nginx, frontend, backend, database). A single `make wasm` command builds and starts everything.
+| Layer | Technology | Why |
+|---|---|---|
+| Frontend | React 18 (Vite) | Component model, fast HMR, large ecosystem |
+| Game engine | Raylib → WebAssembly via Emscripten | Proven 2D engine, runs in-browser with no plugins |
+| Backend | Express (Node.js) | Lightweight, straightforward WebSocket integration |
+| Database | PostgreSQL | Relational schema, strong consistency, `pg` driver |
+| Real-time | WebSocket (`ws` library) | Full-duplex, low latency, native browser support |
+| Proxy / TLS | nginx | TLS termination, static file serving, reverse proxy |
+| Containerization | Docker Compose | Single-command deployment, reproducible environment |
+| Auth | bcrypt + opaque session tokens | Secure password hashing, cookie-based sessions |
 
 ---
 
@@ -71,25 +103,14 @@ Open https://localhost:8443 in your browser and accept the self-signed certifica
 BROWSER
   │
   ▼
-nginx :443 (HTTPS/TLS termination)
-  ├── /          → frontend nginx :80 (serves React static build)
-  ├── /api/*     → backend :3000 (Express REST API)
-  └── /ws        → backend :3000 (WebSocket)
-                      │
-                      ▼
-                  PostgreSQL
+nginx :443  (HTTPS / TLS termination)
+  ├── /          → frontend :80   (React static build + WASM assets)
+  ├── /api/*     → backend :3000  (Express REST API)
+  └── /ws        → backend :3000  (WebSocket — 60 Hz game loop)
+                        │
+                        ▼
+                   PostgreSQL :5432
 ```
-
-The backend is the source of truth. React mounts the UI and the game canvas. The WASM module only renders and forwards inputs.
-
-```
-Backend (Express)             Frontend (React + Raylib WASM)
-  game loop (60 Hz)             React renders the canvas
-  physics calculation ──WS──▶   ws-client.js receives state
-  sends state         ◀──WS──   sends keyboard input
-```
-
-The frontend Dockerfile has three build stages: Emscripten compiles `main.c` to WASM, Vite builds the React app, and a final nginx image serves all static files.
 
 ---
 
@@ -97,189 +118,195 @@ The frontend Dockerfile has three build stages: Emscripten compiles `main.c` to 
 
 ```
 .
-├── docker-compose.yml
-├── .env.example                ← Copy to .env and fill in
 ├── Makefile
-│
-├── nginx/
-│   ├── Dockerfile              ← Generates self-signed HTTPS cert
-│   └── nginx.conf              ← Routes: /, /api/, /ws
-│
+├── README.md
+├── backend/
+│   ├── Dockerfile
+│   ├── package.json
+│   └── src/
+│       ├── auth.js                 ← Register, login, logout, session      (vberdugo)
+│       ├── db.js                   ← PostgreSQL pool
+│       ├── index.js                ← Entry point, WS + REST routes         (vberdugo)
+│       ├── game/
+│       │   ├── achievements.js     ← Achievement detection and granting    (aprenafe)
+│       │   ├── ai.js               ← AI bot opponent                       (vberdugo)
+│       │   ├── constants.js        ← Game constants                        (vberdugo)
+│       │   ├── physics.js          ← Collisions, voltage, hitstop          (vberdugo)
+│       │   ├── session.js          ← Match logic, matchmaking, spectators  (vberdugo)
+│       │   └── stats.js            ← Streaks, match duration               (aprenafe)
+│       ├── social/
+│       │   ├── chat.js             ← Direct messages                       (aprenafe)
+│       │   ├── friends.js          ← Friends system                        (mmarinov)
+│       │   ├── notifications.js    ← Notifications                         (aprenafe)
+│       │   └── profile.js          ← User profile                          (mmarinov)
+│       └── ws/
+│           └── handler.js          ← WebSocket event handler               (vberdugo)
+├── database/
+│   ├── erd.svg
+│   └── init.sql                    ← Schema, indexes, seed data            (All)
+├── docker-compose.yml
 ├── frontend/
-│   ├── Dockerfile              ← Stage 1: C→WASM / Stage 2: React build / Stage 3: nginx
-│   ├── app/                    ← React application (Vite)
+│   ├── Dockerfile                  ← Stage 1: C→WASM / Stage 2: React / Stage 3: nginx
+│   ├── app/
 │   │   ├── index.html
 │   │   ├── package.json
 │   │   ├── vite.config.js
 │   │   └── src/
-│   │       ├── main.jsx        ← React entry point
-│   │       └── App.jsx         ← Root component — canvas lives here
+│   │       ├── App.jsx
+│   │       ├── main.jsx
+│   │       ├── Achievements.jsx    ← User achievements                     (aprenafe)
+│   │       ├── Chat.jsx            ← Direct messages                       (aprenafe)
+│   │       ├── Friends.jsx         ← Friends list                          (mmarinov)
+│   │       ├── Game.jsx            ← Game canvas + char select             (mmarinov)
+│   │       ├── Home.jsx            ← Landing page / lobby                  (mmarinov)
+│   │       ├── Leaderboard.jsx     ← Top 10 players                        (aprenafe)
+│   │       ├── Login.jsx           ← Login form                            (isegura-)
+│   │       ├── Notifications.jsx   ← In-app notifications                  (mmarinov)
+│   │       ├── Privacy.jsx         ← Privacy Policy                        (isegura-)
+│   │       ├── Profile.jsx         ← User profile                          (mmarinov)
+│   │       ├── Register.jsx        ← Register form                         (isegura-)
+│   │       ├── Terms.jsx           ← Terms of Service                      (isegura-)
+│   │       └── Tournament.jsx      ← Tournament bracket UI                 (isegura-)
 │   ├── game/src/
-│   │   └── main.c              ← Raylib game code (requires make re after changes)
+│   │   ├── bones_core.h
+│   │   ├── main.c                  ← Raylib game source                    (vberdugo)
+│   │   ├── raylib.h
+│   │   ├── raymath.h
+│   │   ├── rlgl.h
+│   │   └── data/                   ← Animations, portraits, textures, VFX
 │   └── js/
-│       └── ws-client.js        ← WebSocket ↔ WASM bridge
-│
-├── backend/
-│   ├── Dockerfile
-│   ├── package.json            ← bcrypt, pg, express, ws
-│   └── src/
-│       └── index.js            ← Game loop + WebSocket + Express routes + Auth
-│
-└── database/
-    ├── init.sql                ← PostgreSQL schema
-    └── erd.svg                 ← Entity-Relationship Diagram
+│       └── ws-client.js            ← WebSocket ↔ WASM bridge              (vberdugo)
+└── nginx/
+    ├── Dockerfile                  ← Generates self-signed HTTPS cert      (isegura-)
+    └── nginx.conf                                                           (isegura-)
 ```
 
 ---
 
 ## Database Schema
 
-Full ERD with all relationships:
+![ERD](./database/erd.svg)
 
-![Database ERD](./database/erd.svg)
-
-| Table | Purpose | Key columns |
-|---|---|---|
-| `users` | User accounts | `id` PK, `username`, `email`, `password_hash` (bcrypt), `avatar_url`, `is_online`, `role`, `totp_secret`, `totp_enabled`, `created_at` |
-| `sessions` | Session tokens (auth) | `token` PK, `user_id` FK, `expires_at` (7 days) |
-| `user_stats` | Game statistics | `user_id` PK, `wins`, `losses`, `draws`, `win_streak`, `best_streak`, `xp`, `level` |
-| `friendships` | Friends system | `id` PK, `user_id` FK, `friend_id` FK, `status` (`pending`/`accepted`/`blocked`), `updated_at` |
-| `messages` | Direct chat | `id` PK, `sender_id` FK, `receiver_id` FK, `content`, `is_read`, `sent_at` |
-| `matches` | Match history | `id` PK, `player1_id` FK, `player2_id` FK, `winner_id` FK, `score1`, `score2`, `game_type`, `played_at`, `ended_at`, `duration_s` |
-| `tournaments` | Tournaments | `id` PK, `name`, `status` (`open`/`ongoing`/`finished`), `created_by` FK, `created_at` |
-| `tournament_players` | Tournament participants | `(tournament_id, user_id)` composite PK, `eliminated` |
-| `tournament_matches` | Tournament rounds | `id` PK, `tournament_id` FK, `match_id` FK, `round`, `match_order` |
-| `achievements` | Achievement catalogue | `id` PK, `key`, `name`, `description` |
-| `user_achievements` | Unlocked achievements | `(user_id, achievement_id)` composite PK, `earned_at` |
-| `notifications` | In-app notifications | `id` PK, `user_id` FK, `type`, `payload` (JSONB), `is_read`, `created_at` |
-| `spectators` | Spectator sessions | `id` PK, `user_id` FK, `session_id`, `tournament_id` FK, `mode` (`overflow`/`voluntary`), `joined_at`, `left_at` |
-
-**Key relationships:** `users` is the central table — `sessions`, `user_stats`, `friendships`, `messages`, `matches`, `notifications`, `user_achievements`, and `spectators` all reference it. Tournaments are composed of `tournaments` → `tournament_players` (who participates) and `tournament_matches` (which matches belong to each round). The `spectators` table tracks both overflow connections (slot limit reached) and voluntary viewers who choose to watch a live match.
-
----
-
-## Auth API
-
-Four ready-to-use endpoints. Sessions are stored in the `sessions` table and delivered via an `HttpOnly` cookie named `sid`.
-
-| Method | Route | Auth required | Description |
-|---|---|---|---|
-| POST | `/api/register` | No | Creates user + starts session |
-| POST | `/api/login` | No | Validates password + starts session |
-| POST | `/api/logout` | Yes | Deletes session + marks user offline |
-| GET | `/api/me` | Yes | Returns the current user object |
-
-**Register / Login body:**
-```json
-{ "username": "alice", "email": "alice@example.com", "password": "min8chars" }
-```
-
-**Response (success):**
-```json
-{ "user": { "id": 1, "username": "alice", "email": "...", "avatar_url": "...", "role": "user" } }
-```
-
----
-
-## Game Modes API
-
-Two additional endpoints manage matches and tournaments. Both require authentication.
-
-| Method | Route | Auth required | Description |
-|---|---|---|---|
-| POST | `/api/duel` | Yes | Starts a 1v1 match between two connected clients |
-| POST | `/api/tournament` | Yes | Creates and starts a tournament bracket |
-| GET | `/api/tournament/:id` | Yes | Returns bracket status, participants, and round results |
-| GET | `/api/leaderboard` | No | Returns the top 10 players by wins |
-| GET | `/api/sessions` | No | Lists all active game sessions (used by the spectator lobby) |
-| GET | `/api/spectators/:sessionId` | Yes | Returns the history of who watched a given session |
-
-**Duel body:**
-```json
-{ "clientId1": 1, "clientId2": 2 }
-```
-
-**Tournament body:**
-```json
-{ "clientIds": [1, 2, 3, 4] }
-```
-Accepts 2, 4, or 8 players. The bracket is single-elimination with randomised seeding.
-
----
-
-## Spectator Mode
-
-The server supports up to **8 simultaneous active players**. Any connection beyond that is automatically placed in spectator mode. Users can also voluntarily choose to watch a live match from the lobby.
-
-**How it works:**
-
-- Connections #9+ receive a `spectator_mode` WebSocket message instead of `init`. Their input frames are received but silently discarded by the server.
-- Voluntary spectators send `{ type: "watch", sessionId: "3" }` at connect time (or any time during the session to switch the viewed match).
-- All spectators continue receiving `state` broadcast at 60 Hz, filtered to the players in their watched session. Spectators watching `null` (lobby mode) receive the full state of all active players.
-- Match lifecycle events (`match_start`, `match_end`, `player_eliminated`, tournament events) are forwarded to spectators of the relevant session.
-
-**Client API** (exposed on `window` by `ws-client.js`):
-
-```js
-// Switch to watching a specific session (or null for lobby overview)
-watchSession('3');
-watchSession(null);
-
-// Fetch the live session list via REST (no WebSocket needed)
-const { sessions, totalSpectators } = await fetchActiveSessions();
-```
-
-**Spectator session log** — every spectator connection is persisted in the `spectators` table with `joined_at` and `left_at`, enabling post-match analytics and moderation.
-
----
-
-## Game Controls
-
-| Key | Action |
+| Table | Purpose |
 |---|---|
-| `A` / `←` | Move left |
-| `D` / `→` | Move right |
-| `W` / `↑` | Jump (up to 2 jumps) |
-| `S` / `↓` | Crouch |
-| `Space` or `G` (tap) | Attack / Dash-attack (within 180 ms after a dash) |
-| `Space` or `G` (hold) | Block |
-| Double-tap `A`/`D` | Dash |
-| `U` | Toggle debug overlay |
-
----
-
-## Features
-
-<!-- TODO: feature — team member responsible -->
+| `achievements` | Achievement catalogue — key, name, description |
+| `friendships` | Friend graph — status: pending / accepted / blocked |
+| `matches` | Match history — players, scores, winner, duration, game type |
+| `messages` | Direct chat — sender, receiver, content, read flag |
+| `notifications` | In-app notifications — type, JSONB payload, read flag |
+| `sessions` | Auth tokens — opaque token, user FK, expiry (7 days) |
+| `spectators` | Spectator log — session watched, mode, joined_at, left_at |
+| `tournament_matches` | Matches belonging to each tournament round |
+| `tournament_players` | Players registered in each tournament |
+| `tournaments` | Tournament metadata — name, status, creator |
+| `user_achievements` | Unlocked achievements per user — earned_at |
+| `user_stats` | Game stats — wins, losses, xp, level, win_streak, best_streak |
+| `users` | Accounts — username, email, bcrypt hash, avatar, role |
 
 ---
 
 ## Modules
 
-<!-- TODO: module name — Major/Minor — justification — who implemented it -->
+### Mandatory part (all team members contributed)
+
+The mandatory part is the shared foundation every team member built and owns collectively: React frontend, Express backend, PostgreSQL database, Docker containerization, HTTPS via nginx, basic auth (register/login), Privacy Policy and Terms of Service pages, and full frontend + backend form validation.
+
+| Mandatory requirement | Who contributed |
+|---|---|
+| React frontend (pages, routing, styling) | aprenafe, isegura-, mmarinov, vberdugo |
+| Express backend (REST API, middleware) | aprenafe, mmarinov, vberdugo |
+| PostgreSQL database + schema | aprenafe, mmarinov, vberdugo |
+| Docker Compose + Dockerfiles | isegura-, vberdugo |
+| HTTPS / nginx configuration | isegura- |
+| Auth system (register, login, sessions) | isegura- (forms), vberdugo (backend) |
+| Privacy Policy + Terms of Service pages | isegura- |
+| Frontend + backend form validation | isegura- (frontend), vberdugo (backend) |
+| `.env.example` + environment setup | isegura- |
+
+### Chosen modules
+
+| Module | Type | Pts | Owner | Justification |
+|---|---|---|---|---|
+| Use a framework (React + Express) | Major | 2 | All | React 18 + Vite frontend; Express backend — full-stack separation with REST API and SPA routing. |
+| Real-time features via WebSocket | Major | 2 | vberdugo | `ws` library drives the 60 Hz authoritative game loop; all clients stay in sync via state snapshots. |
+| Allow users to interact (chat + friends + profile) | Major | 2 | aprenafe + mmarinov | Direct messaging, friends graph with accept/block, and profile pages — core social layer of the app. |
+| Web-based game (Enuma Fighter) | Major | 2 | vberdugo | Raylib → WASM runs in-browser. Server-side physics, 4 characters with distinct move sets and a voltage system. |
+| Remote players | Major | 2 | vberdugo | Players on separate browsers play live via WebSocket with input buffering and reconnection logic. |
+| Multiplayer 3+ players | Major | 2 | vberdugo | Sessions support up to 8 simultaneous players; authoritative server handles sync and fair scoring. |
+| AI Opponent | Major | 2 | vberdugo | `game/ai.js` — heuristic bot with randomized reaction delays injecting synthetic inputs every tick. |
+| Game customization (characters + abilities) | Minor | 1 | vberdugo | 4 selectable characters with distinct stats and abilities; selection screen before each match. |
+| Gamification (achievements + XP + leaderboard) | Minor | 1 | aprenafe | Server-side achievements, XP/level in `user_stats`, top-10 leaderboard — all persisted in PostgreSQL. |
+| Game statistics and match history | Minor | 1 | aprenafe | Per-user wins, losses, streaks in `user_stats`; full match log in `matches`; displayed on the profile page. |
+| GDPR compliance | Minor | 1 | mmarinov | Endpoints to export all personal data (JSON) and permanently delete an account, accessible from the profile. |
+| Multiple browser support | Minor | 1 | aprenafe | Full feature parity tested on Firefox, Safari, and Edge; browser-specific quirks documented. |
+| Spectator mode | Minor | 1 | vberdugo | Overflow and voluntary spectators receive live state broadcasts without sending input. |
+| Tournament system | Minor | 1 | isegura- | Single-elimination bracket in `tournaments` / `tournament_matches`; auto-advances on match completion. |
+
+**Total: 19 points** (14 mandatory + 5 bonus)
 
 ---
 
-## Team Information
+## Features
 
-| Login | Role | Responsibilities |
+| Feature | Files | Owner |
 |---|---|---|
-| vberdugo | | |
-| | | |
-| | | |
-| | | |
-
----
-
-## Project Management
-
-<!-- TODO: tools used, meeting cadence, communication channel -->
+| Achievements backend + page | `game/achievements.js`, `Achievements.jsx` | aprenafe |
+| Chat backend + page | `social/chat.js`, `Chat.jsx` | aprenafe |
+| Leaderboard page | `Leaderboard.jsx` | aprenafe |
+| Notifications backend + page | `social/notifications.js`, `Notifications.jsx` | aprenafe |
+| Stats backend + multi-browser support | `game/stats.js` | aprenafe |
+| Login + Register pages + form validation | `Login.jsx`, `Register.jsx` | isegura- |
+| Tournament UI | `Tournament.jsx` | isegura- |
+| Privacy Policy + Terms of Service | `Privacy.jsx`, `Terms.jsx` | isegura- |
+| HTTPS / TLS + nginx + `.env.example` | `nginx/Dockerfile`, `nginx/nginx.conf` | isegura- |
+| Friends backend + page | `social/friends.js`, `Friends.jsx` | mmarinov |
+| Profile backend + page | `social/profile.js`, `Profile.jsx` | mmarinov |
+| GDPR endpoints | `social/profile.js` | mmarinov |
+| Home + Game + Notifications pages | `Home.jsx`, `Game.jsx`, `Notifications.jsx` | mmarinov |
+| Game engine + physics + AI | `main.c`, `physics.js`, `session.js`, `game/ai.js` | vberdugo |
+| Auth system + WebSocket server | `auth.js`, `ws/handler.js`, `index.js` | vberdugo |
+| WS↔WASM bridge + Docker setup | `ws-client.js`, `docker-compose.yml`, Dockerfiles | vberdugo |
 
 ---
 
 ## Individual Contributions
 
-<!-- TODO: per-person breakdown of features built, challenges faced, how solved -->
+### aprenafe — Project Manager + Developer
+- `game/achievements.js`: server-side detection and granting of achievements (`first_win`, `veteran` — more to be added)
+- `game/stats.js`: win streak, best streak, and match duration tracking
+- `social/chat.js`: direct messaging backend — storage, retrieval, read-flag management
+- `social/notifications.js`: notification creation, delivery, and all social event triggers
+- React pages: `Achievements.jsx`, `Chat.jsx`, `Leaderboard.jsx`, `Notifications.jsx`
+- Multi-browser support: tested and documented on Firefox, Safari, and Edge
+- Team coordination: weekly syncs, GitHub Issues board, unblocked cross-module dependencies
+- **Challenge:** Achievements needed to fire after every match without slowing the game loop. Solved by running checks asynchronously after the match is committed to the database.
+
+### isegura- — Developer
+- `Login.jsx` and `Register.jsx`: auth forms with client-side validation (format, length, required fields)
+- `Tournament.jsx`: dynamic single-elimination bracket, recursive layout for any power-of-two participant count
+- `Privacy.jsx` and `Terms.jsx`: policy pages accessible from the footer on every page
+- nginx: HTTPS configuration with automatic self-signed certificate generation at container startup
+- Frontend form validation across all user-facing forms
+- `.env.example`: all environment variables documented with safe defaults
+- **Challenge:** Rendering the bracket dynamically for 4, 8, or 16 participants required a recursive tree layout. Solved with a bracket-builder utility that computes positions and bye slots from the player count.
+
+### mmarinov — Technical Lead + Developer
+- `social/friends.js`: friends backend — send/accept/block, online status
+- `social/profile.js`: profile backend — avatar upload, stats aggregation, match history
+- GDPR endpoints: personal data export (JSON) and permanent account deletion with cascade
+- React pages: `Friends.jsx`, `Game.jsx`, `Home.jsx`, `Notifications.jsx`, `Profile.jsx`
+- Architecture decisions: service boundaries, REST contract, database schema ownership, code review standards
+- **Challenge:** Profile page needed data from four tables without N+1 queries. Solved with a single JOIN query fetching everything in one round trip.
+
+### vberdugo — Product Owner + Developer
+- Game engine: Raylib → WASM, `main.c`, authoritative physics loop at 60 Hz
+- WebSocket server: connection lifecycle, input frames, state broadcasting, reconnection (`ws/handler.js`)
+- Session management: 1v1, free-for-all (3–8 players), spectator routing (`game/session.js`)
+- 4 playable characters with distinct stats, voltage system, hitstop, combo detection
+- Auth system: register, login, logout, bcrypt, opaque session cookies (`auth.js`)
+- Remote players, multiplayer 3+ support, tournament backend
+- AI Opponent (`game/ai.js`): heuristic bot with randomized reaction delays
+- **Challenge:** Syncing state across 8 WebSocket clients at 60 Hz required minimizing payload size. Solved by profiling and switching to a flat JSON structure that reduced parsing time on the client.
 
 ---
 
@@ -293,7 +320,6 @@ const { sessions, totalSpectators } = await fetchActiveSessions();
 - [WebSocket API (MDN)](https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API)
 - [bcrypt (npm)](https://www.npmjs.com/package/bcrypt)
 - [node-postgres (pg)](https://node-postgres.com/)
+- [GDPR — European Commission](https://commission.europa.eu/law/law-topic/data-protection_en)
 
-**AI usage:** AI tools were used to support documentation drafting, code review,
-and breaking down technical problems into smaller steps. All suggestions were
-critically reviewed and discussed within the team before being applied.
+**AI usage:** AI tools were used to support documentation drafting, architecture discussion, code review, and breaking down technical problems into smaller steps. All AI-generated suggestions were critically reviewed and tested by the team before being applied. No AI-generated code was merged without full understanding by the responsible developer.
