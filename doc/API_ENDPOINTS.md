@@ -1,26 +1,22 @@
 # API Reference — Enuma Fighter
 
-## Overview
-
 **Base URL:** `https://localhost:8443`
 
 All REST endpoints are under `/api`. All requests and responses use JSON (`Content-Type: application/json`).
 
-**Authentication:** session cookie (`sid`) set automatically on login and register. Pass `credentials: 'include'` in every fetch call. Endpoints marked *(login required)* return `401` if the cookie is missing or expired.
+**Auth:** session cookie (`sid`) set on login/register. Pass `credentials: 'include'` in every fetch. Endpoints marked *(auth)* return `401` if missing or expired.
 
 **Error format:**
 ```json
 { "error": "Description of the problem" }
 ```
 
-**Testing with curl:** always use `-k` (self-signed cert). Use `-c cookies.txt` to save the session cookie and `-b cookies.txt` to send it:
+**Testing with curl:** always use `-k` (self-signed cert). Save/send the session cookie with `-c`/`-b`:
 ```bash
-# Register / login first — saves the cookie
 curl -k -c cookies.txt -X POST https://localhost:8443/api/register \
   -H "Content-Type: application/json" \
   -d '{"username":"test","email":"test@test.com","password":"12345678"}'
 
-# Then use the cookie for protected endpoints
 curl -k -b cookies.txt https://localhost:8443/api/me
 ```
 
@@ -28,15 +24,7 @@ curl -k -b cookies.txt https://localhost:8443/api/me
 
 ## Git conventions
 
-### Branch naming
-
-One branch per feature, following this format:
-
-```
-feat/<feature>-<yourlogin>
-```
-
-Examples:
+**Branch naming:** `feat/<feature>-<yourlogin>`
 ```
 feat/leaderboard-aprenafe
 feat/login-isegura
@@ -44,46 +32,26 @@ feat/profile-mmarinov
 feat/ai-opponent-vberdugo
 ```
 
-Starting a branch from main:
 ```bash
-git checkout main
-git pull
+git checkout main && git pull
 git checkout -b feat/login-isegura
 ```
 
-### Commit messages
-
-The message describes what the change does, starting with a type prefix:
-
+**Commit prefixes:** `feat` `fix` `style` `refactor` `chore`
 ```
 feat: add login form with error handling
-fix: handle 401 response on expired session
-style: adjust bracket layout for small screens
-refactor: extract fetch helper to utils.js
-chore: add notifications.js to express routes
+fix: handle 401 on expired session
 ```
 
-Available types: `feat`, `fix`, `style`, `refactor`, `chore`.
-
-### Pull requests
-
-```bash
-git push origin feat/login-isegura
-```
-
-PRs go toward `main`. At least one other team member reviews before merging. Direct commits to `main` are avoided.
+**PRs:** push to your branch, open PR toward `main`, one reviewer required. No direct commits to `main`.
 
 ---
 
 # aprenafe
 
 ## Files
-
-### Backend
-`game/achievements.js` `game/stats.js` `social/chat.js` `social/notifications.js`
-
-### Frontend
-`Achievements.jsx` `Chat.jsx` `Leaderboard.jsx` `Notifications.jsx`
+**Backend:** `game/achievements.js` `game/stats.js` `social/chat.js` `social/notifications.js`
+**Frontend:** `Achievements.jsx` `Chat.jsx` `Leaderboard.jsx` `Notifications.jsx`
 
 ---
 
@@ -91,34 +59,25 @@ PRs go toward `main`. At least one other team member reviews before merging. Dir
 
 ### Achievements — `game/achievements.js`
 
-This file is where the achievements endpoint lives. The endpoint returns the unlocked achievements for the authenticated user.
+```
+GET /api/achievements   (auth)
+```
 
-```
-GET /api/achievements   (login required)
-```
+Returns the authenticated user's unlocked achievements. Granting happens automatically via `checkAndGrantAchievements` in `index.js` at match end — no manual call needed.
+
+Achievements in DB: `first_win` (first victory), `veteran` (10 victories).
 
 ```bash
 curl -k -b cookies.txt https://localhost:8443/api/achievements
 ```
 
-Achievement granting happens automatically on the backend side whenever a match ends. The function `checkAndGrantAchievements` in `index.js` is already wired into the victory flow — it does not need to be called manually from here.
-
-Achievements currently in the database:
-- `first_win` — first victory
-- `veteran` — 10 victories
-
-Additional checks can be added in `achievements.js` following the same pattern. If profile data is needed that overlaps with mmarinov's work, coordinating with him is a good idea.
-
 ---
 
 ### Stats — `game/stats.js`
 
-This file handles streak tracking and match duration. It does not necessarily expose a public endpoint — it is mostly internal logic.
+No public endpoint. Handles `win_streak` and `best_streak` logic. `wins`/`losses` are updated by `index.js`; this file owns streak tracking.
 
-The `user_stats` table already exists with these columns:
-`wins`, `losses`, `xp`, `level`, `win_streak`, `best_streak`.
-
-`wins` and `losses` are updated by `index.js` when a match resolves. `stats.js` is responsible for `win_streak`, `best_streak`, and any other tracking logic that fits here.
+`user_stats` columns: `wins` `losses` `xp` `level` `win_streak` `best_streak`
 
 ---
 
@@ -132,22 +91,12 @@ Endpoints not yet defined — to be documented here by aprenafe.
 
 REST endpoints not yet defined — to be documented here by aprenafe.
 
-WebSocket events useful for triggering notifications:
-
-Player eliminated:
+WebSocket events to trigger notifications:
 ```json
 { "type": "player_eliminated", "clientId": 2 }
 ```
-
-Match ended:
 ```json
-{
-  "type":    "match_end",
-  "winner":  1,
-  "loser":   2,
-  "matchId": 11,
-  "mode":    "brawl"
-}
+{ "type": "match_end", "winner": 1, "loser": 2, "matchId": 11, "mode": "brawl" }
 ```
 
 ---
@@ -156,35 +105,27 @@ Match ended:
 
 ### Leaderboard — `Leaderboard.jsx`
 
-This endpoint already exists — it is not defined in aprenafe's files.
+Endpoint defined by vberdugo, not aprenafe.
 
 ```
 GET /api/leaderboard
 ```
 
+No auth required. Returns top 10 players by wins and XP.
+
 ```bash
 curl -k https://localhost:8443/api/leaderboard
 ```
-
-No login required. Returns the top 10 players ranked by wins and XP.
 
 Response:
 ```json
 {
   "leaderboard": [
-    {
-      "username":   "player1",
-      "avatar_url": null,
-      "wins":       15,
-      "losses":     3,
-      "xp":         1700,
-      "level":      5
-    }
+    { "username": "player1", "avatar_url": null, "wins": 15, "losses": 3, "xp": 1700, "level": 5 }
   ]
 }
 ```
 
-Example fetch in React:
 ```js
 useEffect(() => {
   fetch('/api/leaderboard')
@@ -197,23 +138,8 @@ useEffect(() => {
 
 ### Notifications — `Notifications.jsx`
 
-The component listens to WebSocket events and triggers the corresponding notification:
+Listens to WebSocket events and renders notifications:
 
-```json
-{ "type": "player_eliminated", "clientId": 2 }
-```
-
-```json
-{
-  "type":    "match_end",
-  "winner":  1,
-  "loser":   2,
-  "matchId": 11,
-  "mode":    "brawl"
-}
-```
-
-Example WebSocket listener in React:
 ```js
 useEffect(() => {
   const ws = new WebSocket('wss://localhost:8443/ws');
@@ -231,9 +157,6 @@ useEffect(() => {
 
 ### Achievements — `Achievements.jsx`
 
-Calls the endpoint defined in `game/achievements.js`.
-
-Example fetch in React:
 ```js
 useEffect(() => {
   fetch('/api/achievements', { credentials: 'include' })
@@ -248,10 +171,9 @@ useEffect(() => {
 
 Endpoints not yet defined — see `social/chat.js`.
 
-Example fetch in React:
 ```js
 useEffect(() => {
-  fetch('/api/chat/:userId', { credentials: 'include' })
+  fetch(`/api/chat/${userId}`, { credentials: 'include' })
     .then(r => r.json())
     .then(data => setMessages(data.messages));
 }, []);
@@ -262,26 +184,20 @@ useEffect(() => {
 # isegura-
 
 ## Files
-
-### Backend / Infra
-`nginx/Dockerfile` `nginx/nginx.conf` `.env.example`
-
-### Frontend
-`Login.jsx` `Register.jsx` `Tournament.jsx` `Privacy.jsx` `Terms.jsx`
+**Backend/Infra:** `nginx/Dockerfile` `nginx/nginx.conf` `.env.example`
+**Frontend:** `Login.jsx` `Register.jsx` `Tournament.jsx` `Privacy.jsx` `Terms.jsx`
 
 ---
 
 ## Backend / Infra
 
-### nginx + HTTPS — `nginx/Dockerfile`, `nginx/nginx.conf`
+### nginx + HTTPS
 
-A self-signed certificate is generated automatically when the container starts. nginx handles TLS termination and proxies traffic to `:3000` (backend) and `:80` (static frontend). No API endpoints are defined here — this is the network layer.
-
----
+Self-signed cert is generated automatically on container start. nginx handles TLS and proxies to `:3000` (backend) and `:80` (frontend). No API endpoints here.
 
 ### Environment variables — `.env.example`
 
-All environment variables are documented here with safe default values. If `.env` does not exist, `make` creates it from this file automatically.
+All env vars documented with safe defaults. `make` creates `.env` from this file automatically if it doesn't exist.
 
 ---
 
@@ -289,53 +205,22 @@ All environment variables are documented here with safe default values. If `.env
 
 ### Login — `Login.jsx`
 
-The login form. Calls the following endpoint, which is defined by vberdugo in `auth.js`.
+Calls `POST /api/login` defined by vberdugo in `auth.js`.
 
 ```
 POST /api/login
 ```
 
-Request body:
 ```json
-{
-  "email":    "user@example.com",
-  "password": "password123"
-}
+{ "email": "user@example.com", "password": "password123" }
 ```
 
-Response on success (200):
+Response (200):
 ```json
-{
-  "user": {
-    "id":         42,
-    "username":   "username",
-    "email":      "user@example.com",
-    "avatar_url": null,
-    "role":       "user"
-  }
-}
+{ "user": { "id": 42, "username": "username", "email": "user@example.com", "avatar_url": null, "role": "user" } }
 ```
 
-The session cookie is saved automatically by the browser — no extra handling needed.
-
-Example fetch:
-```js
-const res = await fetch('/api/login', {
-  method:      'POST',
-  credentials: 'include',
-  headers:     { 'Content-Type': 'application/json' },
-  body:        JSON.stringify({ email, password }),
-});
-
-if (!res.ok) {
-  const { error } = await res.json();
-  // show error to the user
-}
-```
-
-Possible error responses:
-- 400 — missing email or password
-- 401 — wrong credentials
+Errors: `400` missing fields · `401` wrong credentials
 
 ```bash
 curl -k -c cookies.txt -X POST https://localhost:8443/api/login \
@@ -343,58 +228,32 @@ curl -k -c cookies.txt -X POST https://localhost:8443/api/login \
   -d '{"email":"test@test.com","password":"12345678"}'
 ```
 
+```js
+const res = await fetch('/api/login', {
+  method: 'POST', credentials: 'include',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ email, password }),
+});
+if (!res.ok) { const { error } = await res.json(); }
+```
+
 ---
 
 ### Register — `Register.jsx`
 
-The registration form. Calls the following endpoint, which is defined by vberdugo in `auth.js`.
+Calls `POST /api/register` defined by vberdugo. Also logs the user in automatically.
 
 ```
 POST /api/register
 ```
 
-Request body:
 ```json
-{
-  "username": "username",
-  "email":    "user@example.com",
-  "password": "password123"
-}
+{ "username": "username", "email": "user@example.com", "password": "password123" }
 ```
 
-Response on success (201):
-```json
-{
-  "user": {
-    "id":         42,
-    "username":   "username",
-    "email":      "user@example.com",
-    "avatar_url": null,
-    "role":       "user"
-  }
-}
-```
+Response (201): same shape as login.
 
-Registration also logs the user in automatically — the cookie is set in the same response.
-
-Example fetch in React:
-```js
-const res = await fetch('/api/register', {
-  method:      'POST',
-  credentials: 'include',
-  headers:     { 'Content-Type': 'application/json' },
-  body:        JSON.stringify({ username, email, password }),
-});
-
-if (!res.ok) {
-  const { error } = await res.json();
-  // show error to the user
-}
-```
-
-Possible error responses:
-- 400 — missing field or password shorter than 8 characters
-- 409 — username or email already taken
+Errors: `400` missing field or password < 8 chars · `409` username or email taken
 
 ```bash
 curl -k -c cookies.txt -X POST https://localhost:8443/api/register \
@@ -406,165 +265,300 @@ curl -k -c cookies.txt -X POST https://localhost:8443/api/register \
 
 ### Tournament UI — `Tournament.jsx`
 
-The bracket view. Consumes the following endpoints, which are defined by vberdugo.
+Calls tournament endpoints defined by vberdugo.
 
-Fetching tournament data:
 ```
-GET /api/tournament/:id   (login required)
+GET  /api/tournament/:id   (auth)
+POST /api/tournament       (auth)
 ```
 
-Example: `GET /api/tournament/7`
-
-Response:
+`GET /api/tournament/7` response:
 ```json
 {
-  "tournament": {
-    "id":     7,
-    "name":   "Tournament #7",
-    "status": "ongoing"
-  },
-  "participants": [
-    {
-      "user_id":    42,
-      "eliminated": false,
-      "username":   "player1",
-      "avatar_url": null
-    }
-  ],
-  "matches": [
-    {
-      "round":      1,
-      "match_id":   11,
-      "winner_id":  42,
-      "player1_id": 42,
-      "player2_id": 55,
-      "score1":     3,
-      "score2":     1
-    }
-  ]
+  "tournament": { "id": 7, "name": "Tournament #7", "status": "ongoing" },
+  "participants": [{ "user_id": 42, "eliminated": false, "username": "player1", "avatar_url": null }],
+  "matches": [{ "round": 1, "match_id": 11, "winner_id": 42, "player1_id": 42, "player2_id": 55, "score1": 3, "score2": 1 }]
 }
 ```
 
-Each entry in `matches` is one bout. `round` indicates which round it belongs to. `winner_id` shows who advanced.
+`POST /api/tournament` body: `{ "clientIds": [1, 2, 3, 4] }` → `{ "tournamentId": 7 }`
 
-```bash
-curl -k -b cookies.txt https://localhost:8443/api/tournament/7
-```
-
-Creating a tournament:
-```
-POST /api/tournament   (login required)
-```
-
+WebSocket events:
 ```json
-{ "clientIds": [1, 2, 3, 4] }
+{ "type": "match_start", "mode": "tournament", "sessionId": "3", "tournamentId": 7, "round": 1 }
 ```
-
-Response:
 ```json
-{ "tournamentId": 7 }
-```
-
-```bash
-curl -k -b cookies.txt -X POST https://localhost:8443/api/tournament \
-  -H "Content-Type: application/json" \
-  -d '{"clientIds":[1,2,3,4]}'
-```
-
-WebSocket events related to tournaments:
-
-Match starting:
-```json
-{
-  "type":         "match_start",
-  "mode":         "tournament",
-  "sessionId":    "3",
-  "tournamentId": 7,
-  "round":        1
-}
-```
-
-Tournament ending:
-```json
-{
-  "type":         "tournament_end",
-  "tournamentId": 7,
-  "champion":     1,
-  "championDbId": 42
-}
+{ "type": "tournament_end", "tournamentId": 7, "champion": 1, "championDbId": 42 }
 ```
 
 ---
 
-### Privacy and Terms — `Privacy.jsx`, `Terms.jsx`
+### Privacy & Terms — `Privacy.jsx`, `Terms.jsx`
 
-Static pages with no API calls.
+Static pages, no API calls.
 
-> **Note:** The evaluator checks for a visible link to both pages in the footer across all pages of the app. If the link is missing, the project is rejected.
+> ⚠️ **The evaluator checks for a visible footer link to both pages on every page. Missing link = project rejected.**
 
 ---
 
 # mmarinov
 
 ## Files
-
-### Backend
-`social/friends.js` `social/profile.js`
-
-### Frontend
-`Friends.jsx` `Game.jsx` `Home.jsx` `Notifications.jsx` `Profile.jsx`
+**Backend:** `social/friends.js` `social/profile.js`
+**Frontend:** `Friends.jsx` `Game.jsx` `Home.jsx` `Notifications.jsx` `Profile.jsx`
 
 ---
 
 ## Backend
 
-### Friends — `social/friends.js`
+### Profile — `social/profile.js`
 
-Endpoints not yet defined — to be documented here by mmarinov.
+#### `GET /api/profile/:userId` *(auth)*
 
-Available tables:
-- `friendships` — columns: `user_id`, `friend_id`, `status` (pending, accepted, blocked)
-- `users` — columns: `id`, `username`, `email`, `avatar_url`, `is_online`
+Returns public profile, stats, and last 10 matches.
+
+```bash
+curl -k -b cookies.txt https://localhost:8443/api/profile/42
+```
+
+Response (200):
+```json
+{
+  "user": {
+    "id": 42, "username": "player1",
+    "avatar_url": "/avatars/default.png",
+    "is_online": true, "created_at": "2025-01-01T12:00:00.000Z"
+  },
+  "stats": {
+    "wins": 15, "losses": 3, "draws": 1,
+    "win_streak": 4, "best_streak": 7, "xp": 1700, "level": 5
+  },
+  "recent_matches": [
+    {
+      "match_id": 11, "opponent_id": 55, "opponent_username": "player2",
+      "score_self": 3, "score_opponent": 1,
+      "winner_id": 42, "played_at": "2025-01-02T10:00:00.000Z", "duration_s": 124
+    }
+  ]
+}
+```
+
+Errors: `401` no session · `404` user not found
 
 ---
 
-### Profile — `social/profile.js`
+#### `PATCH /api/profile` *(auth)*
 
-Endpoints not yet defined — to be documented here by mmarinov.
+Updates the authenticated user's profile. Only provided fields are applied.
 
-Available tables:
-- `users` — columns: `id`, `username`, `email`, `avatar_url`, `is_online`
-- `user_stats` — columns: `wins`, `losses`, `xp`, `level`
-- `matches` — full history with `player1_id`, `player2_id`, `winner_id`
+```bash
+curl -k -b cookies.txt -X PATCH https://localhost:8443/api/profile \
+  -H "Content-Type: application/json" \
+  -d '{"username":"new_name"}'
+```
 
-**GDPR:** This file also covers two GDPR endpoints: export all personal data as JSON, and permanently delete the account with cascade. Both require login and explicit confirmation.
+Body (all optional):
+```json
+{ "username": "new_name", "avatar_url": "/avatars/custom.png" }
+```
+
+Response (200):
+```json
+{ "user": { "id": 42, "username": "new_name", "email": "user@example.com", "avatar_url": "/avatars/custom.png" } }
+```
+
+Errors: `400` empty or too long username · `409` username taken
+
+```js
+const res = await fetch('/api/profile', {
+  method: 'PATCH', credentials: 'include',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ username, avatar_url }),
+});
+```
+
+---
+
+#### `GET /api/profile/export` *(auth)* — GDPR
+
+Downloads all personal data as JSON. Response has `Content-Disposition: attachment`.
+
+```bash
+curl -k -b cookies.txt https://localhost:8443/api/profile/export -o my_data.json
+```
+
+Response (200):
+```json
+{
+  "exported_at": "2025-06-01T10:00:00.000Z",
+  "user": { "id": 42, "username": "player1", "email": "user@example.com", "created_at": "..." },
+  "stats": { "wins": 15, "losses": 3, "xp": 1700, "level": 5 },
+  "matches": [],
+  "achievements": [],
+  "messages_sent": [],
+  "messages_received": []
+}
+```
+
+---
+
+#### `DELETE /api/profile` *(auth)* — GDPR
+
+Permanently deletes the account and all associated data (cascade). Requires explicit confirmation.
+
+```bash
+curl -k -b cookies.txt -X DELETE https://localhost:8443/api/profile \
+  -H "Content-Type: application/json" \
+  -d '{"confirm":"DELETE_MY_ACCOUNT"}'
+```
+
+Body:
+```json
+{ "confirm": "DELETE_MY_ACCOUNT" }
+```
+
+Response (200): `{ "ok": true }`
+
+Errors: `400` missing confirm or wrong value · `401` no session
+
+```js
+const res = await fetch('/api/profile', {
+  method: 'DELETE', credentials: 'include',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ confirm: 'DELETE_MY_ACCOUNT' }),
+});
+if (res.ok) { /* redirect to login */ }
+```
+
+---
+
+### Friends — `social/friends.js`
+
+#### `GET /api/friends` *(auth)*
+
+Returns the authenticated user's accepted friends with online status.
+
+```bash
+curl -k -b cookies.txt https://localhost:8443/api/friends
+```
+
+Response (200):
+```json
+{
+  "friends": [
+    { "friendship_id": 7, "user_id": 55, "username": "player2", "avatar_url": null, "is_online": true, "since": "2025-02-10T08:00:00.000Z" }
+  ]
+}
+```
+
+```js
+useEffect(() => {
+  fetch('/api/friends', { credentials: 'include' })
+    .then(r => r.json())
+    .then(data => setFriends(data.friends));
+}, []);
+```
+
+---
+
+#### `GET /api/friends/requests` *(auth)*
+
+Returns incoming pending friend requests.
+
+```bash
+curl -k -b cookies.txt https://localhost:8443/api/friends/requests
+```
+
+Response (200):
+```json
+{
+  "requests": [
+    { "friendship_id": 12, "from_user_id": 88, "username": "player3", "avatar_url": null, "sent_at": "2025-03-01T09:00:00.000Z" }
+  ]
+}
+```
+
+---
+
+#### `POST /api/friends/request` *(auth)*
+
+Sends a friend request.
+
+```bash
+curl -k -b cookies.txt -X POST https://localhost:8443/api/friends/request \
+  -H "Content-Type: application/json" \
+  -d '{"user_id":55}'
+```
+
+Body: `{ "user_id": 55 }`
+
+Response (201): `{ "friendship_id": 7 }`
+
+Errors: `400` missing or self · `404` user not found · `409` request or friendship already exists
+
+```js
+await fetch('/api/friends/request', {
+  method: 'POST', credentials: 'include',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ user_id: targetUserId }),
+});
+```
+
+---
+
+#### `PATCH /api/friends/:friendshipId` *(auth)*
+
+Accepts or rejects a pending friend request.
+
+```bash
+curl -k -b cookies.txt -X PATCH https://localhost:8443/api/friends/12 \
+  -H "Content-Type: application/json" \
+  -d '{"action":"accept"}'
+```
+
+Body: `{ "action": "accept" }` or `{ "action": "reject" }`
+
+Response (200): `{ "ok": true }`
+
+Errors: `400` invalid action · `403` request not addressed to this user · `404` not found
+
+---
+
+#### `DELETE /api/friends/:friendshipId` *(auth)*
+
+Removes a friend. Pass `"block": true` to block instead (sets `status: "blocked"`, prevents future requests).
+
+```bash
+# Remove
+curl -k -b cookies.txt -X DELETE https://localhost:8443/api/friends/7
+
+# Block
+curl -k -b cookies.txt -X DELETE https://localhost:8443/api/friends/7 \
+  -H "Content-Type: application/json" \
+  -d '{"block":true}'
+```
+
+Response (200): `{ "ok": true }`
+
+Errors: `403` friendship doesn't belong to this user · `404` not found
 
 ---
 
 ## Frontend
 
-### Who is logged in — `Home.jsx`, `Profile.jsx`, `Friends.jsx`
+### Current user — `Home.jsx`, `Profile.jsx`, `Friends.jsx`
 
-This endpoint is defined by vberdugo and is useful across most pages.
+`GET /api/me` is defined by vberdugo and used across most pages to identify the logged-in user. Use `user.user_id` when referencing DB records.
 
-```
-GET /api/me   (login required)
+```bash
+curl -k -b cookies.txt https://localhost:8443/api/me
 ```
 
 Response:
 ```json
-{
-  "user": {
-    "user_id":    42,
-    "username":   "player1",
-    "email":      "user@example.com",
-    "avatar_url": null,
-    "role":       "user"
-  }
-}
+{ "user": { "user_id": 42, "username": "player1", "email": "user@example.com", "avatar_url": null, "role": "user" } }
 ```
 
-Example placement in React:
 ```js
 useEffect(() => {
   fetch('/api/me', { credentials: 'include' })
@@ -573,162 +567,108 @@ useEffect(() => {
 }, []);
 ```
 
-The field to use when linking the user to their data in the database is `user.user_id`.
-
-```bash
-curl -k -b cookies.txt https://localhost:8443/api/me
-```
-
 ---
 
-### Active sessions and online players — `Home.jsx`
-
-These endpoints are defined by vberdugo.
+### Home — `Home.jsx`
 
 ```
 GET /api/sessions
+GET /api/players
 ```
 
-Response:
+`/api/sessions` response:
 ```json
 {
   "sessions": [
-    {
-      "sessionId":  "3",
-      "mode":       "brawl",
-      "playerIds":  [1, 2, 3],
-      "startedAt":  "2025-01-01T12:00:00.000Z",
-      "spectators": 1
-    }
+    { "sessionId": "3", "mode": "brawl", "playerIds": [1, 2, 3], "startedAt": "2025-01-01T12:00:00.000Z", "spectators": 1 }
   ],
   "lobbySpectators": 0,
   "totalSpectators": 1
 }
 ```
 
-Possible modes: `brawl`, `1v1`, `tournament`.
+Modes: `brawl` `1v1` `tournament`. `tournamentId` and `round` are present (and non-null) for tournament sessions.
 
-```bash
-curl -k https://localhost:8443/api/sessions
-```
-
-```
-GET /api/players
-```
-
-Response:
+`/api/players` response:
 ```json
-{
-  "players": [
-    { "clientId": 1, "dbUserId": 42, "inSession": true }
-  ],
-  "spectatorCount": 2
-}
-```
-
-```bash
-curl -k https://localhost:8443/api/players
+{ "players": [{ "clientId": 1, "dbUserId": 42, "inSession": true }], "spectatorCount": 2 }
 ```
 
 ---
 
-### Game connection — `Game.jsx`
+### Game — `Game.jsx`
 
-This component opens the WebSocket connection and keeps it alive. The game state is processed by `ws-client.js`, which writes it to `window._gameState` for Raylib to read — no manual state processing is needed here.
+Opens the WebSocket at `wss://localhost:8443/ws` and keeps it alive. Game state is handled by `ws-client.js`, which writes to `window._gameState` — no manual state processing needed here.
 
-Connection: `wss://localhost:8443/ws`
-
-First message received from the server after connecting:
+First message from server after connecting:
 ```json
-{
-  "type":     "init",
-  "clientId": 1,
-  "config": {
-    "attackRange":     0.525,
-    "attackRangeY":    0.5,
-    "dashAttackRange": 1.65
-  }
-}
+{ "type": "init", "clientId": 1, "config": { "attackRange": 0.525, "attackRangeY": 0.5, "dashAttackRange": 1.65 } }
 ```
 
-Saving the clientId after receiving it:
+Save `clientId` and handle reconnection:
 ```js
 sessionStorage.setItem('clientId', data.clientId);
-```
 
-Reconnection after a page reload:
-```js
+// On page reload
 const saved = sessionStorage.getItem('clientId');
-if (saved) {
-  ws.send(JSON.stringify({ type: 'rejoin', clientId: Number(saved) }));
-} else {
-  ws.send(JSON.stringify({ type: 'join' }));
-}
+ws.send(JSON.stringify(saved
+  ? { type: 'rejoin', clientId: Number(saved) }
+  : { type: 'join' }
+));
 ```
 
-The clientId is cleared from sessionStorage when this message arrives:
+Clear `clientId` when this event arrives:
 ```json
 { "type": "match_finished", "sessionId": "3" }
 ```
-
-Game state received 60 times per second (handled by `ws-client.js`):
-```json
-{
-  "type":    "state",
-  "frameId": 3421,
-  "players": {
-    "1": {
-      "id":           1,
-      "charId":       "eld",
-      "x":            -1.234,
-      "y":            0.0,
-      "rotation":     0,
-      "animation":    "walk",
-      "onGround":     true,
-      "stocks":       3,
-      "respawning":   false,
-      "crouching":    false,
-      "hitId":        0,
-      "jumpId":       0,
-      "voltage":      24.5,
-      "voltageMaxed": false,
-      "blocking":     false
-    }
-  }
-}
-```
-
-`rotation` is `0` when facing right, `Math.PI` when facing left. `hitId` and `jumpId` increment each time a hit or jump occurs — useful for triggering one-shot animations client-side.
-
----
-
-### Friends — `Friends.jsx`
-
-Endpoints not yet defined — see `social/friends.js`.
 
 ---
 
 ### Profile — `Profile.jsx`
 
-Endpoints not yet defined — see `social/profile.js`.
+Load own profile using `user_id` from `/api/me`:
+```js
+useEffect(() => {
+  fetch('/api/me', { credentials: 'include' })
+    .then(r => r.json())
+    .then(({ user }) =>
+      fetch(`/api/profile/${user.user_id}`, { credentials: 'include' })
+        .then(r => r.json())
+        .then(setProfile)
+    );
+}, []);
+```
+
+---
+
+### Friends — `Friends.jsx`
+
+Load friends and pending requests together:
+```js
+useEffect(() => {
+  Promise.all([
+    fetch('/api/friends',          { credentials: 'include' }).then(r => r.json()),
+    fetch('/api/friends/requests', { credentials: 'include' }).then(r => r.json()),
+  ]).then(([{ friends }, { requests }]) => {
+    setFriends(friends);
+    setRequests(requests);
+  });
+}, []);
+```
 
 ---
 
 ### Notifications — `Notifications.jsx`
 
-REST endpoints not yet defined — see `social/notifications.js`. WebSocket events that trigger notifications are documented in aprenafe's backend section above.
+REST endpoints not yet defined — see `social/notifications.js`. WebSocket events documented in aprenafe's backend section.
 
 ---
 
 # vberdugo
 
 ## Files
-
-### Backend
-`auth.js` `index.js` `ws/handler.js` `game/session.js` `game/physics.js` `game/ai.js`
-
-### Frontend / Bridge
-`ws-client.js` `main.c` Dockerfiles
+**Backend:** `auth.js` `index.js` `ws/handler.js` `game/session.js` `game/physics.js` `game/ai.js`
+**Frontend/Bridge:** `ws-client.js` `main.c` Dockerfiles
 
 ---
 
@@ -736,21 +676,14 @@ REST endpoints not yet defined — see `social/notifications.js`. WebSocket even
 
 ### Auth — `auth.js`, `index.js`
 
-These endpoints are defined and exposed here. isegura- consumes them from the login and register forms. mmarinov consumes `/api/me` across several pages.
-
 ```
-POST /api/register   — hashes password with bcrypt, creates session automatically (201)
-POST /api/login      — verifies hash, creates session (200)
-GET  /api/me         — returns the user from the active session cookie (login required)
-POST /api/logout     — invalidates the session cookie (login required)
+POST /api/register   → 201, creates session automatically
+POST /api/login      → 200
+GET  /api/me         → (auth) returns user from session cookie
+POST /api/logout     → (auth) invalidates cookie, sets is_online = FALSE
 ```
 
-`POST /api/logout` clears the session cookie and sets `is_online = FALSE` for the user.
-
-Response (200):
-```json
-{ "ok": true }
-```
+`/api/logout` response: `{ "ok": true }`
 
 ```bash
 curl -k -b cookies.txt -X POST https://localhost:8443/api/logout
@@ -758,59 +691,30 @@ curl -k -b cookies.txt -X POST https://localhost:8443/api/logout
 
 ---
 
-### Sessions and players — `game/session.js`, `index.js`
+### Sessions & players — `game/session.js`, `index.js`
 
-These endpoints are consumed by mmarinov from `Home.jsx`.
+Consumed by mmarinov from `Home.jsx`. See Home section above for response shapes.
 
 ```
-GET /api/sessions   — list of active matches
-GET /api/players    — list of connected players
+GET /api/sessions
+GET /api/players
 ```
-
-Updated `/api/sessions` response (includes `tournamentId` and `round`):
-```json
-{
-  "sessions": [
-    {
-      "sessionId":    "3",
-      "mode":         "tournament",
-      "tournamentId": 7,
-      "round":        1,
-      "playerIds":    [1, 2, 3],
-      "startedAt":    "2025-01-01T12:00:00.000Z",
-      "spectators":   1
-    }
-  ],
-  "lobbySpectators": 0,
-  "totalSpectators": 1
-}
-```
-
-`tournamentId` and `round` are `null` for non-tournament sessions (e.g. `brawl` or `1v1`).
 
 ---
 
-### Duel — `index.js`
+### Duel — `index.js` *(auth)*
 
-Starts a 1v1 session between two specific connected players. Login required.
+Starts a 1v1 between two connected players.
 
 ```
-POST /api/duel   (login required)
+POST /api/duel   (auth)
 ```
 
-Request body:
-```json
-{ "clientId1": 1, "clientId2": 2 }
-```
+Body: `{ "clientId1": 1, "clientId2": 2 }`
 
-Response (200):
-```json
-{ "sessionId": "3" }
-```
+Response (200): `{ "sessionId": "3" }`
 
-Possible error responses:
-- 400 — missing clientIds or both are the same
-- 404 — one or both players are not currently connected
+Errors: `400` missing IDs or same player · `404` player not connected
 
 ```bash
 curl -k -b cookies.txt -X POST https://localhost:8443/api/duel \
@@ -820,65 +724,47 @@ curl -k -b cookies.txt -X POST https://localhost:8443/api/duel \
 
 ---
 
-### Spectators — `index.js`
-
-Returns the spectator history for a session. Login required.
+### Spectators — `index.js` *(auth)*
 
 ```
-GET /api/spectators/:sessionId   (login required)
+GET /api/spectators/:sessionId   (auth)
 ```
-
-Example: `GET /api/spectators/3`
-
-Response:
-```json
-{
-  "spectators": [
-    {
-      "id":         1,
-      "user_id":    42,
-      "username":   "player1",
-      "avatar_url": null,
-      "mode":       "voluntary",
-      "joined_at":  "2025-01-01T12:00:00.000Z",
-      "left_at":    null
-    }
-  ]
-}
-```
-
-`mode` is either `"voluntary"` (user chose to watch) or `"overflow"` (assigned as spectator because the server was full). `left_at` is `null` while the spectator is still connected.
 
 ```bash
 curl -k -b cookies.txt https://localhost:8443/api/spectators/3
 ```
 
+Response:
+```json
+{
+  "spectators": [
+    { "id": 1, "user_id": 42, "username": "player1", "avatar_url": null, "mode": "voluntary", "joined_at": "2025-01-01T12:00:00.000Z", "left_at": null }
+  ]
+}
+```
+
+`mode`: `"voluntary"` (chose to watch) or `"overflow"` (redirected because server was full). `left_at` is `null` while still connected.
+
 ---
 
 ### Tournaments — `game/session.js`, `index.js`
 
-These endpoints are consumed by isegura- from `Tournament.jsx`.
+Consumed by isegura- from `Tournament.jsx`. See Tournament UI section above for request/response.
 
 ```
-GET  /api/tournament/:id   (login required) — tournament data, participants, matches
-POST /api/tournament       (login required) — creates a tournament with { "clientIds": [...] }
+GET  /api/tournament/:id   (auth)
+POST /api/tournament       (auth)
 ```
 
 ---
 
 ### Dev endpoints — local only
 
-No login required. These are not meant to reach production.
+No auth required. Not for production.
 
 ```
-POST /api/dev/duel        — pairs all free players into 1v1 duels
-POST /api/dev/tournament  — creates a tournament with all free players
-```
-
-Responses:
-```json
-{ "sessions": ["5", "6"] }
-{ "tournamentId": 8 }
+POST /api/dev/duel        → { "sessions": ["5", "6"] }
+POST /api/dev/tournament  → { "tournamentId": 8 }
 ```
 
 ```bash
@@ -892,18 +778,15 @@ curl -k -X POST https://localhost:8443/api/dev/tournament
 
 ### Character selection
 
-Received from the client:
+Client sends:
 ```json
 { "type": "char_select", "charId": "eld", "stageId": 0 }
 ```
 
-Broadcast to all connected clients:
+Server broadcasts to all:
 ```json
 {
-  "type":           "char_select_ack",
-  "charId":         "eld",
-  "selectorClient": 1,
-  "stageId":        0,
+  "type": "char_select_ack", "charId": "eld", "selectorClient": 1, "stageId": 0,
   "players": {
     "0": { "clientId": 1, "charId": "eld", "texCfg": "...", "texSets": "...", "animBase": "..." },
     "1": { "clientId": 2, "charId": "hil", "texCfg": "...", "texSets": "...", "animBase": "..." }
@@ -911,125 +794,107 @@ Broadcast to all connected clients:
 }
 ```
 
-Once 2 or more players have selected a character, `tryAutoMatch()` starts the match automatically.
+Once 2+ players select a character, `tryAutoMatch()` starts the match automatically.
 
-Available characters and their stats:
+Character stats:
 
-| charId | Name    | Speed | Dash  | Knockback | Range |
-|--------|---------|-------|-------|-----------|-------|
-| eld    | Eldwin  | 4.5   | 13.0  | 16.0      | 0.55  |
-| hil    | Hilda   | 5.5   | 15.0  | 12.0      | 0.50  |
-| qui    | Quimbur | 3.8   | 11.0  | 18.0      | 0.60  |
-| gab    | Gabriel | 6.0   | 16.0  | 11.0      | 0.48  |
+| charId | Name    | Speed | Dash | Knockback | Range |
+|--------|---------|-------|------|-----------|-------|
+| eld    | Eldwin  | 4.5   | 13.0 | 16.0      | 0.55  |
+| hil    | Hilda   | 5.5   | 15.0 | 12.0      | 0.50  |
+| qui    | Quimbur | 3.8   | 11.0 | 18.0      | 0.60  |
+| gab    | Gabriel | 6.0   | 16.0 | 11.0      | 0.48  |
 
 ---
 
 ### Player input
 
-Received from the client every frame:
+Sent every frame:
+```json
+{ "type": "input", "moveX": 1, "jump": false, "attack": false, "dash": false, "dashDir": 1, "crouch": false, "block": false, "dashAttack": false }
+```
+
+`jump`, `attack`, `dash`, `dashAttack` are single-frame pulses (true only on press). `crouch` and `block` stay true while held.
+
+---
+
+### Game state — 60 Hz
+
 ```json
 {
-  "type":       "input",
-  "moveX":      1,
-  "jump":       false,
-  "attack":     false,
-  "dash":       false,
-  "dashDir":    1,
-  "crouch":     false,
-  "block":      false,
-  "dashAttack": false
+  "type": "state", "frameId": 3421,
+  "players": {
+    "1": {
+      "id": 1, "charId": "eld", "x": -1.234, "y": 0.0, "rotation": 0,
+      "animation": "walk", "onGround": true, "stocks": 3,
+      "respawning": false, "crouching": false, "hitId": 0,
+      "jumpId": 0, "voltage": 24.5, "voltageMaxed": false, "blocking": false
+    }
+  }
 }
 ```
 
-`jump`, `attack`, `dash`, and `dashAttack` are single-frame events — they are `true` only on the frame the button is pressed, not while held. `crouch` and `block` stay `true` for as long as the user holds them.
+`rotation`: `0` = facing right, `Math.PI` = facing left. `hitId` and `jumpId` increment on each hit/jump — use to trigger one-shot animations.
 
 ---
 
 ### Hitstop — `physics.js`
 
-Broadcast to all players in the session when a hit connects:
+Broadcast when a hit connects:
 ```json
-{
-  "type":       "hitstop",
-  "tier":       "heavy",
-  "frames":     18,
-  "attackerId": 1,
-  "targetId":   2
-}
+{ "type": "hitstop", "tier": "heavy", "frames": 18, "attackerId": 1, "targetId": 2 }
 ```
-
-Tier is determined by the attacker's voltage at the moment of the hit:
 
 | tier   | frames | attacker voltage |
 |--------|--------|------------------|
-| micro  | 3      | below 30         |
-| light  | 6–10   | 30 to 79         |
-| medium | 10–15  | 80 to 149        |
-| heavy  | 15–22  | 150 to 199       |
-| ultra  | 22     | 200 (maximum)    |
+| micro  | 3      | < 30             |
+| light  | 6–10   | 30–79            |
+| medium | 10–15  | 80–149           |
+| heavy  | 15–22  | 150–199          |
+| ultra  | 22     | 200 (max)        |
 
 ---
 
 ### Spectator mode
 
-A client becomes a spectator either automatically (server is full) or voluntarily by sending a `watch` message.
-
-Sent by client to enter spectator mode for a specific session:
+Client enters spectator mode voluntarily:
 ```json
 { "type": "watch", "sessionId": "3" }
 ```
 
-`sessionId` can be omitted to watch whichever session the user last watched. The server replies with `spectator_mode`:
+`sessionId` can be omitted to resume last watched session. Server replies:
 ```json
-{
-  "type":           "spectator_mode",
-  "clientId":       5,
-  "mode":           "voluntary",
-  "watchingSession": "3",
-  "activeSessions": []
-}
+{ "type": "spectator_mode", "clientId": 5, "mode": "voluntary", "watchingSession": "3", "activeSessions": [] }
 ```
 
-`mode` is `"voluntary"` (user chose to watch) or `"overflow"` (assigned because server was full). `activeSessions` is the same structure as `GET /api/sessions`.
-
-When the spectator's watched session changes (e.g. a session ends):
+When the watched session changes:
 ```json
 { "type": "spectator_session_changed", "watchingSession": null }
 ```
 
-`watchingSession` is `null` if the session ended and there is no replacement.
-
-Sent by client to request a state snapshot without waiting for the next tick:
+Request an immediate state snapshot:
 ```json
 { "type": "spectator_ping" }
 ```
 
-The server replies immediately with a `state` message.
-
 ---
 
-### Player disconnect and reconnect
+### Disconnect / reconnect
 
-When a player disconnects while a session is active, the server gives them 8 seconds to reconnect before eliminating them. All other players in the session receive:
+When a player drops mid-session, all others receive:
 ```json
-{
-  "type":     "player_disconnected",
-  "clientId": 2,
-  "graceMs":  8000
-}
+{ "type": "player_disconnected", "clientId": 2, "graceMs": 8000 }
 ```
 
-If the player reconnects within the grace period, the timer is cancelled and the session receives:
+If they reconnect within 8 s:
 ```json
 { "type": "player_reconnected", "clientId": 2 }
 ```
 
-If they do not reconnect in time, the server broadcasts `player_eliminated` as normal.
+Otherwise the server broadcasts `player_eliminated` as normal.
 
 ---
 
-## Frontend / Bridge
+## Frontend / Bridge — `ws-client.js`
 
-### `ws-client.js`
-
-Bridge between the WebSocket connection and Raylib/WASM. Writes the game state to `window._gameState` at 60 Hz so `main.c` can read it. The connection itself is opened by mmarinov from `Game.jsx`.
+Bridge between the WebSocket and Raylib/WASM. Writes game state to `window._gameState` at 60 Hz for `main.c` to read. The connection is opened by mmarinov from `Game.jsx`.
