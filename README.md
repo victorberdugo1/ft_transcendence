@@ -253,7 +253,7 @@ The mandatory part is the shared foundation every team member built and owns col
 | Achievements backend + page | `game/achievements.js`, `Achievements.jsx` | aprenafe |
 | Chat backend + page | `social/chat.js`, `Chat.jsx` | aprenafe |
 | Leaderboard page | `Leaderboard.jsx` | aprenafe |
-| Notifications backend + page | `social/notifications.js`, `Notifications.jsx` | aprenafe |
+| Notifications backend | `social/notifications.js` | aprenafe |
 | Stats backend + multi-browser support | `game/stats.js` | aprenafe |
 | Login + Register pages + form validation | `Login.jsx`, `Register.jsx` | isegura- |
 | Tournament UI | `Tournament.jsx` | isegura- |
