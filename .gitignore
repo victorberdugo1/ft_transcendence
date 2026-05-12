@@ -16,6 +16,7 @@ game.data
 # Logs
 *.log
 logs/
+build.log
 
 # IDE
 .vscode/
