@@ -71,6 +71,15 @@ Achievements in DB: `first_win` (first victory), `veteran` (10 victories).
 curl -k -b cookies.txt https://localhost:8443/api/achievements
 ```
 
+Response (200):
+```json
+{
+  "achievements": [
+    { "id": 1, "key": "first_win", "name": "Primera victoria", "description": "Gana tu primera partida", "earned_at": "2025-03-01T10:00:00.000Z" }
+  ]
+}
+```
+
 ---
 
 ### Stats — `game/stats.js`
@@ -83,20 +92,182 @@ No public endpoint. Handles `win_streak` and `best_streak` logic. `wins`/`losses
 
 ### Chat — `social/chat.js`
 
-Endpoints not yet defined — to be documented here by aprenafe.
+```
+GET   /api/chat/:userId         (auth)  → conversation history
+POST  /api/chat/:userId         (auth)  → send a message
+PATCH /api/chat/:userId/read    (auth)  → mark messages as read
+```
+
+#### `GET /api/chat/:userId` *(auth)*
+
+Returns all messages between the authenticated user and `userId`, ordered by `sent_at` ascending.
+
+```bash
+curl -k -b cookies.txt https://localhost:8443/api/chat/55
+```
+
+Response (200):
+```json
+{
+  "messages": [
+    {
+      "id": 1,
+      "sender_id": 42,
+      "receiver_id": 55,
+      "content": "gg!",
+      "is_read": true,
+      "sent_at": "2025-03-01T10:00:00.000Z"
+    }
+  ]
+}
+```
+
+Errors: `401` no session · `404` user not found
+
+```js
+useEffect(() => {
+  fetch(`/api/chat/${userId}`, { credentials: 'include' })
+    .then(r => r.json())
+    .then(data => setMessages(data.messages));
+}, [userId]);
+```
+
+---
+
+#### `POST /api/chat/:userId` *(auth)*
+
+Sends a message to `userId`.
+
+```bash
+curl -k -b cookies.txt -X POST https://localhost:8443/api/chat/55 \
+  -H "Content-Type: application/json" \
+  -d '{"content":"gg!"}'
+```
+
+Body: `{ "content": "gg!" }`
+
+Response (201):
+```json
+{
+  "message": {
+    "id": 2,
+    "sender_id": 42,
+    "receiver_id": 55,
+    "content": "gg!",
+    "is_read": false,
+    "sent_at": "2025-03-01T10:01:00.000Z"
+  }
+}
+```
+
+Errors: `400` empty or too long content · `403` user is blocked · `404` user not found
+
+```js
+await fetch(`/api/chat/${userId}`, {
+  method: 'POST', credentials: 'include',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ content }),
+});
+```
+
+---
+
+#### `PATCH /api/chat/:userId/read` *(auth)*
+
+Marks all messages received from `userId` as read.
+
+```bash
+curl -k -b cookies.txt -X PATCH https://localhost:8443/api/chat/55/read
+```
+
+Response (200): `{ "ok": true, "updated": 3 }`
+
+Errors: `401` no session · `404` user not found
 
 ---
 
 ### Notifications — `social/notifications.js`
 
-REST endpoints not yet defined — to be documented here by aprenafe.
+```
+GET   /api/notifications         (auth)  → list notifications
+PATCH /api/notifications/:id     (auth)  → mark one as read
+PATCH /api/notifications/read    (auth)  → mark all as read
+```
 
-WebSocket events to trigger notifications:
+#### `GET /api/notifications` *(auth)*
+
+Returns all notifications for the authenticated user, most recent first.
+
+```bash
+curl -k -b cookies.txt https://localhost:8443/api/notifications
+```
+
+Response (200):
+```json
+{
+  "notifications": [
+    {
+      "id": 5,
+      "type": "friend_request",
+      "payload": { "from_user_id": 88, "username": "player3" },
+      "is_read": false,
+      "created_at": "2025-03-01T09:00:00.000Z"
+    }
+  ],
+  "unread_count": 1
+}
+```
+
+Notification types: `friend_request` · `match_invite` · `player_eliminated` · `match_end` · `tournament_end`
+
+```js
+useEffect(() => {
+  fetch('/api/notifications', { credentials: 'include' })
+    .then(r => r.json())
+    .then(data => {
+      setNotifications(data.notifications);
+      setUnreadCount(data.unread_count);
+    });
+}, []);
+```
+
+---
+
+#### `PATCH /api/notifications/:id` *(auth)*
+
+Marks a single notification as read.
+
+```bash
+curl -k -b cookies.txt -X PATCH https://localhost:8443/api/notifications/5
+```
+
+Response (200): `{ "ok": true }`
+
+Errors: `403` notification does not belong to this user · `404` not found
+
+---
+
+#### `PATCH /api/notifications/read` *(auth)*
+
+Marks all notifications for the authenticated user as read.
+
+```bash
+curl -k -b cookies.txt -X PATCH https://localhost:8443/api/notifications/read
+```
+
+Response (200): `{ "ok": true, "updated": 4 }`
+
+---
+
+WebSocket events that trigger notifications:
 ```json
 { "type": "player_eliminated", "clientId": 2 }
 ```
 ```json
 { "type": "match_end", "winner": 1, "loser": 2, "matchId": 11, "mode": "brawl" }
+```
+```json
+{ "type": "tournament_end", "tournamentId": 7, "champion": 1, "championDbId": 42 }
 ```
 
 ---
@@ -138,19 +309,36 @@ useEffect(() => {
 
 ### Notifications — `Notifications.jsx`
 
-Listens to WebSocket events and renders notifications:
+Combines REST (persisted notifications on load) with WebSocket (live events):
 
 ```js
 useEffect(() => {
+  // Load persisted notifications on mount
+  fetch('/api/notifications', { credentials: 'include' })
+    .then(r => r.json())
+    .then(data => {
+      setNotifications(data.notifications);
+      setUnreadCount(data.unread_count);
+    });
+
+  // Live events via WebSocket
   const ws = new WebSocket('wss://localhost:8443/ws');
   ws.onmessage = (event) => {
     const data = JSON.parse(event.data);
-    if (data.type === 'player_eliminated' || data.type === 'match_end') {
-      setNotifications(prev => [...prev, data]);
+    if (['player_eliminated', 'match_end', 'tournament_end'].includes(data.type)) {
+      setNotifications(prev => [data, ...prev]);
+      setUnreadCount(prev => prev + 1);
     }
   };
   return () => ws.close();
 }, []);
+```
+
+Mark a notification as read:
+```js
+await fetch(`/api/notifications/${id}`, {
+  method: 'PATCH', credentials: 'include',
+});
 ```
 
 ---
@@ -169,14 +357,29 @@ useEffect(() => {
 
 ### Chat — `Chat.jsx`
 
-Endpoints not yet defined — see `social/chat.js`.
+Load conversation history, send messages, and mark as read on open:
 
 ```js
 useEffect(() => {
   fetch(`/api/chat/${userId}`, { credentials: 'include' })
     .then(r => r.json())
     .then(data => setMessages(data.messages));
-}, []);
+
+  // Mark received messages as read
+  fetch(`/api/chat/${userId}/read`, {
+    method: 'PATCH', credentials: 'include',
+  });
+}, [userId]);
+
+const sendMessage = async (content) => {
+  const res = await fetch(`/api/chat/${userId}`, {
+    method: 'POST', credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content }),
+  });
+  const { message } = await res.json();
+  setMessages(prev => [...prev, message]);
+};
 ```
 
 ---
@@ -660,7 +863,18 @@ useEffect(() => {
 
 ### Notifications — `Notifications.jsx`
 
-REST endpoints not yet defined — see `social/notifications.js`. WebSocket events documented in aprenafe's backend section.
+Combines REST (load persisted notifications on mount) with WebSocket (live events). See aprenafe's backend section for endpoint details and WebSocket event shapes.
+
+```js
+useEffect(() => {
+  fetch('/api/notifications', { credentials: 'include' })
+    .then(r => r.json())
+    .then(data => {
+      setNotifications(data.notifications);
+      setUnreadCount(data.unread_count);
+    });
+}, []);
+```
 
 ---
 
