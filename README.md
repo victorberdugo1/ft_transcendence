@@ -200,7 +200,7 @@ nginx :443  (HTTPS / TLS termination)
 | `tournament_players` | Players registered in each tournament |
 | `tournaments` | Tournament metadata — name, status, creator |
 | `user_achievements` | Unlocked achievements per user — earned_at |
-| `user_stats` | Game stats — wins, losses, xp, level, win_streak, best_streak |
+| `user_stats` | Game stats — wins, losses, draws, xp, level, win_streak, best_streak |
 | `users` | Accounts — username, email, bcrypt hash, avatar, role |
 
 ---
