@@ -173,6 +173,7 @@ setInterval(() => {
             try {
                 const { charId, charIdx, stageId } = JSON.parse(_pcs);
                 setTimeout(() => {
+                    if (window._isSpectator) return;  // FIX: no enviar char_select si somos espectador
                     if (window._ws && window._ws.readyState === WebSocket.OPEN)
                         sendCharSelect(charId, charIdx ?? 0, stageId ?? 0);
                 }, 300);
@@ -207,6 +208,15 @@ setInterval(() => {
         } else if (msg.type === 'spectator_mode') {
             window._myClientId  = msg.clientId;
             window._isSpectator = true;
+
+            // FIX: limpiar estado de char select — los espectadores no seleccionan personaje.
+            window._charSelectData      = null;
+            window._charSelectConfirmed = false;
+            try {
+                sessionStorage.removeItem('charSelectData');
+                sessionStorage.removeItem('pendingCharSelect');
+            } catch(e) {}
+
             window._spectatorMode = {
                 mode:            msg.mode,
                 watchingSession: msg.watchingSession,
@@ -336,6 +346,9 @@ setInterval(() => {
                 if (wp) { wp.animation = 'victory'; wp.frozen = true; }
             }
             setTimeout(() => {
+                window._overlayReady = true;  // FIX: faltaba esto — sin esto ws_overlay_ready() nunca
+                                              // devolvía 1 para espectadores voluntarios, la animación
+                                              // de victoria loopeaba infinito y el mensaje no aparecía.
                 window.dispatchEvent(new CustomEvent('victory', { detail: window._victoryState }));
             }, window._victoryOverlayDelayMs ?? 3000);
 

@@ -1445,6 +1445,14 @@ static void MainLoop(void) {
 		}
 	}
 
+	// FIX: los espectadores no seleccionan personaje — saltar el CSS directamente.
+	// is_spectator se evalúa aquí en lugar de más abajo, donde era demasiado tarde
+	// porque el bloque CSS devolvía return antes de llegar a esa comprobación.
+	if (g_css.phase != CSS_DONE && ws_is_spectator()) {
+		CSS_UnloadPortraits();
+		g_css.phase = CSS_DONE;
+	}
+
 	if (g_css.phase != CSS_DONE) {
 		// Track connected players but do NOT load any textures — charIds are not
 		// final until every player has confirmed their selection.
