@@ -24,7 +24,6 @@
 // In the browser build, constants.js is loaded as a plain <script> before
 // this file, so HITSTOP_SHAKE is available as a global. The Node/backend
 // build uses require() and never loads this file.
-/* global HITSTOP_SHAKE */
 
 (function restoreLastState() {
     try {
@@ -108,7 +107,16 @@ window.addEventListener('keydown', (e) => {
     if (e.code === 'KeyW' || e.code === 'ArrowUp') frameEvents.jump = true;
 });
 
+// FIX: Only send input once the server has assigned us a clientId (i.e. after
+// receiving 'init' or 'spectator_mode'). Before that, window._myClientId is -1
+// and sending inputs is wasteful noise that can also trigger unintended
+// server-side promoteToPlayer calls.
 setInterval(() => {
+    if (window._myClientId === -1) {
+        Object.assign(frameEvents, EMPTY_FRAME);
+        return;
+    }
+
     const moveX  = (keys['KeyD'] || keys['ArrowRight'] ? 1 : 0)
                  - (keys['KeyA'] || keys['ArrowLeft']  ? 1 : 0);
     const crouch = !!(keys['KeyS'] || keys['ArrowDown']);
@@ -363,7 +371,11 @@ setInterval(() => {
             window.dispatchEvent(new CustomEvent('tournament_end', { detail: msg }));
 
         } else {
-            window._gameState = msg;
+            // FIX: unknown message types are logged and ignored. The previous
+            // code did `window._gameState = msg` here, which would silently
+            // corrupt the game state (and break the WASM ABI) whenever a new
+            // or unexpected message type arrived from the server.
+            console.warn('[WS] unhandled message type:', msg.type, msg);
         }
     });
 

@@ -724,6 +724,7 @@ module.exports = {
     startTournament,
     tryAutoMatch,
     handleElimination,
+    resolveMatchWinner,
     getLastWatchedSession,
 
     MAX_PLAYERS,

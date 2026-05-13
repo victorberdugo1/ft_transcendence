@@ -9,10 +9,11 @@ const db = require('./db');  // eslint-disable-line no-unused-vars  (keeps pool 
 const { loadSession, requireAuth, register, login, logout, me } = require('./auth');
 const { setupWebSocket } = require('./ws/handler');
 
-// Social routes (implemented by IRC teammates)
-const friends = require('./social/friends');
-const chat    = require('./social/chat');
-const profile = require('./social/profile');
+// Social routes
+const friends       = require('./social/friends');
+const chat          = require('./social/chat');
+const profile       = require('./social/profile');
+const notifications = require('./social/notifications');
 
 // Game-related query routes
 const gameSession = require('./game/session');
@@ -40,26 +41,33 @@ app.put('/api/profile',                requireAuth, profile.updateProfile);
 app.get('/api/users/:id/stats',        profile.getUserStats);
 app.get('/api/users/:id/history',      profile.getMatchHistory);
 app.get('/api/users/:id/achievements', profile.getUserAchievements);
+app.get('/api/profile/export',         requireAuth, profile.exportData);
+app.delete('/api/profile',             requireAuth, profile.deleteAccount);
 
 // ─── Friends routes ───────────────────────────────────────────────────────────
 
-app.get('/api/friends',             requireAuth, friends.listFriends);
-app.get('/api/friends/requests',    requireAuth, friends.listPendingRequests);
-app.post('/api/friends/:id',        requireAuth, friends.sendRequest);
-app.put('/api/friends/:id',         requireAuth, friends.acceptRequest);
-app.delete('/api/friends/:id',      requireAuth, friends.removeFriend);
+app.get('/api/friends',          requireAuth, friends.listFriends);
+app.get('/api/friends/requests', requireAuth, friends.listPendingRequests);
+app.post('/api/friends/:id',     requireAuth, friends.sendRequest);
+app.put('/api/friends/:id',      requireAuth, friends.acceptRequest);
+app.delete('/api/friends/:id',   requireAuth, friends.removeFriend);
 
 // ─── Chat routes ──────────────────────────────────────────────────────────────
 
-app.get('/api/messages/unread',         requireAuth, chat.unreadCounts);
-app.get('/api/messages/:userId',        requireAuth, chat.getConversation);
-app.post('/api/messages/:userId',       requireAuth, chat.sendMessage);
-app.put('/api/messages/:userId/read',   requireAuth, chat.markRead);
+app.get('/api/messages/unread',       requireAuth, chat.unreadCounts);
+app.get('/api/messages/:userId',      requireAuth, chat.getConversation);
+app.post('/api/messages/:userId',     requireAuth, chat.sendMessage);
+app.put('/api/messages/:userId/read', requireAuth, chat.markRead);
 
-// ─── Game / tournament routes ─────────────────────────────────────────────────
+// ─── Notifications routes ─────────────────────────────────────────────────────
+
+app.get('/api/notifications',          requireAuth, notifications.listNotifications);
+app.patch('/api/notifications/read',   requireAuth, notifications.markAllRead);
+app.patch('/api/notifications/:id',    requireAuth, notifications.markOneRead);
+
+// ─── Leaderboard ──────────────────────────────────────────────────────────────
 
 app.get('/api/leaderboard', async (req, res) => {
-    const db = require('./db');
     try {
         const { rows } = await db.query(
             `SELECT u.username, u.avatar_url, s.wins, s.losses, s.xp, s.level
@@ -73,6 +81,8 @@ app.get('/api/leaderboard', async (req, res) => {
         res.status(500).json({ error: 'Internal error' });
     }
 });
+
+// ─── Game session routes ──────────────────────────────────────────────────────
 
 app.get('/api/players', (req, res) => {
     const { players, spectators, playerSession } = gameSession;
@@ -123,7 +133,6 @@ app.post('/api/tournament', requireAuth, async (req, res) => {
 });
 
 app.get('/api/tournament/:id', requireAuth, async (req, res) => {
-    const db = require('./db');
     const id = parseInt(req.params.id);
     try {
         const { rows: tournament } = await db.query('SELECT * FROM tournaments WHERE id = $1', [id]);
@@ -146,7 +155,6 @@ app.get('/api/tournament/:id', requireAuth, async (req, res) => {
 });
 
 app.get('/api/spectators/:sessionId', requireAuth, async (req, res) => {
-    const db = require('./db');
     const { sessionId } = req.params;
     try {
         const { rows } = await db.query(
@@ -174,7 +182,7 @@ app.post('/api/dev/duel', (req, res) => {
 });
 
 app.post('/api/dev/tournament', async (req, res) => {
-    const { players, playerSession, startTournament } = gameSession;
+    const { players, startTournament } = gameSession;
     const free = Object.values(players).filter(p => !playerSession.has(p.id)).map(p => p.id);
     if (free.length < 2)
         return res.status(400).json({ error: 'Need at least 2 players not already in a session' });

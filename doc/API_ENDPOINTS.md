@@ -20,6 +20,19 @@ curl -k -c cookies.txt -X POST https://localhost:8443/api/register \
 curl -k -b cookies.txt https://localhost:8443/api/me
 ```
 
+**Quick check in the browser (no auth required):**
+
+These are the only endpoints you can test directly from the address bar:
+- https://localhost:8443/api/leaderboard
+- https://localhost:8443/api/sessions
+- https://localhost:8443/api/players
+- https://localhost:8443/api/users/1
+- https://localhost:8443/api/users/1/stats
+- https://localhost:8443/api/users/1/history
+- https://localhost:8443/api/users/1/achievements
+
+All other endpoints require a session cookie (`sid`) and must be tested with curl or the frontend. The browser always sends GET requests, so POST/PUT/PATCH/DELETE endpoints will return `Cannot GET /api/...` if accessed from the address bar.
+
 ---
 
 ## Git conventions
@@ -60,15 +73,15 @@ fix: handle 401 on expired session
 ### Achievements — `game/achievements.js`
 
 ```
-GET /api/achievements   (auth)
+GET /api/users/:id/achievements
 ```
 
-Returns the authenticated user's unlocked achievements. Granting happens automatically via `checkAndGrantAchievements` in `index.js` at match end — no manual call needed.
+Returns the achievements unlocked by user `id`. No auth required. Granting happens automatically via `checkAndGrantAchievements` in `index.js` at match end — no manual call needed.
 
 Achievements in DB: `first_win` (first victory), `veteran` (10 victories).
 
 ```bash
-curl -k -b cookies.txt https://localhost:8443/api/achievements
+curl -k -b cookies.txt https://localhost:8443/api/users/42/achievements
 ```
 
 Response (200):
@@ -93,17 +106,33 @@ No public endpoint. Handles `win_streak` and `best_streak` logic. `wins`/`losses
 ### Chat — `social/chat.js`
 
 ```
-GET   /api/chat/:userId         (auth)  → conversation history
-POST  /api/chat/:userId         (auth)  → send a message
-PATCH /api/chat/:userId/read    (auth)  → mark messages as read
+GET /api/messages/unread          (auth)  → unread counts per conversation
+GET /api/messages/:userId         (auth)  → conversation history
+POST /api/messages/:userId        (auth)  → send a message
+PUT  /api/messages/:userId/read   (auth)  → mark messages as read
 ```
 
-#### `GET /api/chat/:userId` *(auth)*
+#### `GET /api/messages/unread` *(auth)*
+
+Returns unread message counts grouped by sender.
+
+```bash
+curl -k -b cookies.txt https://localhost:8443/api/messages/unread
+```
+
+Response (200):
+```json
+{ "unread": [{ "sender_id": 55, "count": 3 }] }
+```
+
+---
+
+#### `GET /api/messages/:userId` *(auth)*
 
 Returns all messages between the authenticated user and `userId`, ordered by `sent_at` ascending.
 
 ```bash
-curl -k -b cookies.txt https://localhost:8443/api/chat/55
+curl -k -b cookies.txt https://localhost:8443/api/messages/55
 ```
 
 Response (200):
@@ -126,7 +155,7 @@ Errors: `401` no session · `404` user not found
 
 ```js
 useEffect(() => {
-  fetch(`/api/chat/${userId}`, { credentials: 'include' })
+  fetch(`/api/messages/${userId}`, { credentials: 'include' })
     .then(r => r.json())
     .then(data => setMessages(data.messages));
 }, [userId]);
@@ -134,12 +163,12 @@ useEffect(() => {
 
 ---
 
-#### `POST /api/chat/:userId` *(auth)*
+#### `POST /api/messages/:userId` *(auth)*
 
 Sends a message to `userId`.
 
 ```bash
-curl -k -b cookies.txt -X POST https://localhost:8443/api/chat/55 \
+curl -k -b cookies.txt -X POST https://localhost:8443/api/messages/55 \
   -H "Content-Type: application/json" \
   -d '{"content":"gg!"}'
 ```
@@ -163,7 +192,7 @@ Response (201):
 Errors: `400` empty or too long content · `403` user is blocked · `404` user not found
 
 ```js
-await fetch(`/api/chat/${userId}`, {
+await fetch(`/api/messages/${userId}`, {
   method: 'POST', credentials: 'include',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ content }),
@@ -172,12 +201,12 @@ await fetch(`/api/chat/${userId}`, {
 
 ---
 
-#### `PATCH /api/chat/:userId/read` *(auth)*
+#### `PUT /api/messages/:userId/read` *(auth)*
 
 Marks all messages received from `userId` as read.
 
 ```bash
-curl -k -b cookies.txt -X PATCH https://localhost:8443/api/chat/55/read
+curl -k -b cookies.txt -X PUT https://localhost:8443/api/messages/55/read
 ```
 
 Response (200): `{ "ok": true, "updated": 3 }`
@@ -190,9 +219,11 @@ Errors: `401` no session · `404` user not found
 
 ```
 GET   /api/notifications         (auth)  → list notifications
-PATCH /api/notifications/:id     (auth)  → mark one as read
 PATCH /api/notifications/read    (auth)  → mark all as read
+PATCH /api/notifications/:id     (auth)  → mark one as read
 ```
+
+> ⚠️ **Order matters:** `/api/notifications/read` must be declared **before** `/api/notifications/:id` in `index.js` so Express doesn't treat `"read"` as an `:id` parameter. It is already correct in the current `index.js`.
 
 #### `GET /api/notifications` *(auth)*
 
@@ -233,6 +264,18 @@ useEffect(() => {
 
 ---
 
+#### `PATCH /api/notifications/read` *(auth)*
+
+Marks all notifications for the authenticated user as read.
+
+```bash
+curl -k -b cookies.txt -X PATCH https://localhost:8443/api/notifications/read
+```
+
+Response (200): `{ "ok": true, "updated": 4 }`
+
+---
+
 #### `PATCH /api/notifications/:id` *(auth)*
 
 Marks a single notification as read.
@@ -244,18 +287,6 @@ curl -k -b cookies.txt -X PATCH https://localhost:8443/api/notifications/5
 Response (200): `{ "ok": true }`
 
 Errors: `403` notification does not belong to this user · `404` not found
-
----
-
-#### `PATCH /api/notifications/read` *(auth)*
-
-Marks all notifications for the authenticated user as read.
-
-```bash
-curl -k -b cookies.txt -X PATCH https://localhost:8443/api/notifications/read
-```
-
-Response (200): `{ "ok": true, "updated": 4 }`
 
 ---
 
@@ -313,7 +344,6 @@ Combines REST (persisted notifications on load) with WebSocket (live events):
 
 ```js
 useEffect(() => {
-  // Load persisted notifications on mount
   fetch('/api/notifications', { credentials: 'include' })
     .then(r => r.json())
     .then(data => {
@@ -321,7 +351,6 @@ useEffect(() => {
       setUnreadCount(data.unread_count);
     });
 
-  // Live events via WebSocket
   const ws = new WebSocket('wss://localhost:8443/ws');
   ws.onmessage = (event) => {
     const data = JSON.parse(event.data);
@@ -334,9 +363,16 @@ useEffect(() => {
 }, []);
 ```
 
-Mark a notification as read:
+Mark one notification as read:
 ```js
 await fetch(`/api/notifications/${id}`, {
+  method: 'PATCH', credentials: 'include',
+});
+```
+
+Mark all as read:
+```js
+await fetch('/api/notifications/read', {
   method: 'PATCH', credentials: 'include',
 });
 ```
@@ -345,11 +381,17 @@ await fetch(`/api/notifications/${id}`, {
 
 ### Achievements — `Achievements.jsx`
 
+Uses `user_id` from `/api/me`:
+
 ```js
 useEffect(() => {
-  fetch('/api/achievements', { credentials: 'include' })
+  fetch('/api/me', { credentials: 'include' })
     .then(r => r.json())
-    .then(data => setAchievements(data.achievements));
+    .then(({ user }) =>
+      fetch(`/api/users/${user.user_id}/achievements`, { credentials: 'include' })
+        .then(r => r.json())
+        .then(data => setAchievements(data.achievements))
+    );
 }, []);
 ```
 
@@ -361,18 +403,17 @@ Load conversation history, send messages, and mark as read on open:
 
 ```js
 useEffect(() => {
-  fetch(`/api/chat/${userId}`, { credentials: 'include' })
+  fetch(`/api/messages/${userId}`, { credentials: 'include' })
     .then(r => r.json())
     .then(data => setMessages(data.messages));
 
-  // Mark received messages as read
-  fetch(`/api/chat/${userId}/read`, {
-    method: 'PATCH', credentials: 'include',
+  fetch(`/api/messages/${userId}/read`, {
+    method: 'PUT', credentials: 'include',
   });
 }, [userId]);
 
 const sendMessage = async (content) => {
-  const res = await fetch(`/api/chat/${userId}`, {
+  const res = await fetch(`/api/messages/${userId}`, {
     method: 'POST', credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ content }),
@@ -408,8 +449,6 @@ All env vars documented with safe defaults. `make` creates `.env` from this file
 
 ### Login — `Login.jsx`
 
-Calls `POST /api/login` defined by vberdugo in `auth.js`.
-
 ```
 POST /api/login
 ```
@@ -444,8 +483,6 @@ if (!res.ok) { const { error } = await res.json(); }
 
 ### Register — `Register.jsx`
 
-Calls `POST /api/register` defined by vberdugo. Also logs the user in automatically.
-
 ```
 POST /api/register
 ```
@@ -467,8 +504,6 @@ curl -k -c cookies.txt -X POST https://localhost:8443/api/register \
 ---
 
 ### Tournament UI — `Tournament.jsx`
-
-Calls tournament endpoints defined by vberdugo.
 
 ```
 GET  /api/tournament/:id   (auth)
@@ -516,12 +551,12 @@ Static pages, no API calls.
 
 ### Profile — `social/profile.js`
 
-#### `GET /api/profile/:userId` *(auth)*
+#### `GET /api/users/:id`
 
-Returns public profile, stats, and last 10 matches.
+Returns public profile of user `id`. No auth required.
 
 ```bash
-curl -k -b cookies.txt https://localhost:8443/api/profile/42
+curl -k https://localhost:8443/api/users/42
 ```
 
 Response (200):
@@ -531,12 +566,46 @@ Response (200):
     "id": 42, "username": "player1",
     "avatar_url": "/avatars/default.png",
     "is_online": true, "created_at": "2025-01-01T12:00:00.000Z"
-  },
+  }
+}
+```
+
+Errors: `404` user not found
+
+---
+
+#### `GET /api/users/:id/stats`
+
+Returns game stats for user `id`. No auth required.
+
+```bash
+curl -k https://localhost:8443/api/users/42/stats
+```
+
+Response (200):
+```json
+{
   "stats": {
     "wins": 15, "losses": 3, "draws": 1,
     "win_streak": 4, "best_streak": 7, "xp": 1700, "level": 5
-  },
-  "recent_matches": [
+  }
+}
+```
+
+---
+
+#### `GET /api/users/:id/history`
+
+Returns match history for user `id`. No auth required.
+
+```bash
+curl -k https://localhost:8443/api/users/42/history
+```
+
+Response (200):
+```json
+{
+  "matches": [
     {
       "match_id": 11, "opponent_id": 55, "opponent_username": "player2",
       "score_self": 3, "score_opponent": 1,
@@ -546,16 +615,14 @@ Response (200):
 }
 ```
 
-Errors: `401` no session · `404` user not found
-
 ---
 
-#### `PATCH /api/profile` *(auth)*
+#### `PUT /api/profile` *(auth)*
 
 Updates the authenticated user's profile. Only provided fields are applied.
 
 ```bash
-curl -k -b cookies.txt -X PATCH https://localhost:8443/api/profile \
+curl -k -b cookies.txt -X PUT https://localhost:8443/api/profile \
   -H "Content-Type: application/json" \
   -d '{"username":"new_name"}'
 ```
@@ -574,7 +641,7 @@ Errors: `400` empty or too long username · `409` username taken
 
 ```js
 const res = await fetch('/api/profile', {
-  method: 'PATCH', credentials: 'include',
+  method: 'PUT', credentials: 'include',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ username, avatar_url }),
 });
@@ -683,53 +750,49 @@ Response (200):
 
 ---
 
-#### `POST /api/friends/request` *(auth)*
+#### `POST /api/friends/:id` *(auth)*
 
-Sends a friend request.
+Sends a friend request to user with database id `:id`.
 
 ```bash
-curl -k -b cookies.txt -X POST https://localhost:8443/api/friends/request \
-  -H "Content-Type: application/json" \
-  -d '{"user_id":55}'
+curl -k -b cookies.txt -X POST https://localhost:8443/api/friends/55
 ```
-
-Body: `{ "user_id": 55 }`
 
 Response (201): `{ "friendship_id": 7 }`
 
-Errors: `400` missing or self · `404` user not found · `409` request or friendship already exists
+Errors: `400` self-request · `404` user not found · `409` request or friendship already exists
 
 ```js
-await fetch('/api/friends/request', {
+await fetch(`/api/friends/${targetUserId}`, {
   method: 'POST', credentials: 'include',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ user_id: targetUserId }),
 });
 ```
 
 ---
 
-#### `PATCH /api/friends/:friendshipId` *(auth)*
+#### `PUT /api/friends/:id` *(auth)*
 
-Accepts or rejects a pending friend request.
+Accepts a pending friend request. `:id` is the database id of the user who sent the request.
 
 ```bash
-curl -k -b cookies.txt -X PATCH https://localhost:8443/api/friends/12 \
-  -H "Content-Type: application/json" \
-  -d '{"action":"accept"}'
+curl -k -b cookies.txt -X PUT https://localhost:8443/api/friends/88
 ```
-
-Body: `{ "action": "accept" }` or `{ "action": "reject" }`
 
 Response (200): `{ "ok": true }`
 
-Errors: `400` invalid action · `403` request not addressed to this user · `404` not found
+Errors: `403` request not addressed to this user · `404` not found
+
+```js
+await fetch(`/api/friends/${fromUserId}`, {
+  method: 'PUT', credentials: 'include',
+});
+```
 
 ---
 
-#### `DELETE /api/friends/:friendshipId` *(auth)*
+#### `DELETE /api/friends/:id` *(auth)*
 
-Removes a friend. Pass `"block": true` to block instead (sets `status: "blocked"`, prevents future requests).
+Removes or blocks a friend. `:id` is the friendship id. Pass `"block": true` to block instead.
 
 ```bash
 # Remove
@@ -751,7 +814,7 @@ Errors: `403` friendship doesn't belong to this user · `404` not found
 
 ### Current user — `Home.jsx`, `Profile.jsx`, `Friends.jsx`
 
-`GET /api/me` is defined by vberdugo and used across most pages to identify the logged-in user. Use `user.user_id` when referencing DB records.
+`GET /api/me` *(auth)* is used across most pages to identify the logged-in user. Use `user.user_id` when referencing DB records.
 
 ```bash
 curl -k -b cookies.txt https://localhost:8443/api/me
@@ -835,10 +898,17 @@ useEffect(() => {
   fetch('/api/me', { credentials: 'include' })
     .then(r => r.json())
     .then(({ user }) =>
-      fetch(`/api/profile/${user.user_id}`, { credentials: 'include' })
-        .then(r => r.json())
-        .then(setProfile)
-    );
+      Promise.all([
+        fetch(`/api/users/${user.user_id}`, { credentials: 'include' }).then(r => r.json()),
+        fetch(`/api/users/${user.user_id}/stats`, { credentials: 'include' }).then(r => r.json()),
+        fetch(`/api/users/${user.user_id}/history`, { credentials: 'include' }).then(r => r.json()),
+      ])
+    )
+    .then(([profile, stats, history]) => {
+      setProfile(profile.user);
+      setStats(stats.stats);
+      setHistory(history.matches);
+    });
 }, []);
 ```
 
@@ -963,12 +1033,21 @@ Response:
 
 ### Tournaments — `game/session.js`, `index.js`
 
-Consumed by isegura- from `Tournament.jsx`. See Tournament UI section above for request/response.
-
 ```
 GET  /api/tournament/:id   (auth)
 POST /api/tournament       (auth)
 ```
+
+`GET /api/tournament/7` response:
+```json
+{
+  "tournament": { "id": 7, "name": "Tournament #7", "status": "ongoing" },
+  "participants": [{ "user_id": 42, "eliminated": false, "username": "player1", "avatar_url": null }],
+  "matches": [{ "round": 1, "match_id": 11, "winner_id": 42, "player1_id": 42, "player2_id": 55, "score1": 3, "score2": 1 }]
+}
+```
+
+`POST /api/tournament` body: `{ "clientIds": [1, 2, 3, 4] }` → `{ "tournamentId": 7 }`
 
 ---
 

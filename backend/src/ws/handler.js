@@ -11,13 +11,13 @@ const {
     sendStateToSpectator, listActiveSessions,
     buildCharSelectAck, sendAllCharSelectsTo,
     createPlayer, startDuel, startTournament, tryAutoMatch,
-    handleElimination, getLastWatchedSession,
+    handleElimination, resolveMatchWinner, getLastWatchedSession,
     MAX_PLAYERS, GHOST_TTL,
     ATTACK_RANGE, ATTACK_RANGE_Y, DASH_ATTACK_RANGE_X,
     CHAR_IDS, CHARACTER_DEFS,
 } = require('../game/session');
 
-// nextClientId is a property on the module — we mutate through the module
+// nextClientId is a property on the module
 const gameSession = require('../game/session');
 
 // ─── WebSocket server setup ───────────────────────────────────────────────────
@@ -403,17 +403,22 @@ async function onConnection(ws, req) {
         if (!players[clientId]) return;
 
         const p = players[clientId];
+        // Capture dbUserId and sessionId NOW — players[clientId] is deleted below
+        // and won't be accessible inside the grace-period timeout.
+        const disconnectedDbUserId  = p.dbUserId ?? null;
+        const disconnectedSessionId = playerSession.get(clientId);
+        const disconnectedSession   = disconnectedSessionId ? gameSessions.get(disconnectedSessionId) : null;
+
         lastState[clientId] = {
             x: p.x, y: p.y, onGround: p.onGround, stocks: p.stocks,
-            sessionId: playerSession.get(clientId) ?? null,
+            dbUserId:  disconnectedDbUserId,
+            sessionId: disconnectedSessionId ?? null,
             timer: setTimeout(() => {
                 delete lastState[clientId];
                 playerCharSelected.delete(clientId);
             }, GHOST_TTL),
         };
 
-        const disconnectedSessionId = playerSession.get(clientId);
-        const disconnectedSession   = disconnectedSessionId ? gameSessions.get(disconnectedSessionId) : null;
         delete players[clientId];
         playerSession.delete(clientId);
 
@@ -424,19 +429,24 @@ async function onConnection(ws, req) {
             disconnectedSession.pendingEliminations[clientId] = setTimeout(() => {
                 delete disconnectedSession.pendingEliminations[clientId];
                 if (disconnectedSession.finished || players[clientId]) return;
+
                 broadcastToSession(disconnectedSession, { type: 'player_eliminated', clientId });
                 broadcastToAll({ type: 'player_eliminated', clientId });
                 disconnectedSession.eliminated.add(clientId);
+
+                // Write loser info onto session before resolving so resolveMatchWinner
+                // can use it for DB writes (it reads session.loserDbId / session.loserStocks).
+                disconnectedSession.loserDbId   = disconnectedDbUserId;
+                disconnectedSession.loserStocks = 0;
+
                 const remaining = [...disconnectedSession.playerIds].filter(id => !disconnectedSession.eliminated.has(id));
+
                 if (remaining.length === 1) {
-                    const { resolveMatchWinner } = require('../game/session');
-                    // resolveMatchWinner is not exported; we delegate via handleElimination
-                    // The session will be resolved by the remaining player winning naturally.
-                    // For immediate resolution we call broadcastToSession and cleanup:
-                    disconnectedSession.loserDbId   = null;
-                    disconnectedSession.loserStocks = 0;
-                    // Re-use the already imported session module's internal resolve by triggering elimination
-                    // This is safe because disconnectedSession.eliminated already has this clientId added above.
+                    // Call resolveMatchWinner directly — we cannot use handleElimination here
+                    // because playerSession for this clientId was already deleted at close time,
+                    // so handleElimination would look up playerSession.get(loser.id) → undefined
+                    // and silently do nothing.
+                    resolveMatchWinner(disconnectedSession, remaining[0], clientId);
                 } else if (remaining.length === 0) {
                     disconnectedSession.finished = true;
                     broadcastToSession(disconnectedSession, { type: 'match_end', winner: null, loser: clientId, matchId: null, mode: disconnectedSession.mode });
