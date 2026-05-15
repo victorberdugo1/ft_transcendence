@@ -65,14 +65,11 @@ function resolveAttackAnim(p, isDashAttack, crouch) {
 // ─── Hit resolution ───────────────────────────────────────────────────────────
 
 /**
- * applyHit is called with the active players map and session context so it can
- * broadcast hitstop and notify session.js of hit events (playerFlags).
- *
  * ctx shape (from session.js hitCtx):
  *   players, playerSession, gameSessions, hitstopBySession,
  *   broadcastToSession, WebSocket,
- *   onHit(attackerClientId, targetClientId)   ← sets playerFlags.tookDamage
- *   onCombo3(attackerClientId)                ← sets playerFlags.completedCombo
+ *   onHit(attackerClientId, targetClientId)
+ *   onCombo3(attackerClientId)
  */
 function applyHit(attacker, target, ctx) {
     const { players, playerSession, gameSessions, hitstopBySession, broadcastToSession, WebSocket } = ctx;
@@ -92,17 +89,18 @@ function applyHit(attacker, target, ctx) {
         target.voltage = Math.min(VOLTAGE_MAX, target.voltage + VOLTAGE_PER_HIT * 0.25);
     } else {
         target.voltage = Math.min(VOLTAGE_MAX, target.voltage + VOLTAGE_PER_HIT);
-        // Notify session.js that this target took real damage (not blocked).
-        // Used by achievements.js for the 'untouchable' achievement check.
         if (ctx.onHit) ctx.onHit(attacker.id, target.id);
     }
+
     if (target.voltage >= VOLTAGE_MAX) {
         target.voltage      = VOLTAGE_MAX;
         target.voltageMaxed = true;
     }
+
     target.kbx += kbx;
     target.kby += kby;
     target.hitId++;
+
     if (!isBlocking) {
         Object.assign(target, {
             animation: 'hurt',
@@ -112,6 +110,7 @@ function applyHit(attacker, target, ctx) {
             onGround:  false,
         });
     }
+
     attacker.hitTargets.add(target.id);
 
     const hs     = calcHitstop(attacker.voltage);
@@ -143,6 +142,7 @@ function resolveHits(p, players, ctx) {
     const hbHH   = ATTACK_RANGE_Y / 2;
     const hurtHW = 0.24;
     const hurtHH = 0.36;
+
     for (const target of alive) {
         if (target.id === p.id) continue;
         if (p.hitTargets.has(target.id)) continue;
@@ -155,19 +155,23 @@ function resolveHits(p, players, ctx) {
     }
 }
 
-// ─── Per-player tick sub-functions ────────────────────────────────────────────
+// ─── Per-player tick ──────────────────────────────────────────────────────────
 
 function tickBlock(p, moveX, attack, dash, dashAttack, block, crouch) {
     if (p.blockLockout > 0) p.blockLockout -= TICK_DT;
+
     const blockAllowed =
         p.onGround && !p.dashing && !p.attacking && !attack && !dashAttack
         && p.blockLockout  <= 0 && p.dashEndWindow <= 0 && !p.voltageMaxed;
+
     if (block && blockAllowed) {
         p.blockHoldTicks++;
     } else {
         p.blockHoldTicks = 0;
     }
+
     p.blocking = p.blockHoldTicks >= BLOCK_HOLD_TICKS;
+
     if (p.blocking && !p.voltageMaxed) {
         p.voltage = Math.max(0, p.voltage - VOLTAGE_DRAIN_BLOCK * TICK_DT);
     }
@@ -176,6 +180,7 @@ function tickBlock(p, moveX, attack, dash, dashAttack, block, crouch) {
 function tickDash(p, dash, dashDir, moveX, block, crouch) {
     if (p.dashEndWindow > 0) p.dashEndWindow -= TICK_DT;
     if (p.dashCooldown  > 0) p.dashCooldown  -= TICK_DT;
+
     if (dash && !p.dashing && p.dashCooldown <= 0 && !p.blocking) {
         p.dashing      = true;
         p.dashTimer    = DASH_DURATION;
@@ -186,6 +191,7 @@ function tickDash(p, dash, dashDir, moveX, block, crouch) {
         p.animation    = 'dash';
         p.animTimer    = ANIM_DURATIONS.dash;
     }
+
     if (p.dashing) {
         p.dashTimer -= TICK_DT;
         p.vx         = p.dashDir * (p.dashSpeed ?? DASH_SPEED);
@@ -212,9 +218,11 @@ function tickMovement(p, moveX, jump, crouch) {
             p.vx = 0;
         }
     }
+
     p.crouching = p.onGround && !p.dashing && !p.attacking && !p.blocking && crouch;
+
     if (jump && p.jumpsLeft > 0 && !p.blocking) {
-        p.vy        = 10.8; // JUMP_FORCE
+        p.vy        = 10.8;
         p.onGround  = false;
         p.jumpsLeft--;
         p.jumpId++;
@@ -230,9 +238,11 @@ function tickMovement(p, moveX, jump, crouch) {
 function tickAttack(p, attack, dashAttack, crouch, players, ctx) {
     if (p.attackCooldown > 0) p.attackCooldown -= TICK_DT;
     if (p.comboWindow    > 0) p.comboWindow    -= TICK_DT;
+
     const isDashAttack = (attack || dashAttack) && p.dashEndWindow > 0;
     const canAttack    = (attack || (dashAttack && p.dashEndWindow > 0))
                          && !p.attacking && p.attackCooldown <= 0;
+
     if (canAttack) {
         p.attacking     = true;
         p.attackTimer   = ATTACK_DURATION;
@@ -244,14 +254,13 @@ function tickAttack(p, attack, dashAttack, crouch, players, ctx) {
         p.attackCooldown = p.comboStep > 0 ? 0.1 : ATTACK_COOLDOWN;
         p.hitTargets     = new Set();
         if (isDashAttack) p.dashEndWindow = 0;
-        // Track when a combo_3 was started so we can fire onCombo3 when it lands.
         p._pendingCombo3 = (animName === 'attack_combo_3');
     }
+
     if (p.attackTimer > 0) {
         p.attackTimer -= TICK_DT;
         resolveHits(p, players, ctx);
         if (p.attackTimer <= 0) {
-            // If this was a combo_3 attack that hit at least one target, notify session.js.
             if (p._pendingCombo3 && p.hitTargets.size > 0 && ctx.onCombo3) {
                 ctx.onCombo3(p.id);
             }
@@ -261,6 +270,8 @@ function tickAttack(p, attack, dashAttack, crouch, players, ctx) {
         }
     }
 }
+
+// ─── Physics & collision ──────────────────────────────────────────────────────
 
 function tickPhysics(alive) {
     const decayFactor = Math.pow(KNOCKBACK_DECAY, TICK_DT * TICK_RATE);
@@ -290,12 +301,14 @@ function resolvePlayerCollision(a, b) {
     const overlapX = 2 * PLAYER_RADIUS - Math.abs(dx);
     const overlapY = PLAYER_HEIGHT - Math.abs(dy);
     if (overlapX <= 0 || overlapY <= 0) return;
+
     const dir      = dx >= 0 ? 1 : -1;
     const va       = a.vx + a.kbx;
     const vb       = b.vx + b.kbx;
     const aMoving  = Math.abs(a.vx) > 0.1 || Math.abs(a.kbx) > 0.5;
     const bMoving  = Math.abs(b.vx) > 0.1 || Math.abs(b.kbx) > 0.5;
     const opposite = Math.sign(va) !== Math.sign(vb) && aMoving && bMoving;
+
     if (opposite) {
         a.kbx -= dir * 1.5;
         b.kbx += dir * 1.5;
@@ -304,6 +317,7 @@ function resolvePlayerCollision(a, b) {
     } else if (bMoving && !aMoving) {
         a.kbx -= dir * Math.abs(vb) * 0.5;
     }
+
     const sep = overlapX * 0.5 + 0.01;
     a.x -= dir * sep;
     b.x += dir * sep;
@@ -330,11 +344,14 @@ function tickPlatforms(alive, handleElimination) {
                 break;
             }
         }
+
         if (!landed) p.onGround = false;
+
         const outOfBounds =
             p.y < STAGE_BOTTOM
             || p.x < STAGE_LEFT  - 2
             || p.x > STAGE_RIGHT + 2;
+
         if (outOfBounds) {
             p.stocks = Math.max(0, p.stocks - 1);
             if (p.stocks === 0) {

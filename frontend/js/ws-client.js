@@ -308,7 +308,13 @@ setInterval(() => {
                 const wp = window._gameState.players[window._victoryWinner];
                 if (wp) { wp.animation = 'victory'; wp.frozen = true; }
             }
-            try { sessionStorage.setItem('gameState', JSON.stringify(msg)); } catch { }
+            // Throttle sessionStorage writes to ~1/s — writing on every tick (60/s)
+            // is synchronous I/O that blocks the main thread and causes lag.
+            const now = Date.now();
+            if (!window._lastGameStateSave || now - window._lastGameStateSave > 1000) {
+                try { sessionStorage.setItem('gameState', JSON.stringify(msg)); } catch { }
+                window._lastGameStateSave = now;
+            }
 
         } else if (msg.type === 'match_start') {
             window._victoryState    = null;

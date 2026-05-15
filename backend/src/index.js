@@ -115,6 +115,19 @@ app.post('/api/duel', requireAuth, (req, res) => {
     res.json({ sessionId: session.id });
 });
 
+app.post('/api/training', requireAuth, (req, res) => {
+    const { players, playerSession, startTraining } = gameSession;
+    const { clientId, cpuCharId = 'eld' } = req.body ?? {};
+    if (!clientId)
+        return res.status(400).json({ error: 'clientId is required' });
+    if (!players[clientId])
+        return res.status(404).json({ error: 'Player not connected' });
+    if (playerSession.has(clientId))
+        return res.status(409).json({ error: 'Player already in a session' });
+    const session = startTraining(clientId, cpuCharId);
+    res.json({ sessionId: session.id, cpuId: session.cpuId });
+});
+
 app.post('/api/tournament', requireAuth, async (req, res) => {
     const { players, startTournament } = gameSession;
     const { clientIds } = req.body ?? {};
@@ -179,6 +192,17 @@ app.post('/api/dev/duel', (req, res) => {
     const sessions = [];
     for (let i = 0; i + 1 < free.length; i += 2) sessions.push(startDuel(free[i], free[i + 1]).id);
     res.json({ sessions });
+});
+
+app.post('/api/dev/training', (req, res) => {
+    const { players, playerSession, startTraining } = gameSession;
+    const { clientId, cpuCharId = 'qui' } = req.body ?? {};
+    if (!clientId || !players[clientId])
+        return res.status(404).json({ error: 'Player not connected' });
+    if (playerSession.has(clientId))
+        return res.status(409).json({ error: 'Player already in a session' });
+    const session = startTraining(clientId, cpuCharId);
+    res.json({ sessionId: session.id, cpuId: session.cpuId });
 });
 
 app.post('/api/dev/tournament', async (req, res) => {

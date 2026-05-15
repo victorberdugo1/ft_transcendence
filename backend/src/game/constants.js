@@ -34,7 +34,7 @@ const VOLTAGE_MAX         = 200;
 const VOLTAGE_PER_HIT     =  12;
 const VOLTAGE_DRAIN_BLOCK =   8;
 
-// ─── Dash-attack ──────────────────────────────────────────────────────────────
+// ─── Dash attack ──────────────────────────────────────────────────────────────
 const DASH_ATTACK_WINDOW  = 0.18;
 const DASH_ATTACK_KB_MULT = 1.65;
 const DASH_ATTACK_RANGE_X = 1.65;
@@ -46,8 +46,7 @@ const BLOCK_HOLD_TICKS    = 35;
 const BLOCK_DASH_LOCKOUT  = 0.6;
 
 // ─── Hitstop ──────────────────────────────────────────────────────────────────
-// Thresholds used by calcHitstop() in physics.js.
-// HITSTOP_SHAKE is consumed by ws-client.js — single source of truth for both.
+// HITSTOP_SHAKE is also consumed by ws-client.js — single source of truth.
 const HITSTOP_THRESHOLDS = {
     ultra:  { minVoltage: 200, frames: 22 },
     heavy:  { minVoltage: 150, frames: { min: 15, max: 22 } },
@@ -56,7 +55,6 @@ const HITSTOP_THRESHOLDS = {
     micro:  { minVoltage:   0, frames:  3 },
 };
 
-// Camera shake amplitude per hitstop tier (used in ws-client.js).
 const HITSTOP_SHAKE = {
     micro:  0.012,
     light:  0.028,

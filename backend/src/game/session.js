@@ -16,18 +16,15 @@ const {
     tickPhysics, tickCollisions, tickPlatforms, tickAnimations,
 } = require('./physics');
 
-// Stub until aprenafe delivers achievements.js.
-// Once achievements.js exists, this no-op is replaced automatically.
+// Optional modules — loaded if present, no-ops otherwise.
 let checkAndGrantAchievements = async () => {};
 let updateStatsAfterMatch     = async () => {};
-try {
-    ({ checkAndGrantAchievements } = require('./achievements'));
-} catch { /* achievements.js not yet available */ }
-try {
-    ({ updateStatsAfterMatch } = require('./stats'));
-} catch { /* stats.js not yet available */ }
+try { ({ checkAndGrantAchievements } = require('./achievements')); } catch { /* not yet available */ }
+try { ({ updateStatsAfterMatch }     = require('./stats'));        } catch { /* not yet available */ }
 
-// ─── Shared mutable state (owned by this module) ──────────────────────────────
+const { createCpuPlayer, tickCpu } = require('./ai');
+
+// ─── Module state ─────────────────────────────────────────────────────────────
 
 const players    = {};
 const spectators = {};
@@ -44,8 +41,7 @@ let frameId       = 0;
 
 let tournamentWaitingWinners = {};
 
-// Stage elegido por el host; se envía a todos los jugadores que se unan después.
-// -1 = ninguno elegido todavía.
+// -1 = not yet chosen; set by host, sent to players who join later.
 let confirmedStageId = -1;
 
 let DEBUG_AUTO_MATCH = true;
@@ -71,7 +67,27 @@ function broadcastToAll(msg) {
     for (const spec of Object.values(spectators)) if (spec.ws?.readyState === WebSocket.OPEN) spec.ws.send(raw);
 }
 
-// ─── Spectator state broadcast ────────────────────────────────────────────────
+// ─── Spectator state ──────────────────────────────────────────────────────────
+
+function buildPlayerSnapshot(p) {
+    return {
+        id:           p.id,
+        charId:       p.charId ?? null,
+        x:            +p.x.toFixed(3),
+        y:            +p.y.toFixed(3),
+        rotation:     p.facing === -1 ? Math.PI : 0,
+        animation:    p.animation,
+        onGround:     p.onGround,
+        stocks:       p.stocks,
+        respawning:   p.respawning,
+        crouching:    p.crouching,
+        hitId:        p.hitId,
+        jumpId:       p.jumpId,
+        voltage:      +p.voltage.toFixed(1),
+        voltageMaxed: p.voltageMaxed,
+        blocking:     p.blocking,
+    };
+}
 
 function sendStateToSpectator(spec) {
     if (!spec.ws || spec.ws.readyState !== WebSocket.OPEN) return;
@@ -99,26 +115,6 @@ function sendStateToSpectator(spec) {
 
 function broadcastStateToSpectators() {
     for (const spec of Object.values(spectators)) sendStateToSpectator(spec);
-}
-
-function buildPlayerSnapshot(p) {
-    return {
-        id:           p.id,
-        charId:       p.charId ?? null,
-        x:            +p.x.toFixed(3),
-        y:            +p.y.toFixed(3),
-        rotation:     p.facing === -1 ? Math.PI : 0,
-        animation:    p.animation,
-        onGround:     p.onGround,
-        stocks:       p.stocks,
-        respawning:   p.respawning,
-        crouching:    p.crouching,
-        hitId:        p.hitId,
-        jumpId:       p.jumpId,
-        voltage:      +p.voltage.toFixed(1),
-        voltageMaxed: p.voltageMaxed,
-        blocking:     p.blocking,
-    };
 }
 
 function broadcastState() {
@@ -174,7 +170,7 @@ function buildCharSelectAck(selectorCharId, selectorClientId, stageId) {
         }
         const cid    = playersOut[i].clientId;
         const charId = playersOut[i].charId;
-        const a = CHARACTER_ASSETS[charId] ?? CHARACTER_ASSETS.eld;
+        const a      = CHARACTER_ASSETS[charId] ?? CHARACTER_ASSETS.eld;
         playersOut[i] = { clientId: cid, charId, texCfg: a.texCfg, texSets: a.texSets, animBase: a.animBase };
     }
 
@@ -249,9 +245,8 @@ function createPlayer(id, saved, ws) {
     };
 }
 
-// ─── playerFlags helpers ──────────────────────────────────────────────────────
-// playerFlags tracks per-player in-match events used by achievements.js.
-// Each entry: { tookDamage: bool, completedCombo: bool }
+// ─── playerFlags ──────────────────────────────────────────────────────────────
+// Tracks per-player in-match events consumed by achievements.js.
 
 function initPlayerFlags(session, clientIds) {
     session.playerFlags = {};
@@ -290,7 +285,7 @@ function startBrawl(clientIds) {
             sendStateToSpectator(spec);
         }
     }
-    console.log(`[GAME] Brawl iniciado: sesión ${id} — ${clientIds.length} jugadores`);
+    console.log(`[GAME] Brawl started: session ${id} — ${clientIds.length} players`);
     return session;
 }
 
@@ -363,6 +358,44 @@ async function startTournament(clientIds, creatorDbId) {
     return tournamentId;
 }
 
+// ─── Training mode ────────────────────────────────────────────────────────────
+
+function startTraining(humanClientId, cpuCharId = 'eld') {
+    const id  = String(nextSessionId++);
+    const cpu = createCpuPlayer(cpuCharId, CHARACTER_DEFS, GROUND_Y);
+
+    players[cpu.id]    = cpu;
+    playerCharSelected.set(cpu.id, cpuCharId);
+
+    const session = {
+        id, mode: '1v1',
+        playerIds:    new Set([humanClientId, cpu.id]),
+        eliminated:   new Set(),
+        tournamentId: null, round: null, matchDbId: null,
+        startedAt:    new Date(), finished: false,
+        loserDbId:    null, loserStocks: 0,
+        playerFlags:  {},
+        isCpuSession: true,
+        cpuId:        cpu.id,
+    };
+    initPlayerFlags(session, [humanClientId, cpu.id]);
+    gameSessions.set(id, session);
+    playerSession.set(humanClientId, id);
+    playerSession.set(cpu.id, id);
+
+    const p = players[humanClientId];
+    if (p) p.stocks = 3;
+    cpu.stocks = 3;
+
+    broadcastToSession(session, {
+        type: 'match_start', mode: '1v1', sessionId: id,
+        countdown: true, cpuId: cpu.id,
+    });
+
+    console.log(`[GAME] Training started: session ${id} — player ${humanClientId} vs CPU ${cpu.id}`);
+    return session;
+}
+
 // ─── Auto-match ───────────────────────────────────────────────────────────────
 
 function tryAutoMatch() {
@@ -379,7 +412,6 @@ function tryAutoMatch() {
         for (const cid of ready) {
             sess.playerIds.add(cid);
             playerSession.set(cid, sess.id);
-            // Init playerFlags for the new late-joiner
             if (sess.playerFlags && !sess.playerFlags[cid]) {
                 sess.playerFlags[cid] = { tookDamage: false, completedCombo: false };
             }
@@ -394,7 +426,7 @@ function tryAutoMatch() {
 
     if (ready.length < 2) return;
     const sess = startBrawl(ready);
-    console.log(`[AUTO-MATCH] Sesión brawl ${sess.id} con jugadores: ${[...sess.playerIds].join(', ')}`);
+    console.log(`[AUTO-MATCH] Brawl session ${sess.id} — players: ${[...sess.playerIds].join(', ')}`);
 }
 
 // ─── Elimination & match resolution ──────────────────────────────────────────
@@ -452,6 +484,22 @@ async function resolveMatchWinner(session, winnerClientId, loserClientId) {
 
     broadcastToSession(session, { type: 'victory', winner: winnerClientId, loser: loserClientId, reloadRequired: true });
 
+    // Training sessions don't write to DB — no stats, no match history.
+    if (session.isCpuSession) {
+        broadcastToSession(session, { type: 'match_end', winner: winnerClientId, loser: loserClientId, matchId: null, mode: session.mode });
+        setTimeout(() => {
+            broadcastToSession(session, { type: 'match_finished', sessionId: session.id });
+            gameSessions.delete(session.id);
+            delete hitstopBySession[session.id];
+            confirmedStageId = -1;
+            if (players[winnerClientId]) {
+                delete players[winnerClientId];
+                playerSession.delete(winnerClientId);
+            }
+        }, 6000);
+        return;
+    }
+
     try {
         const { rows } = await db.query(
             `INSERT INTO matches (player1_id, player2_id, winner_id, score1, score2, game_type)
@@ -469,7 +517,6 @@ async function resolveMatchWinner(session, winnerClientId, loserClientId) {
             );
         }
 
-        // updateStatsAfterMatch handles win_streak, best_streak, and duration_s (aprenafe — stats.js)
         await updateStatsAfterMatch({
             db,
             winnerDbId,
@@ -487,15 +534,15 @@ async function resolveMatchWinner(session, winnerClientId, loserClientId) {
                  updated_at = NOW() WHERE user_id = $1`,
                 [winnerDbId]
             );
-            // checkAndGrantAchievements is owned by aprenafe (achievements.js)
             await checkAndGrantAchievements(winnerDbId, {
-                tookDamage:      session.playerFlags?.[winnerClientId]?.tookDamage  ?? true,
+                tookDamage:      session.playerFlags?.[winnerClientId]?.tookDamage    ?? true,
                 completedCombo:  session.playerFlags?.[winnerClientId]?.completedCombo ?? false,
                 durationS:       Math.round((Date.now() - session.startedAt) / 1000),
                 winnerStocks:    winner?.stocks ?? 0,
                 isTournamentWin: session.mode === 'tournament',
             });
         }
+
         if (loserDbId) {
             await db.query(
                 `UPDATE user_stats SET losses = losses + 1, updated_at = NOW() WHERE user_id = $1`,
@@ -520,7 +567,6 @@ async function resolveMatchWinner(session, winnerClientId, loserClientId) {
         }
         gameSessions.delete(session.id);
         delete hitstopBySession[session.id];
-        // Resetear el stage confirmado para que el siguiente lobby empiece desde el SSS.
         confirmedStageId = -1;
         if (players[winnerClientId]) {
             delete players[winnerClientId];
@@ -589,7 +635,7 @@ async function finalizeTournament(tournamentId, championClientId) {
     console.log(`[TOURNAMENT] ${tournamentId} finished — champion: ${championClientId}`);
 }
 
-// ─── DB helpers for spectator ─────────────────────────────────────────────────
+// ─── DB helpers ───────────────────────────────────────────────────────────────
 
 async function getLastWatchedSession(dbUserId) {
     if (!dbUserId) return null;
@@ -626,8 +672,8 @@ function tickRespawn() {
     }
 }
 
-// hitCtx is passed to physics.js functions so they can broadcast hitstop
-// and notify session.js of hit/combo events (for playerFlags).
+// Passed to physics.js so it can broadcast hitstop and notify this module of
+// hit/combo events without a circular require.
 const hitCtx = {
     get players()          { return players; },
     get playerSession()    { return playerSession; },
@@ -636,8 +682,6 @@ const hitCtx = {
     broadcastToSession,
     WebSocket,
 
-    // Called by applyHit when a hit connects (not a block).
-    // Sets playerFlags[targetId].tookDamage = true on the session.
     onHit(attackerClientId, targetClientId) {
         const sessId = playerSession.get(attackerClientId);
         if (!sessId) return;
@@ -647,8 +691,6 @@ const hitCtx = {
         }
     },
 
-    // Called by tickAttack when attack_combo_3 finishes landing.
-    // Sets playerFlags[attackerClientId].completedCombo = true on the session.
     onCombo3(attackerClientId) {
         const sessId = playerSession.get(attackerClientId);
         if (!sessId) return;
@@ -696,6 +738,18 @@ function tick() {
     tickCollisions(alive);
     tickPlatforms(alive, handleElimination);
     tickAnimations(aliveForAnim);
+
+    // Tick CPU players in active training sessions.
+    for (const session of gameSessions.values()) {
+        if (!session.isCpuSession || session.finished) continue;
+        const cpu = players[session.cpuId];
+        if (!cpu) continue;
+        const target = [...session.playerIds]
+            .filter(id => id !== session.cpuId && players[id] && !players[id].respawning)
+            .map(id => players[id])[0] ?? null;
+        tickCpu(cpu, target);
+    }
+
     broadcastState();
 }
 
@@ -704,7 +758,6 @@ setInterval(tick, 1000 / TICK_RATE);
 // ─── Exports ──────────────────────────────────────────────────────────────────
 
 module.exports = {
-    // State (read-only references for ws/handler.js)
     players,
     spectators,
     lastState,
@@ -712,13 +765,12 @@ module.exports = {
     playerSession,
     playerCharSelected,
     hitstopBySession,
-    get nextClientId()  { return nextClientId; },
-    set nextClientId(v) { nextClientId = v; },
-    get nextSessionId() { return nextSessionId; },
+    get nextClientId()      { return nextClientId; },
+    set nextClientId(v)     { nextClientId = v; },
+    get nextSessionId()     { return nextSessionId; },
     get confirmedStageId()  { return confirmedStageId; },
     set confirmedStageId(v) { confirmedStageId = v; },
 
-    // Functions
     broadcastToSession,
     broadcastToAll,
     broadcastState,
@@ -730,6 +782,7 @@ module.exports = {
     startBrawl,
     startDuel,
     startTournament,
+    startTraining,
     tryAutoMatch,
     handleElimination,
     resolveMatchWinner,

@@ -1,18 +1,18 @@
-.PHONY: up down build logs clean destroy delete re setup shell-% wasm wasm-full
+ENV_CHECK = if [ ! -f .env ]; then cp .env.example .env; echo ".env created. Edit it before running Docker"; else echo ".env already exists, not overwritten"; fi
 
-wasm:
-	docker compose build frontend
-	docker compose up -d
-
-wasm-full:
-	docker compose build --no-cache frontend
-	docker compose up -d
+all: up
 
 up:
-	docker compose up -d
+	@$(ENV_CHECK) && docker compose up -d
 
 dev:
-	docker compose up
+	@$(ENV_CHECK) && docker compose up
+
+wasm:
+	@$(ENV_CHECK) && docker compose build frontend && docker compose up -d
+
+wasm-full:
+	@$(ENV_CHECK) && docker compose build --no-cache frontend && docker compose up -d
 
 down:
 	docker compose down
@@ -20,7 +20,7 @@ down:
 re: down wasm
 
 build:
-	docker compose build
+	@$(ENV_CHECK) && docker compose build
 
 logs:
 	docker compose logs -f
@@ -37,13 +37,7 @@ destroy:
 
 delete: destroy
 
-setup:
-	@if [ ! -f .env ]; then \
-		cp .env.example .env; \
-		echo ".env creado. Edítalo antes de hacer 'make up'"; \
-	else \
-		echo ".env ya existe, no se sobreescribe"; \
-	fi
-
 shell-%:
 	docker compose exec $* sh
+
+.PHONY: all up down dev build logs clean destroy delete re shell-% wasm wasm-full
