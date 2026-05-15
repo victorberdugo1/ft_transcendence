@@ -1,3 +1,17 @@
+/*
+  console F12:
+
+  const { players } = await (await fetch('/api/players')).json();
+  const free = players.filter(p => !p.inSession);
+  const res = await fetch('/api/dev/training', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ clientId: free[0].clientId, cpuCharId: 'eld' })
+    //  personajes: eld, hil, qui, gab
+  });
+  console.log(await res.json());
+*/
+
 'use strict';
 
 const { TICK_DT } = require('./constants');
@@ -121,7 +135,12 @@ function tickCpu(cpu, target) {
     } else if (dist < 3.0) {
         // Close — walk toward target, jump if target is above.
         next.moveX = dir;
-        if (dy > 0.8 && cpu.jumpsLeft > 0) next.jump = true;
+        if (dy > 0.8 && cpu.jumpsLeft > 0) {
+            next.jump = true;
+        } else if (!cpu.onGround && cpu.jumpsLeft > 0 && dy > 0.3) {
+            // Already airborne but target is still above — use second jump.
+            next.jump = true;
+        }
     } else {
         // Far — dash toward target.
         next.moveX  = dir;
