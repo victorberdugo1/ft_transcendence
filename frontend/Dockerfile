@@ -1,4 +1,6 @@
-FROM emscripten/emsdk:3.1.50 AS game-builder
+# ── Stage 1: raylib compilado (imagen base, se cachea indefinidamente) ────────
+# Este stage solo se reconstruye si cambia la versión de raylib o emsdk.
+FROM emscripten/emsdk:3.1.50 AS raylib-base
 
 WORKDIR /build
 
@@ -7,6 +9,9 @@ RUN git clone --depth 1 --branch 5.0 https://github.com/raysan5/raylib.git && \
     make PLATFORM=PLATFORM_WEB \
     CUSTOM_CFLAGS="-DSUPPORT_FILEFORMAT_JPG=1" \
     -j$(nproc)
+
+# ── Stage 2: compilar main.c (solo se recompila si cambia game/src/) ──────────
+FROM raylib-base AS game-builder
 
 COPY game/src/ ./src/
 
@@ -29,6 +34,7 @@ RUN emcc src/main.c \
     --preload-file src/data@data \
     -O2
 
+# ── Stage 3: React (solo se reinstala npm si cambia package.json) ─────────────
 FROM node:20-alpine AS react-builder
 
 WORKDIR /app
@@ -37,6 +43,7 @@ RUN npm install
 COPY app/ ./
 RUN npm run build
 
+# ── Stage 4: imagen final nginx ───────────────────────────────────────────────
 FROM nginx:alpine
 
 COPY --from=react-builder /app/dist         /usr/share/nginx/html/

@@ -37,6 +37,9 @@ export default function App() {
     script.onerror = () => setStatus("Error cargando game.js");
     document.body.appendChild(script);
 
+    // sendStageSelect está definido en ws-client.js y maneja tanto la
+    // confirmación local como el envío al servidor vía WebSocket.
+
     const poll = setInterval(() => {
       if (window._isSpectator && window._myClientId > 0) {
         setVisible(true);

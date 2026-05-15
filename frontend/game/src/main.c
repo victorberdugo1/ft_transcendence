@@ -23,6 +23,117 @@ static int    SCREEN_W   = 800;
 static int    SCREEN_H   = 600;
 static Camera scene_cam;
 
+// ---------------------------------------------------------------------------
+// Skybox
+// ---------------------------------------------------------------------------
+#include "rlgl.h"
+
+typedef struct {
+    Mesh           mesh;
+    Model          model;
+    Shader         shader;
+    TextureCubemap cubemap;
+    int            locTime;
+    bool           loaded;
+    int            loadedStage;
+} SkyboxState;
+
+static SkyboxState g_sky = { {0}, {0}, {0}, {0}, 0, false, -1 };
+
+static void Skybox_Load(int stageId) {
+    if (g_sky.loaded) {
+        UnloadModel(g_sky.model);
+        UnloadTexture(g_sky.cubemap);
+        g_sky.loaded = false;
+    }
+
+    char imgPath[128];
+    snprintf(imgPath, sizeof(imgPath), "data/textures/skybox%d.jpg", stageId);
+    if (!FileExists(imgPath)) return;
+
+    g_sky.shader = LoadShader("data/shaders/skybox.vs", "data/shaders/skybox.fs");
+    int envMap = MATERIAL_MAP_CUBEMAP;
+    int doGamma = 0, vflipped = 1;
+    SetShaderValue(g_sky.shader, GetShaderLocation(g_sky.shader, "environmentMap"), &envMap,    SHADER_UNIFORM_INT);
+    SetShaderValue(g_sky.shader, GetShaderLocation(g_sky.shader, "doGamma"),        &doGamma,   SHADER_UNIFORM_INT);
+    SetShaderValue(g_sky.shader, GetShaderLocation(g_sky.shader, "vflipped"),       &vflipped,  SHADER_UNIFORM_INT);
+    g_sky.locTime = GetShaderLocation(g_sky.shader, "time");
+
+    Image img      = LoadImage(imgPath);
+    g_sky.cubemap  = LoadTextureCubemap(img, CUBEMAP_LAYOUT_AUTO_DETECT);
+    UnloadImage(img);
+
+    g_sky.mesh  = GenMeshCube(1.0f, 1.0f, 1.0f);
+    g_sky.model = LoadModelFromMesh(g_sky.mesh);
+    g_sky.model.materials[0].shader = g_sky.shader;
+    SetMaterialTexture(&g_sky.model.materials[0], MATERIAL_MAP_CUBEMAP, g_sky.cubemap);
+
+    g_sky.loaded      = true;
+    g_sky.loadedStage = stageId;
+}
+
+static void Skybox_Unload(void) {
+    if (!g_sky.loaded) return;
+    UnloadModel(g_sky.model);
+    UnloadTexture(g_sky.cubemap);
+    g_sky.loaded      = false;
+    g_sky.loadedStage = -1;
+}
+
+static void Skybox_Draw(Camera cam) {
+    if (!g_sky.loaded) return;
+
+    rlDisableBackfaceCulling();
+    rlDisableDepthMask();
+
+    // Usar rlgl directamente: evita que Raylib active normal/texcoord/tangent/color
+    // que no existen en el skybox shader -> INVALID_VALUE disableVertexAttribArray en WebGL.
+    rlEnableShader(g_sky.shader.id);
+
+    // Actualizar tiempo para animacion del skybox
+    if (g_sky.locTime >= 0) {
+        float t = (float)GetTime();
+        rlSetUniform(g_sky.locTime, &t, SHADER_UNIFORM_FLOAT, 1);
+    }
+
+    // Vista sin traslacion + proyeccion
+    Matrix matView = MatrixLookAt(cam.position, cam.target, cam.up);
+    matView.m12 = 0.0f; matView.m13 = 0.0f; matView.m14 = 0.0f;
+    Matrix matProj = MatrixPerspective(
+        cam.fovy * DEG2RAD,
+        (float)SCREEN_W / (float)SCREEN_H,
+        0.01f, 1000.0f);
+    int locView = GetShaderLocation(g_sky.shader, "matView");
+    int locProj = GetShaderLocation(g_sky.shader, "matProjection");
+    if (locView >= 0) rlSetUniformMatrix(locView, matView);
+    if (locProj >= 0) rlSetUniformMatrix(locProj, matProj);
+
+    // Cubemap al slot 0
+    int locEnv = GetShaderLocation(g_sky.shader, "environmentMap");
+    int slot = 0;
+    if (locEnv >= 0) rlSetUniform(locEnv, &slot, SHADER_UNIFORM_INT, 1);
+    rlActiveTextureSlot(0);
+    rlEnableTextureCubemap(g_sky.cubemap.id);
+
+    // Solo vertexPosition, ningun otro atributo
+    rlEnableVertexArray(g_sky.mesh.vaoId);
+    int locPos = GetShaderLocationAttrib(g_sky.shader, "vertexPosition");
+    if (locPos >= 0) {
+        rlEnableVertexAttribute(locPos);
+        rlSetVertexAttributeDivisor(locPos, 0);
+    }
+    rlDrawVertexArrayElements(0, g_sky.mesh.triangleCount * 3, 0);
+    if (locPos >= 0) rlDisableVertexAttribute(locPos);
+    rlDisableVertexArray();
+
+    rlDisableTextureCubemap();
+    rlDisableShader();
+
+    rlEnableDepthMask();
+    rlEnableBackfaceCulling();
+}
+// ---------------------------------------------------------------------------
+
 static const char *ANIM_JSON[ANIM_COUNT] = {
 	"data/animations/idle.json",
 	"data/animations/walk.json",
@@ -292,6 +403,248 @@ static const CharDef CHARS[4] = {
 };
 #define CHARS_COUNT 4
 
+
+// ---------------------------------------------------------------------------
+// Stage Select Screen (SSS) — solo el host (primer jugador) elige el stage.
+// ---------------------------------------------------------------------------
+typedef struct { int id; const char *name; const char *preview; const char *desc; } StageDef;
+
+static const StageDef STAGES[] = {
+    { 0, "Templo Eterno", "data/stage_00.jpg", "Un templo ancestral entre las nubes" },
+    { 1, "Ciudad Neon",   "data/stage_01.jpg", "Azoteas iluminadas por la lluvia"    },
+    { 2, "Abismo Rojo",   "data/stage_02.jpg", "Plataformas sobre lava hirviente"    },
+    { 3, "Bosque Oscuro", "data/stage_03.jpg", "Raices gigantes bajo la luna llena"  },
+};
+#define STAGES_COUNT 4
+
+typedef enum { SSS_SELECTING, SSS_WAITING, SSS_DONE } SssPhase;
+
+static struct {
+    SssPhase  phase;
+    int       hovered;
+    int       selected;
+    Texture2D previews[STAGES_COUNT];
+    bool      previewsLoaded;
+    bool      isHost;           // true solo para el primer jugador
+} g_sss = { SSS_SELECTING, 0, 0, {0}, false, false };
+
+// JS helper: devuelve 1 si este cliente es el host (el de menor ID).
+// Devuelve 0 si aún no tenemos _myClientId (todavía conectando).
+EM_JS(int, ws_is_host, (void), {
+    // Si aún no tenemos ID, no decidir nada — esperar.
+    var myId = window._myClientId;
+    if (myId === undefined || myId === null || myId <= 0) return 0;
+
+    // Si el servidor lo dice explícitamente, confiar en eso.
+    if (window._isHost === true)  return 1;
+    if (window._isHost === false) return 0;
+
+    // Fallback: host = jugador con el ID más bajo en el gameState.
+    var gs = window._gameState;
+    if (!gs || !gs.players) return 0;
+    var ids = Object.keys(gs.players).map(function(k){ return parseInt(k); });
+    if (ids.length === 0) return 0;
+    var minId = ids.reduce(function(a,b){ return a < b ? a : b; });
+    return (myId === minId) ? 1 : 0;
+});
+
+// JS helper: envía el stage elegido al servidor para que todos lo reciban.
+EM_JS(void, ws_send_stage_select, (int stageId), {
+    if (typeof window.sendStageSelect === 'function') window.sendStageSelect(stageId | 0);
+    try { sessionStorage.setItem('pendingStageId', stageId | 0); } catch(e) {}
+});
+
+// JS helper: devuelve el stageId confirmado por el servidor (-1 si aún no llega).
+EM_JS(int, ws_get_confirmed_stage, (void), {
+    if (window._confirmedStageId !== undefined && window._confirmedStageId >= 0)
+        return window._confirmedStageId | 0;
+    // Fallback: leer de sessionStorage (solo si la clave existe y es un número válido).
+    try {
+        var v = sessionStorage.getItem('confirmedStageId');
+        if (v !== null && v.length > 0) {
+            var n = parseInt(v, 10);
+            if (!isNaN(n) && n >= 0) return n;
+        }
+    } catch(e) {}
+    return -1;
+});
+
+static void SSS_LoadPreviews(void) {
+    if (g_sss.previewsLoaded) return;
+    for (int i = 0; i < STAGES_COUNT; i++) {
+        if (FileExists(STAGES[i].preview))
+            g_sss.previews[i] = LoadTexture(STAGES[i].preview);
+        // Si no existe la imagen, quedará con id=0 y se dibujará un placeholder.
+    }
+    g_sss.previewsLoaded = true;
+}
+
+static void SSS_UnloadPreviews(void) {
+    if (!g_sss.previewsLoaded) return;
+    for (int i = 0; i < STAGES_COUNT; i++) UnloadTexture(g_sss.previews[i]);
+    g_sss.previewsLoaded = false;
+}
+
+// Devuelve true cuando el SSS ha terminado y se puede pasar al CSS.
+static bool SSS_UpdateAndDraw(void) {
+
+    // Intentar confirmar si somos host en cada frame hasta saberlo.
+    if (!g_sss.isHost) g_sss.isHost = (bool)ws_is_host();
+
+    // Todos los clientes (host y no-host): si el servidor confirmó el stage, salir.
+    // Esto garantiza que todos usen el mismo stage/skybox.
+    {
+        int confirmed = ws_get_confirmed_stage();
+        if (confirmed >= 0) {
+            // Buscar el indice en STAGES[] que corresponde al stageId confirmado.
+            int idx = 0;
+            for (int i = 0; i < STAGES_COUNT; i++) {
+                if (STAGES[i].id == confirmed) { idx = i; break; }
+            }
+            g_sss.selected = idx;
+            g_sss.phase    = SSS_DONE;
+            SSS_UnloadPreviews();
+            return true;
+        }
+    }
+
+    int sw = GetScreenWidth(), sh = GetScreenHeight();
+    ClearBackground((Color){8, 8, 18, 255});
+
+    int titleSz  = (int)(sw * 0.038f); if (titleSz < 22) titleSz = 22; if (titleSz > 60) titleSz = 60;
+    int nameSz   = (int)(sw * 0.022f); if (nameSz  < 14) nameSz  = 14; if (nameSz  > 34) nameSz  = 34;
+    int descSz   = (int)(sw * 0.015f); if (descSz  < 11) descSz  = 11; if (descSz  > 22) descSz  = 22;
+    int hintSz   = (int)(sw * 0.015f); if (hintSz  < 11) hintSz  = 11; if (hintSz  > 22) hintSz  = 22;
+
+    int titleY = (int)(sh * 0.04f);
+
+    // Sin ID aún: todavía conectando.
+    if (ws_get_my_id() <= 0) {
+        const char *conn = "Conectando...";
+        DrawText(conn, (sw - MeasureText(conn, titleSz)) / 2, sh / 2 - titleSz / 2,
+                 titleSz, (Color){120, 160, 220, 255});
+        return false;
+    }
+
+    // No-host: esperar a que el host elija. Bloqueado hasta recibir stage_confirmed.
+    if (!g_sss.isHost) {
+        const char *wait = "Esperando seleccion de escenario...";
+        DrawText(wait, (sw - MeasureText(wait, titleSz)) / 2, sh / 2 - titleSz / 2,
+                 titleSz, (Color){160, 160, 200, 255});
+        return false;
+    }
+
+    // Host: mostrar la selección.
+    SSS_LoadPreviews();
+
+    const char *title = "Elige el escenario";
+    DrawText(title, (sw - MeasureText(title, titleSz)) / 2, titleY, titleSz, WHITE);
+
+    // Layout de tarjetas (paisaje 16:9 aprox).
+    int cardW = (int)(sw * 0.88f / (STAGES_COUNT + (STAGES_COUNT - 1) * 0.06f));
+    if (cardW < 100) cardW = 100;
+    if (cardW > 320) cardW = 320;
+    int previewH = (int)(cardW * 9.0f / 16.0f);
+    int labelH   = (int)(cardW * 0.22f); if (labelH < 30) labelH = 30;
+    int cardH    = previewH + labelH;
+    int gap      = (int)(cardW * 0.06f); if (gap < 8) gap = 8;
+
+    int totalW   = STAGES_COUNT * cardW + (STAGES_COUNT - 1) * gap;
+    int startX   = (sw - totalW) / 2;
+    int hintAreaH = hintSz + (int)(sh * 0.05f);
+    int availH   = sh - (titleY + titleSz + (int)(sh * 0.02f)) - hintAreaH;
+    int startY   = (titleY + titleSz + (int)(sh * 0.02f)) + (availH - cardH) / 2;
+    if (startY + cardH > sh - hintAreaH - 4) startY = sh - hintAreaH - 4 - cardH;
+    if (startY < titleY + titleSz + 8)       startY = titleY + titleSz + 8;
+
+    Vector2 mouse = GetMousePosition();
+
+    // Navegación teclado/ratón.
+    if (g_sss.phase == SSS_SELECTING) {
+        for (int i = 0; i < STAGES_COUNT; i++) {
+            Rectangle card = { startX + i*(cardW+gap), startY, cardW, cardH };
+            if (CheckCollisionPointRec(mouse, card)) g_sss.hovered = i;
+        }
+        if (IsKeyPressed(KEY_LEFT)  || IsKeyPressed(KEY_A))
+            g_sss.hovered = (g_sss.hovered + STAGES_COUNT - 1) % STAGES_COUNT;
+        if (IsKeyPressed(KEY_RIGHT) || IsKeyPressed(KEY_D))
+            g_sss.hovered = (g_sss.hovered + 1) % STAGES_COUNT;
+    }
+
+    // Dibujar tarjetas.
+    for (int i = 0; i < STAGES_COUNT; i++) {
+        Rectangle card = { startX + i*(cardW+gap), startY, cardW, cardH };
+        bool hover  = (g_sss.phase == SSS_SELECTING && i == g_sss.hovered);
+        bool chosen = (i == g_sss.selected && g_sss.phase == SSS_WAITING);
+
+        Color border = chosen ? GOLD : (hover ? WHITE : (Color){70, 70, 100, 255});
+        Color bg     = chosen ? (Color){40,30,10,255} : (hover ? (Color){28,28,48,255} : (Color){16,16,30,255});
+
+        DrawRectangleRec(card, bg);
+        DrawRectangleLinesEx(card, chosen ? 3.0f : 2.0f, border);
+
+        // Preview de imagen o placeholder de color.
+        Rectangle previewRect = { card.x + 2, card.y + 2, cardW - 4, previewH - 2 };
+        Texture2D tex = g_sss.previews[i];
+        if (tex.id > 0) {
+            Rectangle src = { 0, 0, tex.width, tex.height };
+            DrawTexturePro(tex, src, previewRect, (Vector2){0,0}, 0.0f, WHITE);
+        } else {
+            // Placeholder de color único por stage.
+            Color placeholders[4] = {
+                {40, 60, 110, 255}, {20, 60, 50, 255},
+                {90, 30, 20, 255},  {30, 50, 30, 255}
+            };
+            DrawRectangleRec(previewRect, placeholders[i % 4]);
+            DrawText("?", previewRect.x + (previewRect.width  - MeasureText("?", 32)) / 2,
+                          previewRect.y + (previewRect.height - 32) / 2, 32,
+                          (Color){200, 200, 200, 120});
+        }
+
+        // Nombre del stage.
+        const char *nm = STAGES[i].name;
+        int nmY = card.y + previewH + (labelH / 2 - nameSz) / 2;
+        DrawText(nm, card.x + (cardW - MeasureText(nm, nameSz)) / 2, nmY, nameSz, border);
+
+        // Descripción corta.
+        const char *dsc = STAGES[i].desc;
+        int dscY = nmY + nameSz + 2;
+        if (dscY + descSz < card.y + cardH - 2)
+            DrawText(dsc, card.x + (cardW - MeasureText(dsc, descSz)) / 2, dscY, descSz,
+                     (Color){150, 150, 180, 200});
+
+        // Parpadeo al confirmar.
+        if (chosen) {
+            static float blinkT = 0.0f;
+            blinkT += GetFrameTime();
+            if ((int)(blinkT * 4) % 2 == 0)
+                DrawRectangleLinesEx(card, 4.0f, GOLD);
+        }
+    }
+
+    if (g_sss.phase == SSS_SELECTING) {
+        const char *hint = "Click o ENTER para elegir escenario";
+        DrawText(hint, (sw - MeasureText(hint, hintSz)) / 2,
+                 sh - (int)(sh * 0.05f), hintSz, GRAY);
+
+        Rectangle hcard = { startX + g_sss.hovered*(cardW+gap), startY, cardW, cardH };
+        bool click = IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && CheckCollisionPointRec(mouse, hcard);
+        bool enter = IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE);
+        if (click || enter) {
+            g_sss.selected = g_sss.hovered;
+            g_sss.phase    = SSS_WAITING;
+            ws_send_stage_select(STAGES[g_sss.selected].id);
+        }
+    } else if (g_sss.phase == SSS_WAITING) {
+        const char *wait = "Confirmando escenario...";
+        DrawText(wait, (sw - MeasureText(wait, hintSz)) / 2,
+                 sh - (int)(sh * 0.05f), hintSz, (Color){200, 200, 80, 255});
+    }
+
+    return false;
+}
+
+// ---------------------------------------------------------------------------
 
 typedef enum { CSS_SELECTING, CSS_WAITING_ACK, CSS_WAITING_GAME, CSS_DONE } CssPhase;
 
@@ -863,6 +1216,11 @@ static void DrawGame(void) {
 
 	const float dt = GetFrameTime();
 
+	// Cargar el skybox del stage elegido en el primer frame de juego.
+	if (g_sky.loadedStage != g_sss.selected) {
+		Skybox_Load(g_sss.selected);
+	}
+
 
 	int   hitstopFrames = ws_get_hitstop_frames_left();
 	float shakeAmt      = ws_get_hitstop_shake();
@@ -934,6 +1292,9 @@ static void DrawGame(void) {
 
 	BeginMode3D(scene_cam);
 	{
+		// Skybox: se dibuja primero, sin escribir en depth buffer.
+		Skybox_Draw(scene_cam);
+
 		const float stageW = STAGE_RIGHT - STAGE_LEFT;
 		DrawCube     ((Vector3){ 0.0f, STAGE_Y, 0.0f }, stageW, PLATFORM_H, 0.6f, (Color){ 60,  60,  90, 255 });
 		DrawCubeWires((Vector3){ 0.0f, STAGE_Y, 0.0f }, stageW, PLATFORM_H, 0.6f, (Color){100, 100, 160, 200 });
@@ -1424,7 +1785,7 @@ static bool CSS_UpdateAndDraw(void) {
             g_css.selected     = g_css.hovered;
             g_css.confirmTimer = 0.0f;
             g_css.phase        = CSS_WAITING_ACK;
-            ws_send_char_select(CHARS[g_css.selected].charId, g_css.selected, 0);
+            ws_send_char_select(CHARS[g_css.selected].charId, g_css.selected, STAGES[g_sss.selected].id);
         }
     }
 
@@ -1451,6 +1812,22 @@ static void MainLoop(void) {
 	if (g_css.phase != CSS_DONE && ws_is_spectator()) {
 		CSS_UnloadPortraits();
 		g_css.phase = CSS_DONE;
+	}
+
+	// Stage Select Screen: se muestra antes del CSS.
+	// Solo el host puede elegir; los demás esperan la confirmación del servidor.
+	// Los espectadores lo saltan también.
+	if (g_sss.phase != SSS_DONE) {
+		if (ws_is_spectator()) {
+			g_sss.phase = SSS_DONE;  // espectadores no votan escenario
+		} else {
+			FetchState();
+			BeginDrawing();
+			bool sss_done = SSS_UpdateAndDraw();
+			EndDrawing();
+			if (!sss_done) return;
+			// SSS_UpdateAndDraw devolvio true: ya tenemos stage, continuar al CSS.
+		}
 	}
 
 	if (g_css.phase != CSS_DONE) {
@@ -1577,6 +1954,7 @@ int main(void) {
 
 	for (int i = 0; i < MAX_PLAYERS; i++)
 		if (players[i].active) FreePlayer(&players[i]);
+	Skybox_Unload();
 	CloseWindow();
 	return 0;
 }

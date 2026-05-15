@@ -154,30 +154,46 @@ setInterval(() => {
         window._isSpectator    = false;
         window._spectatorMode  = null;
         window._eliminatedFromSession = null;
+        // Limpiar stage confirmado para evitar que sessionStorage de partidas
+        // anteriores haga saltar el SSS prematuramente.
+        window._confirmedStageId = undefined;
+        window._isHost           = undefined;
+        try { sessionStorage.removeItem('confirmedStageId'); } catch(_) {}
 
         window._charSelectConfirmed = false;
-        try {
-            const saved = sessionStorage.getItem('charSelectData');
-            if (saved) {
-                window._charSelectData = JSON.parse(saved);
-                window._charSelectConfirmed = true;
-            } else {
+        if (!savedId) {
+            // Conexion nueva (no reconexion): borrar datos de partidas anteriores
+            // para que el WASM arranque desde el SSS limpio.
+            window._charSelectData = null;
+            try {
+                sessionStorage.removeItem('charSelectData');
+                sessionStorage.removeItem('pendingCharSelect');
+            } catch(_) {}
+        } else {
+            // Reconexion mid-match: restaurar char select para continuar donde estaba.
+            try {
+                const saved = sessionStorage.getItem('charSelectData');
+                if (saved) {
+                    window._charSelectData = JSON.parse(saved);
+                    window._charSelectConfirmed = true;
+                } else {
+                    window._charSelectData = null;
+                }
+            } catch(e) {
                 window._charSelectData = null;
             }
-        } catch(e) {
-            window._charSelectData = null;
-        }
 
-        const _pcs = sessionStorage.getItem('pendingCharSelect');
-        if (_pcs) {
-            try {
-                const { charId, charIdx, stageId } = JSON.parse(_pcs);
-                setTimeout(() => {
-                    if (window._isSpectator) return;  // FIX: no enviar char_select si somos espectador
-                    if (window._ws && window._ws.readyState === WebSocket.OPEN)
-                        sendCharSelect(charId, charIdx ?? 0, stageId ?? 0);
-                }, 300);
-            } catch (e) {}
+            const _pcs = sessionStorage.getItem('pendingCharSelect');
+            if (_pcs) {
+                try {
+                    const { charId, charIdx, stageId } = JSON.parse(_pcs);
+                    setTimeout(() => {
+                        if (window._isSpectator) return;
+                        if (window._ws && window._ws.readyState === WebSocket.OPEN)
+                            sendCharSelect(charId, charIdx ?? 0, stageId ?? 0);
+                    }, 300);
+                } catch (e) {}
+            }
         }
 
         if (savedId) {
@@ -275,6 +291,17 @@ setInterval(() => {
             }
             window.dispatchEvent(new CustomEvent('hitstop', { detail: window._hitstopState }));
 
+        } else if (msg.type === 'stage_confirmed') {
+            // El servidor confirma el stage elegido por el host.
+            // ws_get_confirmed_stage() en C lo leerá desde window._confirmedStageId.
+            window._confirmedStageId = msg.stageId | 0;
+            try { sessionStorage.setItem('confirmedStageId', String(msg.stageId | 0)); } catch(_) {}
+
+        } else if (msg.type === 'host_status') {
+            // El servidor nos dice explícitamente si somos el host.
+            // ws_is_host() en C lo comprobará primero antes de calcular por IDs.
+            window._isHost = !!msg.isHost;
+
         } else if (msg.type === 'state') {
             window._gameState = msg;
             if (window._victoryActive && window._victoryWinner >= 0) {
@@ -359,11 +386,14 @@ setInterval(() => {
                 sessionStorage.removeItem('pendingCharSelect');
                 sessionStorage.removeItem('watchSession');
                 sessionStorage.removeItem('gameState');
+                sessionStorage.removeItem('confirmedStageId');
             } catch(e) {}
             window._myClientId          = -1;
             window._charSelectData      = null;
             window._charSelectConfirmed = false;
             window._victoryConsumed     = true;
+            window._confirmedStageId    = undefined;
+            window._isHost              = undefined;
             window.dispatchEvent(new CustomEvent('match_finished', { detail: { sessionId: msg.sessionId } }));
 
         } else if (msg.type === 'match_end') {
@@ -382,6 +412,18 @@ setInterval(() => {
         } else if (msg.type === 'tournament_end') {
             window._tournamentResult = msg;
             window.dispatchEvent(new CustomEvent('tournament_end', { detail: msg }));
+
+        } else if (msg.type === 'players_joined') {
+            // Nuevos jugadores se unieron a una sesion activa — no requiere accion en el cliente.
+            window.dispatchEvent(new CustomEvent('players_joined', { detail: msg }));
+
+        } else if (msg.type === 'player_disconnected') {
+            // Un jugador se desconecto — hay un periodo de gracia para reconectar.
+            window.dispatchEvent(new CustomEvent('player_disconnected', { detail: msg }));
+
+        } else if (msg.type === 'player_reconnected') {
+            // El jugador reconecto dentro del periodo de gracia.
+            window.dispatchEvent(new CustomEvent('player_reconnected', { detail: msg }));
 
         } else {
             // FIX: unknown message types are logged and ignored. The previous
@@ -473,6 +515,17 @@ async function fetchActiveSessions() {
 
 window.fetchActiveSessions = fetchActiveSessions;
 
+
+function sendStageSelect(stageId) {
+    // Confirmar localmente (el host sale del SSS de inmediato).
+    window._confirmedStageId = stageId | 0;
+    try { sessionStorage.setItem('confirmedStageId', String(stageId | 0)); } catch(_) {}
+    // Enviar al servidor para que lo broadcastee a los demás jugadores.
+    if (window._ws && window._ws.readyState === WebSocket.OPEN)
+        window._ws.send(JSON.stringify({ type: 'stage_select', stageId: stageId | 0 }));
+}
+
+window.sendStageSelect = sendStageSelect;
 
 function sendCharSelect(charId, charIdx, stageId) {
     if (!window._ws || window._ws.readyState !== WebSocket.OPEN) return;

@@ -190,6 +190,21 @@ async function onConnection(ws, req) {
 
         sendAllCharSelectsTo(ws);
 
+        // Informar al nuevo jugador si el stage ya fue elegido.
+        if (gameSession.confirmedStageId >= 0) {
+            ws.send(JSON.stringify({ type: 'stage_confirmed', stageId: gameSession.confirmedStageId }));
+        }
+
+        // Decir a todos quién es el host (jugador con el ID más bajo).
+        {
+            const allIds = Object.keys(players).map(Number);
+            const minId  = Math.min(...allIds);
+            for (const [pid, pl] of Object.entries(players)) {
+                if (pl.ws?.readyState === WebSocket.OPEN)
+                    pl.ws.send(JSON.stringify({ type: 'host_status', isHost: (Number(pid) === minId) }));
+            }
+        }
+
         if (restoredChar) {
             const ack = buildCharSelectAck(restoredChar, clientId, 0);
             ws.send(JSON.stringify(ack));
@@ -267,6 +282,19 @@ async function onConnection(ws, req) {
                 sendAllCharSelectsTo(ws);
                 const savedChar = playerCharSelected.get(clientId);
                 if (savedChar) ws.send(JSON.stringify(buildCharSelectAck(savedChar, clientId, 0)));
+                // Enviar stage confirmado si ya fue elegido.
+                if (gameSession.confirmedStageId >= 0) {
+                    ws.send(JSON.stringify({ type: 'stage_confirmed', stageId: gameSession.confirmedStageId }));
+                }
+                // Recalcular y enviar host_status a todos.
+                {
+                    const allIds = Object.keys(players).map(Number);
+                    const minId  = Math.min(...allIds);
+                    for (const [pid, pl] of Object.entries(players)) {
+                        if (pl.ws?.readyState === WebSocket.OPEN)
+                            pl.ws.send(JSON.stringify({ type: 'host_status', isHost: (Number(pid) === minId) }));
+                    }
+                }
                 return;
             }
 
@@ -351,6 +379,19 @@ async function onConnection(ws, req) {
 
         if (spectators[clientId] && msg.type === 'spectator_ping') {
             sendStateToSpectator(spectators[clientId]);
+        }
+
+        if (msg.type === 'stage_select') {
+            // Solo el host puede elegir stage. Guardarlo en la sesión global
+            // para poder reenviarlo a jugadores que se unan más tarde.
+            const stageId = (msg.stageId ?? 0) | 0;
+            gameSession.confirmedStageId = stageId;
+            const out = JSON.stringify({ type: 'stage_confirmed', stageId });
+            let sentCount = 0;
+            for (const pl   of Object.values(players))    if (pl.ws?.readyState   === WebSocket.OPEN) { pl.ws.send(out); sentCount++; }
+            for (const spec of Object.values(spectators)) if (spec.ws?.readyState === WebSocket.OPEN) { spec.ws.send(out); sentCount++; }
+            console.log(`[STAGE_SELECT] client=${clientId} stage=${stageId} -> sent to ${sentCount} clients, total players=${Object.keys(players).length}`);
+            return;
         }
 
         if (msg.type === 'char_select') {

@@ -44,6 +44,10 @@ let frameId       = 0;
 
 let tournamentWaitingWinners = {};
 
+// Stage elegido por el host; se envía a todos los jugadores que se unan después.
+// -1 = ninguno elegido todavía.
+let confirmedStageId = -1;
+
 let DEBUG_AUTO_MATCH = true;
 
 // ─── Broadcast helpers ────────────────────────────────────────────────────────
@@ -516,6 +520,8 @@ async function resolveMatchWinner(session, winnerClientId, loserClientId) {
         }
         gameSessions.delete(session.id);
         delete hitstopBySession[session.id];
+        // Resetear el stage confirmado para que el siguiente lobby empiece desde el SSS.
+        confirmedStageId = -1;
         if (players[winnerClientId]) {
             delete players[winnerClientId];
             playerSession.delete(winnerClientId);
@@ -709,6 +715,8 @@ module.exports = {
     get nextClientId()  { return nextClientId; },
     set nextClientId(v) { nextClientId = v; },
     get nextSessionId() { return nextSessionId; },
+    get confirmedStageId()  { return confirmedStageId; },
+    set confirmedStageId(v) { confirmedStageId = v; },
 
     // Functions
     broadcastToSession,
