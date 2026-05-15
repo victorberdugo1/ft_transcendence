@@ -1,0 +1,212 @@
+Voy a leer los archivos que no están en contexto antes de darte un análisis completo.Con esto ya tengo una visión completa del código. Aquí tienes un análisis detallado con las optimizaciones más impactantes, ordenadas por prioridad:
+
+---
+
+## 🔴 Crítico — Mayor impacto en rendimiento
+
+### 1. `broadcastState()` serializa el estado completo para TODOS en cada tick (60/s)
+
+**El problema central.** En cada tick se serializa un snapshot de TODOS los players y se envía a todos. Además, `broadcastStateToSpectators()` lo hace *de nuevo* por separado con más serialización.
+
+```js
+// session.js — actual: dos pasadas separadas
+function broadcastState() {
+    const snapshot = {};
+    for (const [id, p] of Object.entries(players)) snapshot[id] = buildPlayerSnapshot(p);
+    const msg = JSON.stringify({ type: 'state', frameId: ++frameId, players: snapshot });
+    for (const p of Object.values(players)) if (p.ws.readyState === WebSocket.OPEN) p.ws.send(msg);
+    broadcastStateToSpectators(); // ← serializa de nuevo, en bucles separados por espectador
+}
+```
+
+**Fix:** Un solo `JSON.stringify`, reutilizado para todos. Los espectadores filtran por sesión en cliente o se les manda el mismo mensaje global:
+
+```js
+function broadcastState() {
+    const snapshot = {};
+    for (const [id, p] of Object.entries(players)) snapshot[id] = buildPlayerSnapshot(p);
+    const msg = JSON.stringify({ type: 'state', frameId: ++frameId, players: snapshot });
+
+    for (const p of Object.values(players))
+        if (p.ws.readyState === WebSocket.OPEN) p.ws.send(msg);
+    for (const spec of Object.values(spectators))
+        if (spec.ws?.readyState === WebSocket.OPEN) spec.ws.send(msg);
+    // Los espectadores de una sesión concreta reciben todo el estado —
+    // el filtrado ya lo hace el cliente con watchingSession. Ahí no hay secretos de juego.
+}
+```
+Elimina `broadcastStateToSpectators()` y `sendStateToSpectator()` del loop de tick (solo se necesitaría `sendStateToSpectator` al conectar un espectador nuevo, no cada frame).
+
+---
+
+### 2. `toFixed()` en cada snapshot × 60fps — usa `Math.round` + enteros
+
+`+p.x.toFixed(3)` crea un string y vuelve a parsearlo a número, 60 veces por segundo por cada jugador.
+
+```js
+// Lento
+x: +p.x.toFixed(3),
+y: +p.y.toFixed(3),
+voltage: +p.voltage.toFixed(1),
+
+// Rápido (equivalente)
+x: Math.round(p.x * 1000) / 1000,
+y: Math.round(p.y * 1000) / 1000,
+voltage: Math.round(p.voltage * 10) / 10,
+```
+
+---
+
+### 3. `tick()` crea `new Set()` cada frame para `frozenIds` y `hitstopFrozenIds`
+
+```js
+// Actual — aloca Sets en cada tick (60/s = 120 Sets/s en GC)
+const frozenIds = new Set();
+// ...
+const hitstopFrozenIds = new Set();
+```
+
+**Fix:** declara los Sets fuera del tick y usa `.clear()`:
+
+```js
+// Fuera de tick():
+const _frozenIds = new Set();
+const _hitstopFrozenIds = new Set();
+
+function tick() {
+    _frozenIds.clear();
+    // ...usa _frozenIds en vez de frozenIds
+    _hitstopFrozenIds.clear();
+    // ...
+}
+```
+
+---
+
+### 4. `Object.entries/values` en el hot path del tick
+
+En `tick()` y `broadcastState()` se llama a `Object.values(players)` y `Object.entries(players)` hasta 5–6 veces por frame. Con 8 jugadores no mata, pero se puede reducir. La solución más limpia es mantener un `Set<Player>` en paralelo al objeto `players`:
+
+```js
+const playerSet = new Set(); // se mantiene sincronizado con players{}
+
+// Al añadir: players[id] = p; playerSet.add(p);
+// Al borrar:  delete players[id]; playerSet.delete(p);
+```
+Luego en el tick iteras `for (const p of playerSet)` directamente sin crear arrays.
+
+---
+
+## 🟡 Importante — Complejidad innecesaria
+
+### 5. `listActiveSessions()` hace `Object.values(spectators).filter(...)` por cada sesión
+
+```js
+// O(sessions × spectators) — se llama en cada broadcast de estado y al conectar
+const spectatorCount = Object.values(spectators).filter(s => s.watchingSession === id).length;
+```
+
+**Fix:** mantén un `Map<sessionId, Set<spectatorId>>` de espectadores por sesión. Se actualiza en O(1) cuando un espectador cambia de sesión:
+
+```js
+const spectatorsBySession = new Map(); // sessionId → Set of clientIds
+
+// Al cambiar watchingSession de un espectador:
+spectatorsBySession.get(old)?.delete(clientId);
+if (!spectatorsBySession.has(newSess)) spectatorsBySession.set(newSess, new Set());
+spectatorsBySession.get(newSess).add(clientId);
+```
+
+---
+
+### 6. `startTournament` hace INSERTs secuenciales en bucle
+
+```js
+for (const cid of clientIds) {
+    if (p?.dbUserId) {
+        await db.query(`INSERT INTO tournament_players ...`, [...]);  // secuencial
+    }
+}
+```
+
+**Fix:** un único INSERT con múltiples valores:
+
+```js
+const vals = clientIds.filter(cid => players[cid]?.dbUserId).map(cid => players[cid].dbUserId);
+if (vals.length) {
+    const placeholders = vals.map((_, i) => `($1, $${i + 2})`).join(',');
+    await db.query(
+        `INSERT INTO tournament_players (tournament_id, user_id) VALUES ${placeholders} ON CONFLICT DO NOTHING`,
+        [tournamentId, ...vals]
+    );
+}
+```
+
+---
+
+### 7. `resolveMatchWinner` hace múltiples `UPDATE` separados que se pueden combinar
+
+```js
+// Tres queries por partido → se pueden colapsar
+await db.query(`INSERT INTO matches ...`);
+await db.query(`UPDATE user_stats SET wins = wins + 1, xp = xp + 100 ...`);
+await db.query(`UPDATE user_stats SET losses = losses + 1 ...`);
+```
+
+El INSERT y los dos UPDATEs son independientes entre sí — se pueden lanzar en paralelo:
+
+```js
+await Promise.all([
+    db.query(`UPDATE user_stats SET wins=wins+1, xp=xp+100, ... WHERE user_id=$1`, [winnerDbId]),
+    loserDbId ? db.query(`UPDATE user_stats SET losses=losses+1 ... WHERE user_id=$1`, [loserDbId]) : Promise.resolve(),
+]);
+```
+
+---
+
+### 8. `buildCharSelectAck` recorre `playerIds` dos veces innecesariamente
+
+Se puede unificar en un solo bucle con la asignación de chars alternativos.
+
+---
+
+## 🟢 Menor — Limpieza y robustez
+
+### 9. `hitstopBySession` como objeto plano vs Map
+
+Mezcla `gameSessions` (Map) con `hitstopBySession` (objeto `{}`). Convertirlo a `Map` es más consistente y ligeramente más rápido para claves numéricas/string iterables.
+
+### 10. `profile.js` — `updateProfile` construye SQL dinámico con índices manuales propensos a bugs
+
+```js
+fields.push(`username = $${fields.length + 1}`);  // frágil si el orden cambia
+```
+
+Usa una librería como `pg-format` o simplemente siempre actualiza ambos campos y acepta `null`:
+
+```js
+await db.query(
+    `UPDATE users SET username = COALESCE($1, username), avatar_url = COALESCE($2, avatar_url) WHERE id = $3`,
+    [username?.trim() || null, avatar_url?.trim() || null, req.user.user_id]
+);
+```
+
+### 11. `auth.js` — el parser de cookies es O(n) en cada request
+
+Considera usar el paquete `cookie` (ya disponible con Express) en vez del parser manual, o mejor aún: añade el middleware `cookie-parser` de Express una sola vez.
+
+---
+
+## Resumen de prioridades
+
+| # | Cambio | Impacto |
+|---|--------|---------|
+| 1 | Un solo `JSON.stringify` en `broadcastState` | 🔴 Muy alto (60/s) |
+| 2 | `Math.round` en vez de `toFixed` | 🔴 Alto (60/s × N players) |
+| 3 | Reusar Sets en `tick()` | 🔴 Alto (presión de GC) |
+| 4 | `playerSet` paralelo | 🟡 Medio |
+| 5 | Índice espectadores por sesión | 🟡 Medio |
+| 6–7 | DB en paralelo / batch | 🟡 Medio (solo en fin de partida) |
+| 8–11 | Limpieza menor | 🟢 Bajo |
+
+¿Quieres que aplique alguno de estos cambios directamente sobre los archivos?
