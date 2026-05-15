@@ -1,6 +1,4 @@
 /*
-  console F12:
-
   const { players } = await (await fetch('/api/players')).json();
   const free = players.filter(p => !p.inSession);
   const res = await fetch('/api/dev/training', {

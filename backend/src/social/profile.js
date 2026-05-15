@@ -34,28 +34,19 @@ async function getProfile(req, res) {
 
 async function updateProfile(req, res) {
     const { username, avatar_url } = req.body ?? {};
-    const fields = [];
-    const values = [];
 
-    if (username && username.trim()) {
-        fields.push(`username = $${fields.length + 1}`);
-        values.push(username.trim());
-    }
-    if (avatar_url && avatar_url.trim()) {
-        fields.push(`avatar_url = $${fields.length + 1}`);
-        values.push(avatar_url.trim());
-    }
-
-    if (!fields.length)
+    if (!username?.trim() && !avatar_url?.trim())
         return res.status(400).json({ error: 'Nothing to update' });
 
-    values.push(req.user.user_id);
     try {
         const { rows } = await db.query(
-            `UPDATE users SET ${fields.join(', ')}, updated_at = NOW()
-             WHERE id = $${values.length}
+            `UPDATE users
+             SET username   = COALESCE($1, username),
+                 avatar_url = COALESCE($2, avatar_url),
+                 updated_at = NOW()
+             WHERE id = $3
              RETURNING id, username, email, avatar_url, role`,
-            values
+            [username?.trim() || null, avatar_url?.trim() || null, req.user.user_id]
         );
         res.json({ user: rows[0] });
     } catch (err) {
