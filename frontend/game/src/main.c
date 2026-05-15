@@ -410,10 +410,10 @@ static const CharDef CHARS[4] = {
 typedef struct { int id; const char *name; const char *preview; const char *desc; } StageDef;
 
 static const StageDef STAGES[] = {
-    { 0, "Templo Eterno", "data/stage_00.jpg", "Un templo ancestral entre las nubes" },
-    { 1, "Ciudad Neon",   "data/stage_01.jpg", "Azoteas iluminadas por la lluvia"    },
-    { 2, "Abismo Rojo",   "data/stage_02.jpg", "Plataformas sobre lava hirviente"    },
-    { 3, "Bosque Oscuro", "data/stage_03.jpg", "Raices gigantes bajo la luna llena"  },
+{ 0, "Karnamru",  "data/stage_00.jpg", "City frozen in time"  },
+{ 1, "Surya",     "data/stage_01.jpg", "Eternal crystal lake" },
+{ 2, "Vayusvara", "data/stage_02.jpg", "Floating sky ruins"   },
+{ 3, "Daat",      "data/stage_03.jpg", "The hidden abyss"     },
 };
 #define STAGES_COUNT 4
 

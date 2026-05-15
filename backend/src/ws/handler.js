@@ -191,10 +191,13 @@ async function onConnection(ws, req) {
         sendAllCharSelectsTo(ws);
 
         // Informar al nuevo jugador si el stage ya fue elegido.
+        // Si no hay stage activo (confirmedStageId === -1), enviar stage_reset
+        // para que el cliente limpie sessionStorage y no restaure el stage anterior.
         if (gameSession.confirmedStageId >= 0) {
             ws.send(JSON.stringify({ type: 'stage_confirmed', stageId: gameSession.confirmedStageId }));
+        } else {
+            ws.send(JSON.stringify({ type: 'stage_reset' }));
         }
-
         // Decir a todos quién es el host (jugador con el ID más bajo).
         {
             const allIds = Object.keys(players).map(Number);
@@ -282,9 +285,11 @@ async function onConnection(ws, req) {
                 sendAllCharSelectsTo(ws);
                 const savedChar = playerCharSelected.get(clientId);
                 if (savedChar) ws.send(JSON.stringify(buildCharSelectAck(savedChar, clientId, 0)));
-                // Enviar stage confirmado si ya fue elegido.
+                // Enviar stage confirmado si ya fue elegido, o reset si no hay stage activo.
                 if (gameSession.confirmedStageId >= 0) {
                     ws.send(JSON.stringify({ type: 'stage_confirmed', stageId: gameSession.confirmedStageId }));
+                } else {
+                    ws.send(JSON.stringify({ type: 'stage_reset' }));
                 }
                 // Recalcular y enviar host_status a todos.
                 {

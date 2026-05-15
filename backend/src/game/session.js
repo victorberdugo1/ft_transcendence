@@ -138,11 +138,9 @@ function sendStateToSpectator(spec) {
 }
 
 /**
- * Broadcast the full game state every tick (60 fps).
- * Single JSON.stringify — the same string is reused for every recipient
- * (players + spectators) to avoid redundant serialization work.
- * Spectators receive the global snapshot; client-side filtering by
- * watchingSession is used to display only the relevant players.
+ * Broadcast the full game state every tick (60 fps) — players only.
+ * Spectators have their own lower-rate ticker (SPECTATOR_HZ) below so they
+ * never add latency or serialization cost to the main game loop.
  */
 function broadcastState() {
     const snapshot = {};
@@ -152,10 +150,75 @@ function broadcastState() {
 
     for (const p of Object.values(players))
         if (p.ws.readyState === WebSocket.OPEN) p.ws.send(msg);
-
-    for (const spec of Object.values(spectators))
-        if (spec.ws?.readyState === WebSocket.OPEN) spec.ws.send(msg);
 }
+
+// ─── Spectator stream (independent, low-rate) ────────────────────────────────
+//
+// Runs at SPECTATOR_HZ (15 Hz by default) on its own setInterval, completely
+// decoupled from the 60 Hz game tick.  Each spectator only receives the
+// players that belong to the session they are watching, so the payload is
+// smaller too.  The message type is 'state_spectator' so the client can
+// distinguish it from the authoritative player stream if needed.
+
+const SPECTATOR_HZ    = 15;
+let   spectatorFrameId = 0;
+
+function tickSpectators() {
+    const specList = Object.values(spectators);
+    if (specList.length === 0) return;
+
+    // Build one snapshot per active session (and one global for lobby specs).
+    // Cache them so we only JSON.stringify once per unique player-set.
+    const sessionSnapshots = new Map(); // sessionId → raw JSON string
+
+    for (const spec of specList) {
+        if (!spec.ws || spec.ws.readyState !== WebSocket.OPEN) continue;
+
+        const sid = spec.watchingSession;
+        let raw;
+
+        if (sid) {
+            if (!sessionSnapshots.has(sid)) {
+                const sess = gameSessions.get(sid);
+                if (!sess) {
+                    // Session gone — reuse global snapshot path below.
+                    sessionSnapshots.set(sid, null);
+                } else {
+                    const snapshot = {};
+                    for (const cid of sess.playerIds) {
+                        // playerIds stores numbers; players{} is keyed by strings.
+                        const p = players[cid] ?? players[String(cid)];
+                        if (p) snapshot[cid] = buildPlayerSnapshot(p);
+                    }
+                    sessionSnapshots.set(sid, JSON.stringify({
+                        type: 'state_spectator',
+                        frameId: ++spectatorFrameId,
+                        players: snapshot,
+                    }));
+                }
+            }
+            raw = sessionSnapshots.get(sid);
+        }
+
+        // Fallback: lobby spectator or dead session → send all players.
+        if (!raw) {
+            if (!sessionSnapshots.has('__global__')) {
+                const snapshot = {};
+                for (const [id, p] of Object.entries(players)) snapshot[id] = buildPlayerSnapshot(p);
+                sessionSnapshots.set('__global__', JSON.stringify({
+                    type: 'state_spectator',
+                    frameId: ++spectatorFrameId,
+                    players: snapshot,
+                }));
+            }
+            raw = sessionSnapshots.get('__global__');
+        }
+
+        if (raw) spec.ws.send(raw);
+    }
+}
+
+setInterval(tickSpectators, 1000 / SPECTATOR_HZ);
 
 // ─── Session listings ─────────────────────────────────────────────────────────
 

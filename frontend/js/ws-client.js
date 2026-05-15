@@ -297,6 +297,16 @@ setInterval(() => {
             window._confirmedStageId = msg.stageId | 0;
             try { sessionStorage.setItem('confirmedStageId', String(msg.stageId | 0)); } catch(_) {}
 
+        } else if (msg.type === 'stage_reset') {
+            // No hay stage activo — limpiar estado para forzar el SSS al reconectar.
+            window._confirmedStageId = undefined;
+            window._isHost           = undefined;
+            try {
+                sessionStorage.removeItem('confirmedStageId');
+                sessionStorage.removeItem('charSelectData');
+                sessionStorage.removeItem('pendingCharSelect');
+            } catch(_) {}
+
         } else if (msg.type === 'host_status') {
             // El servidor nos dice explícitamente si somos el host.
             // ws_is_host() en C lo comprobará primero antes de calcular por IDs.
