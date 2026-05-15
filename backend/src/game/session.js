@@ -85,12 +85,13 @@ function broadcastToAll(msg) {
     for (const spec of Object.values(spectators)) if (spec.ws?.readyState === WebSocket.OPEN) spec.ws.send(raw);
 }
 
-// ─── Spectator state ──────────────────────────────────────────────────────────
+// ─── Player snapshot & state broadcast ───────────────────────────────────────
 
 function buildPlayerSnapshot(p) {
     return {
         id:           p.id,
         charId:       p.charId ?? null,
+        // Math.round avoids the string-alloc + re-parse cost of toFixed() at 60 fps.
         x:            Math.round(p.x * 1000) / 1000,
         y:            Math.round(p.y * 1000) / 1000,
         rotation:     p.facing === -1 ? Math.PI : 0,
@@ -107,6 +108,11 @@ function buildPlayerSnapshot(p) {
     };
 }
 
+/**
+ * Send a one-shot state snapshot to a single spectator.
+ * Used on connect and on spectator_ping — NOT called every tick.
+ * Filters to only the players in the watched session if one is set.
+ */
 function sendStateToSpectator(spec) {
     if (!spec.ws || spec.ws.readyState !== WebSocket.OPEN) return;
 
@@ -131,22 +137,22 @@ function sendStateToSpectator(spec) {
     spec.ws.send(JSON.stringify({ type: 'state', frameId: ++frameId, players: snapshot }));
 }
 
-function broadcastStateToSpectators() {
-    for (const spec of Object.values(spectators)) sendStateToSpectator(spec);
-}
-
+/**
+ * Broadcast the full game state every tick (60 fps).
+ * Single JSON.stringify — the same string is reused for every recipient
+ * (players + spectators) to avoid redundant serialization work.
+ * Spectators receive the global snapshot; client-side filtering by
+ * watchingSession is used to display only the relevant players.
+ */
 function broadcastState() {
     const snapshot = {};
     for (const [id, p] of Object.entries(players)) snapshot[id] = buildPlayerSnapshot(p);
 
-    // Single serialize — reused for every recipient (players + spectators).
     const msg = JSON.stringify({ type: 'state', frameId: ++frameId, players: snapshot });
 
     for (const p of Object.values(players))
         if (p.ws.readyState === WebSocket.OPEN) p.ws.send(msg);
 
-    // Spectators receive the same global snapshot; client-side filtering
-    // uses watchingSession to show only relevant players.
     for (const spec of Object.values(spectators))
         if (spec.ws?.readyState === WebSocket.OPEN) spec.ws.send(msg);
 }
@@ -163,6 +169,7 @@ function listActiveSessions() {
             round:        sess.round ?? null,
             playerIds:    [...sess.playerIds],
             startedAt:    sess.startedAt,
+            // O(1) thanks to the spectatorsBySession index.
             spectators:   spectatorsBySession.get(id)?.size ?? 0,
         });
     }
@@ -176,6 +183,7 @@ function buildCharSelectAck(selectorCharId, selectorClientId, stageId) {
     const usedChars  = new Set([selectorCharId]);
     const playersOut = {};
 
+    // First pass: record already-chosen chars and collect slots needing assignment.
     for (let i = 0; i < Math.min(playerIds.length, 8); i++) {
         const cid    = playerIds[i];
         const charId = cid === selectorClientId ? selectorCharId : (playerCharSelected.get(cid) ?? null);
@@ -183,6 +191,7 @@ function buildCharSelectAck(selectorCharId, selectorClientId, stageId) {
         playersOut[i] = { clientId: cid, charId };
     }
 
+    // Second pass: assign fallback chars and attach asset paths.
     let altIdx = 0;
     for (let i = 0; i < Math.min(playerIds.length, 8); i++) {
         if (!playersOut[i].charId) {
@@ -553,6 +562,7 @@ async function resolveMatchWinner(session, winnerClientId, loserClientId) {
             loserStocks,
         });
 
+        // Fire both stat updates in parallel — they touch different rows.
         await Promise.all([
             winnerDbId ? db.query(
                 `UPDATE user_stats SET wins = wins + 1, xp = xp + 100,
@@ -728,7 +738,7 @@ const hitCtx = {
 };
 
 // Reusable Sets — allocated once, cleared each tick to avoid GC pressure at 60 fps.
-const _frozenIds       = new Set();
+const _frozenIds        = new Set();
 const _hitstopFrozenIds = new Set();
 
 function tick() {
