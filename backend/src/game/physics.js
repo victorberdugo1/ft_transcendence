@@ -328,7 +328,7 @@ function tickPlatforms(alive, handleElimination, platforms) {
         let landed = false;
         for (const plat of platforms) {
             const inRange  = Math.abs(p.x - plat.x) <= plat.hw;
-            const wasAbove = p.prevY >= plat.y - PLAYER_HEIGHT;
+            const wasAbove = p.prevY >= plat.y;
             const crossed  = p.y <= plat.y && (p.vy + p.kby) <= 0;
             if (inRange && wasAbove && crossed) {
                 p.y         = plat.y;
@@ -355,8 +355,11 @@ function tickPlatforms(alive, handleElimination, platforms) {
         if (outOfBounds) {
             p.stocks = Math.max(0, p.stocks - 1);
             if (p.stocks === 0) {
-                handleElimination(p);
-                return;
+                const intercepted = handleElimination(p);
+                if (!intercepted) return;
+                // Winner fell into the void — restore 1 stock so the normal
+                // respawn below runs correctly (stocks were already decremented).
+                p.stocks = 1;
             }
             Object.assign(p, {
                 respawning:   true,

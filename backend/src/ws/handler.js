@@ -17,34 +17,85 @@ const {
     CHAR_IDS, CHARACTER_DEFS,
 } = require('../game/session');
 
-// nextClientId is a property on the module
 const gameSession = require('../game/session');
 
 // ─── WebSocket server setup ───────────────────────────────────────────────────
 
 function setupWebSocket(server, wss) {
     server.on('upgrade', (req, socket, head) => {
-        if (req.url === '/ws') {
-            wss.handleUpgrade(req, socket, head, ws => wss.emit('connection', ws, req));
-        } else {
-            socket.destroy();
-        }
+        if (req.url === '/ws') wss.handleUpgrade(req, socket, head, ws => wss.emit('connection', ws, req));
+        else socket.destroy();
     });
-
     wss.on('connection', onConnection);
+}
+
+// ─── Shared helpers ───────────────────────────────────────────────────────────
+
+// Apply character stats from def onto a player object.
+function applyCharDef(p, charId) {
+    const def = CHARACTER_DEFS[charId] ?? CHARACTER_DEFS.eld;
+    p.charId          = charId;
+    p.moveSpeed       = def.moveSpeed;
+    p.dashSpeed       = def.dashSpeed;
+    p.attackKnockback = def.attackKnockback;
+    p.attackRange     = def.attackRange;
+}
+
+// Copy input fields from a raw message onto a player.
+function applyInput(p, msg) {
+    p.input.moveX      = msg.moveX      ?? 0;
+    p.input.jump       = !!msg.jump;
+    p.input.attack     = !!msg.attack;
+    p.input.dash       = !!msg.dash;
+    p.input.dashDir    = msg.dashDir    ?? 0;
+    p.input.crouch     = !!msg.crouch;
+    p.input.block      = !!msg.block;
+    p.input.dashAttack = !!msg.dashAttack;
+}
+
+// Broadcast host_status to every connected player.
+function broadcastHostStatus() {
+    const allIds = Object.keys(players).map(Number);
+    if (!allIds.length) return;
+    const minId = Math.min(...allIds);
+    for (const [pid, pl] of Object.entries(players)) {
+        if (pl.ws?.readyState === WebSocket.OPEN)
+            pl.ws.send(JSON.stringify({ type: 'host_status', isHost: Number(pid) === minId }));
+    }
+}
+
+// Send the standard post-join messages to a player's websocket.
+function sendWelcomeToPlayer(ws, clientId) {
+    ws.send(JSON.stringify({
+        type: 'init', clientId,
+        config: {
+            attackRange:     players[clientId]?.attackRange ?? ATTACK_RANGE,
+            attackRangeY:    ATTACK_RANGE_Y,
+            dashAttackRange: DASH_ATTACK_RANGE_X,
+        },
+    }));
+    sendAllCharSelectsTo(ws);
+    if (gameSession.confirmedStageId >= 0) {
+        ws.send(JSON.stringify({ type: 'stage_confirmed', stageId: gameSession.confirmedStageId }));
+    } else {
+        ws.send(JSON.stringify({ type: 'stage_reset' }));
+    }
+    broadcastHostStatus();
+    const savedChar = playerCharSelected.get(clientId);
+    if (savedChar) ws.send(JSON.stringify(buildCharSelectAck(savedChar, clientId, 0)));
 }
 
 // ─── Connection handler ───────────────────────────────────────────────────────
 
 async function onConnection(ws, req) {
-    let clientId = null;
-    let dbUserId = null;
-    let isSpectator = false;
-    let mode = null;
+    let clientId         = null;
+    let dbUserId         = null;
+    let isSpectator      = false;
+    let mode             = null;
     let firstMessageSeen = false;
     let autoSpectatorTimer = null;
 
-    // Resolve session from cookie
+    // Resolve session from cookie.
     try {
         const cookieHeader = req.headers.cookie || '';
         let token = null;
@@ -63,7 +114,7 @@ async function onConnection(ws, req) {
         console.error('[WS] session resolve error:', err.message);
     }
 
-    // ── Inner helpers (capture closure vars) ──────────────────────────────────
+    // ── Spectator helpers ─────────────────────────────────────────────────────
 
     async function insertOrUpdateSpectatorRow(specMode, watchingSession) {
         const current = spectators[clientId];
@@ -98,9 +149,7 @@ async function onConnection(ws, req) {
     }
 
     async function ensureSpectatorReady(specMode = 'overflow', watchingSession = null, extraFlags = {}) {
-        if (clientId === null) {
-            clientId = gameSession.nextClientId++;
-        }
+        if (clientId === null) clientId = gameSession.nextClientId++;
         if (!spectators[clientId]) {
             spectators[clientId] = {
                 id: clientId, dbUserId, ws, watchingSession, mode: specMode,
@@ -123,10 +172,10 @@ async function onConnection(ws, req) {
         }
     }
 
+    // ── Player promotion ──────────────────────────────────────────────────────
+
     async function promoteToPlayer(initialMsg = null) {
-        if (clientId === null || clientId === undefined) {
-            clientId = gameSession.nextClientId++;
-        }
+        if (clientId == null) clientId = gameSession.nextClientId++;
         if (players[clientId]) return;
 
         if (Object.keys(players).length >= MAX_PLAYERS) {
@@ -167,75 +216,23 @@ async function onConnection(ws, req) {
         delete lastState[clientId];
 
         const restoredChar = playerCharSelected.get(clientId);
-        if (restoredChar) {
-            const def = CHARACTER_DEFS[restoredChar] ?? CHARACTER_DEFS.eld;
-            players[clientId].charId          = restoredChar;
-            players[clientId].moveSpeed       = def.moveSpeed;
-            players[clientId].dashSpeed       = def.dashSpeed;
-            players[clientId].attackKnockback = def.attackKnockback;
-            players[clientId].attackRange     = def.attackRange;
-        }
+        if (restoredChar) applyCharDef(players[clientId], restoredChar);
 
         isSpectator = false;
         mode = 'player';
 
-        ws.send(JSON.stringify({
-            type: 'init', clientId,
-            config: {
-                attackRange:     players[clientId]?.attackRange ?? ATTACK_RANGE,
-                attackRangeY:    ATTACK_RANGE_Y,
-                dashAttackRange: DASH_ATTACK_RANGE_X,
-            },
-        }));
+        sendWelcomeToPlayer(ws, clientId);
 
-        sendAllCharSelectsTo(ws);
-
-        // Informar al nuevo jugador si el stage ya fue elegido.
-        // Si no hay stage activo (confirmedStageId === -1), enviar stage_reset
-        // para que el cliente limpie sessionStorage y no restaure el stage anterior.
-        if (gameSession.confirmedStageId >= 0) {
-            ws.send(JSON.stringify({ type: 'stage_confirmed', stageId: gameSession.confirmedStageId }));
-        } else {
-            ws.send(JSON.stringify({ type: 'stage_reset' }));
-        }
-        // Decir a todos quién es el host (jugador con el ID más bajo).
-        {
-            const allIds = Object.keys(players).map(Number);
-            const minId  = Math.min(...allIds);
-            for (const [pid, pl] of Object.entries(players)) {
-                if (pl.ws?.readyState === WebSocket.OPEN)
-                    pl.ws.send(JSON.stringify({ type: 'host_status', isHost: (Number(pid) === minId) }));
-            }
-        }
-
-        if (restoredChar) {
-            const ack = buildCharSelectAck(restoredChar, clientId, 0);
-            ws.send(JSON.stringify(ack));
-        }
-
-        if (initialMsg && initialMsg.type === 'input') {
-            const p = players[clientId];
-            if (p) {
-                p.input.moveX      = initialMsg.moveX      ?? 0;
-                p.input.jump       = !!initialMsg.jump;
-                p.input.attack     = !!initialMsg.attack;
-                p.input.dash       = !!initialMsg.dash;
-                p.input.dashDir    = initialMsg.dashDir    ?? 0;
-                p.input.crouch     = !!initialMsg.crouch;
-                p.input.block      = !!initialMsg.block;
-                p.input.dashAttack = !!initialMsg.dashAttack;
-            }
-        }
+        if (initialMsg?.type === 'input') applyInput(players[clientId], initialMsg);
 
         broadcastState();
         console.log(`[SERVER] Player ${clientId} connected (${Object.keys(players).length}/${MAX_PLAYERS})`);
         tryAutoMatch();
     }
 
-    // ── Auto-spectator timer (if no message in 120ms, assume spectator) ───────
+    // ── Auto-spectator timer ──────────────────────────────────────────────────
     autoSpectatorTimer = setTimeout(async () => {
-        if (firstMessageSeen) return;
-        if (players[clientId] || spectators[clientId]) return;
+        if (firstMessageSeen || players[clientId] || spectators[clientId]) return;
         const firstSession = gameSessions.size > 0 ? gameSessions.keys().next().value : null;
         await ensureSpectatorReady('overflow', firstSession);
     }, 120);
@@ -260,9 +257,8 @@ async function onConnection(ws, req) {
         }
 
         if (msg.type === 'rejoin' && msg.clientId) {
-            // Cancel any grace-period timer
-            for (const [sessId, sess] of gameSessions.entries()) {
-                if (sess.pendingEliminations && sess.pendingEliminations[msg.clientId]) {
+            for (const [, sess] of gameSessions.entries()) {
+                if (sess.pendingEliminations?.[msg.clientId]) {
                     clearTimeout(sess.pendingEliminations[msg.clientId]);
                     delete sess.pendingEliminations[msg.clientId];
                     broadcastToSession(sess, { type: 'player_reconnected', clientId: msg.clientId });
@@ -275,31 +271,9 @@ async function onConnection(ws, req) {
                 players[clientId].ws = ws;
                 isSpectator = false; mode = 'player';
                 const savedSession = lastState[clientId]?.sessionId ?? null;
-                if (savedSession && gameSessions.has(savedSession) && !playerSession.has(clientId)) {
+                if (savedSession && gameSessions.has(savedSession) && !playerSession.has(clientId))
                     playerSession.set(clientId, savedSession);
-                }
-                ws.send(JSON.stringify({
-                    type: 'init', clientId,
-                    config: { attackRange: players[clientId]?.attackRange ?? ATTACK_RANGE, attackRangeY: ATTACK_RANGE_Y, dashAttackRange: DASH_ATTACK_RANGE_X },
-                }));
-                sendAllCharSelectsTo(ws);
-                const savedChar = playerCharSelected.get(clientId);
-                if (savedChar) ws.send(JSON.stringify(buildCharSelectAck(savedChar, clientId, 0)));
-                // Enviar stage confirmado si ya fue elegido, o reset si no hay stage activo.
-                if (gameSession.confirmedStageId >= 0) {
-                    ws.send(JSON.stringify({ type: 'stage_confirmed', stageId: gameSession.confirmedStageId }));
-                } else {
-                    ws.send(JSON.stringify({ type: 'stage_reset' }));
-                }
-                // Recalcular y enviar host_status a todos.
-                {
-                    const allIds = Object.keys(players).map(Number);
-                    const minId  = Math.min(...allIds);
-                    for (const [pid, pl] of Object.entries(players)) {
-                        if (pl.ws?.readyState === WebSocket.OPEN)
-                            pl.ws.send(JSON.stringify({ type: 'host_status', isHost: (Number(pid) === minId) }));
-                    }
-                }
+                sendWelcomeToPlayer(ws, clientId);
                 return;
             }
 
@@ -323,27 +297,23 @@ async function onConnection(ws, req) {
             if (ghostState?.spectator) {
                 const watchSess = ghostState.watchingSession ?? null;
                 const sessStillActive = watchSess && gameSessions.has(watchSess) && !gameSessions.get(watchSess).finished;
+                clearTimeout(ghostState.timer);
+                delete lastState[clientId];
                 if (!sessStillActive) {
-                    clearTimeout(ghostState.timer);
-                    delete lastState[clientId];
                     playerCharSelected.delete(clientId);
-                    if (Object.keys(players).length < MAX_PLAYERS) {
-                        await promoteToPlayer(null);
-                    } else {
+                    if (Object.keys(players).length < MAX_PLAYERS) await promoteToPlayer(null);
+                    else {
                         const firstSession = gameSessions.size > 0 ? gameSessions.keys().next().value : null;
                         await ensureSpectatorReady('overflow', firstSession);
                     }
-                    return;
+                } else {
+                    await ensureSpectatorReady(ghostState.mode ?? 'overflow', watchSess, { eliminated: ghostState.eliminated ?? false });
                 }
-                clearTimeout(ghostState.timer);
-                delete lastState[clientId];
-                await ensureSpectatorReady(ghostState.mode ?? 'overflow', watchSess, { eliminated: ghostState.eliminated ?? false });
                 return;
             }
 
-            if (Object.keys(players).length < MAX_PLAYERS) {
-                await promoteToPlayer(null);
-            } else {
+            if (Object.keys(players).length < MAX_PLAYERS) await promoteToPlayer(null);
+            else {
                 const firstSession = gameSessions.size > 0 ? gameSessions.keys().next().value : null;
                 await ensureSpectatorReady('overflow', firstSession);
             }
@@ -351,7 +321,7 @@ async function onConnection(ws, req) {
         }
 
         if (msg.type === 'watch') {
-            if (!clientId && clientId !== 0) clientId = gameSession.nextClientId++;
+            if (clientId == null) clientId = gameSession.nextClientId++;
             const watchingSession = (msg.sessionId && gameSessions.get(msg.sessionId))
                 ? msg.sessionId
                 : (msg.sessionId ?? await getLastWatchedSession(dbUserId));
@@ -369,16 +339,7 @@ async function onConnection(ws, req) {
         if (msg.type === 'input') {
             if (spectators[clientId]) return;
             if (!players[clientId]) { await promoteToPlayer(msg); return; }
-            const p = players[clientId];
-            if (!p) return;
-            p.input.moveX      = msg.moveX      ?? 0;
-            p.input.jump       = !!msg.jump;
-            p.input.attack     = !!msg.attack;
-            p.input.dash       = !!msg.dash;
-            p.input.dashDir    = msg.dashDir    ?? 0;
-            p.input.crouch     = !!msg.crouch;
-            p.input.block      = !!msg.block;
-            p.input.dashAttack = !!msg.dashAttack;
+            applyInput(players[clientId], msg);
             return;
         }
 
@@ -387,15 +348,13 @@ async function onConnection(ws, req) {
         }
 
         if (msg.type === 'stage_select') {
-            // Solo el host puede elegir stage. Guardarlo en la sesión global
-            // para poder reenviarlo a jugadores que se unan más tarde.
             const stageId = (msg.stageId ?? 0) | 0;
             gameSession.confirmedStageId = stageId;
             const out = JSON.stringify({ type: 'stage_confirmed', stageId });
             let sentCount = 0;
             for (const pl   of Object.values(players))    if (pl.ws?.readyState   === WebSocket.OPEN) { pl.ws.send(out); sentCount++; }
             for (const spec of Object.values(spectators)) if (spec.ws?.readyState === WebSocket.OPEN) { spec.ws.send(out); sentCount++; }
-            console.log(`[STAGE_SELECT] client=${clientId} stage=${stageId} -> sent to ${sentCount} clients, total players=${Object.keys(players).length}`);
+            console.log(`[STAGE_SELECT] client=${clientId} stage=${stageId} -> sent to ${sentCount} clients`);
             return;
         }
 
@@ -403,14 +362,7 @@ async function onConnection(ws, req) {
             const charId  = CHAR_IDS.includes(msg.charId) ? msg.charId : 'eld';
             const stageId = (msg.stageId ?? 0) | 0;
             const p = players[clientId];
-            if (p) {
-                const def = CHARACTER_DEFS[charId] ?? CHARACTER_DEFS.eld;
-                p.charId          = charId;
-                p.moveSpeed       = def.moveSpeed;
-                p.dashSpeed       = def.dashSpeed;
-                p.attackKnockback = def.attackKnockback;
-                p.attackRange     = def.attackRange;
-            }
+            if (p) applyCharDef(p, charId);
             playerCharSelected.set(clientId, charId);
             const ack = JSON.stringify(buildCharSelectAck(charId, clientId, stageId));
             for (const pl   of Object.values(players))    if (pl.ws?.readyState   === WebSocket.OPEN) pl.ws.send(ack);
@@ -449,8 +401,6 @@ async function onConnection(ws, req) {
         if (!players[clientId]) return;
 
         const p = players[clientId];
-        // Capture dbUserId and sessionId NOW — players[clientId] is deleted below
-        // and won't be accessible inside the grace-period timeout.
         const disconnectedDbUserId  = p.dbUserId ?? null;
         const disconnectedSessionId = playerSession.get(clientId);
         const disconnectedSession   = disconnectedSessionId ? gameSessions.get(disconnectedSessionId) : null;
@@ -479,19 +429,12 @@ async function onConnection(ws, req) {
                 broadcastToSession(disconnectedSession, { type: 'player_eliminated', clientId });
                 broadcastToAll({ type: 'player_eliminated', clientId });
                 disconnectedSession.eliminated.add(clientId);
-
-                // Write loser info onto session before resolving so resolveMatchWinner
-                // can use it for DB writes (it reads session.loserDbId / session.loserStocks).
                 disconnectedSession.loserDbId   = disconnectedDbUserId;
                 disconnectedSession.loserStocks = 0;
 
                 const remaining = [...disconnectedSession.playerIds].filter(id => !disconnectedSession.eliminated.has(id));
 
                 if (remaining.length === 1) {
-                    // Call resolveMatchWinner directly — we cannot use handleElimination here
-                    // because playerSession for this clientId was already deleted at close time,
-                    // so handleElimination would look up playerSession.get(loser.id) → undefined
-                    // and silently do nothing.
                     resolveMatchWinner(disconnectedSession, remaining[0], clientId);
                 } else if (remaining.length === 0) {
                     disconnectedSession.finished = true;

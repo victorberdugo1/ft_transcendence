@@ -16,7 +16,6 @@ const {
     tickPhysics, tickCollisions, tickPlatforms, tickAnimations,
 } = require('./physics');
 
-// Optional modules — loaded if present, no-ops otherwise.
 let checkAndGrantAchievements = async () => {};
 let updateStatsAfterMatch     = async () => {};
 try { ({ checkAndGrantAchievements } = require('./achievements')); } catch { /* not yet available */ }
@@ -34,35 +33,30 @@ const gameSessions       = new Map();
 const playerSession      = new Map();
 const playerCharSelected = new Map();
 const hitstopBySession   = {};
-
-// Index: sessionId → Set of spectator clientIds  (O(1) lookup in listActiveSessions)
 const spectatorsBySession = new Map();
-
-/** Move a spectator from one session slot to another, maintaining the index. */
-function setSpectatorSession(spec, newSessionId) {
-    const old = spec.watchingSession;
-    if (old === newSessionId) return;
-    if (old !== null && old !== undefined) {
-        const s = spectatorsBySession.get(old);
-        if (s) { s.delete(spec.id); if (s.size === 0) spectatorsBySession.delete(old); }
-    }
-    spec.watchingSession = newSessionId;
-    if (newSessionId !== null && newSessionId !== undefined) {
-        if (!spectatorsBySession.has(newSessionId)) spectatorsBySession.set(newSessionId, new Set());
-        spectatorsBySession.get(newSessionId).add(spec.id);
-    }
-}
 
 let nextClientId  = 1;
 let nextSessionId = 1;
 let frameId       = 0;
-
 let tournamentWaitingWinners = {};
-
-// -1 = not yet chosen; set by host, sent to players who join later.
-let confirmedStageId = -1;
-
+let confirmedStageId = -1;  // -1 = not yet chosen
 let DEBUG_AUTO_MATCH = true;
+
+// ─── Spectator session index ──────────────────────────────────────────────────
+
+function setSpectatorSession(spec, newSessionId) {
+    const old = spec.watchingSession;
+    if (old === newSessionId) return;
+    if (old != null) {
+        const s = spectatorsBySession.get(old);
+        if (s) { s.delete(spec.id); if (s.size === 0) spectatorsBySession.delete(old); }
+    }
+    spec.watchingSession = newSessionId;
+    if (newSessionId != null) {
+        if (!spectatorsBySession.has(newSessionId)) spectatorsBySession.set(newSessionId, new Set());
+        spectatorsBySession.get(newSessionId).add(spec.id);
+    }
+}
 
 // ─── Broadcast helpers ────────────────────────────────────────────────────────
 
@@ -73,9 +67,8 @@ function broadcastToSession(session, msg) {
         if (p?.ws?.readyState === WebSocket.OPEN) p.ws.send(raw);
     }
     for (const spec of Object.values(spectators)) {
-        if (spec.watchingSession === session.id && spec.ws.readyState === WebSocket.OPEN) {
+        if (spec.watchingSession === session.id && spec.ws.readyState === WebSocket.OPEN)
             spec.ws.send(raw);
-        }
     }
 }
 
@@ -91,7 +84,6 @@ function buildPlayerSnapshot(p) {
     return {
         id:           p.id,
         charId:       p.charId ?? null,
-        // Math.round avoids the string-alloc + re-parse cost of toFixed() at 60 fps.
         x:            Math.round(p.x * 1000) / 1000,
         y:            Math.round(p.y * 1000) / 1000,
         rotation:     p.facing === -1 ? Math.PI : 0,
@@ -108,17 +100,18 @@ function buildPlayerSnapshot(p) {
     };
 }
 
-/**
- * Send a one-shot state snapshot to a single spectator.
- * Used on connect and on spectator_ping — NOT called every tick.
- * Filters to only the players in the watched session if one is set.
- */
+function broadcastState() {
+    const snapshot = {};
+    for (const [id, p] of Object.entries(players)) snapshot[id] = buildPlayerSnapshot(p);
+    const msg = JSON.stringify({ type: 'state', frameId: ++frameId, players: snapshot });
+    for (const p of Object.values(players))
+        if (p.ws.readyState === WebSocket.OPEN) p.ws.send(msg);
+}
+
 function sendStateToSpectator(spec) {
     if (!spec.ws || spec.ws.readyState !== WebSocket.OPEN) return;
 
-    const snapshot = {};
     let sessionIds = null;
-
     if (spec.watchingSession) {
         const sess = gameSessions.get(spec.watchingSession);
         if (sess) {
@@ -129,47 +122,24 @@ function sendStateToSpectator(spec) {
         }
     }
 
+    const snapshot = {};
     for (const [id, p] of Object.entries(players)) {
         if (sessionIds && !sessionIds.has(Number(id))) continue;
         snapshot[id] = buildPlayerSnapshot(p);
     }
-
     spec.ws.send(JSON.stringify({ type: 'state', frameId: ++frameId, players: snapshot }));
 }
 
-/**
- * Broadcast the full game state every tick (60 fps) — players only.
- * Spectators have their own lower-rate ticker (SPECTATOR_HZ) below so they
- * never add latency or serialization cost to the main game loop.
- */
-function broadcastState() {
-    const snapshot = {};
-    for (const [id, p] of Object.entries(players)) snapshot[id] = buildPlayerSnapshot(p);
+// ─── Spectator stream (15 Hz, independent of game tick) ──────────────────────
 
-    const msg = JSON.stringify({ type: 'state', frameId: ++frameId, players: snapshot });
-
-    for (const p of Object.values(players))
-        if (p.ws.readyState === WebSocket.OPEN) p.ws.send(msg);
-}
-
-// ─── Spectator stream (independent, low-rate) ────────────────────────────────
-//
-// Runs at SPECTATOR_HZ (15 Hz by default) on its own setInterval, completely
-// decoupled from the 60 Hz game tick.  Each spectator only receives the
-// players that belong to the session they are watching, so the payload is
-// smaller too.  The message type is 'state_spectator' so the client can
-// distinguish it from the authoritative player stream if needed.
-
-const SPECTATOR_HZ    = 15;
+const SPECTATOR_HZ     = 15;
 let   spectatorFrameId = 0;
 
 function tickSpectators() {
     const specList = Object.values(spectators);
     if (specList.length === 0) return;
 
-    // Build one snapshot per active session (and one global for lobby specs).
-    // Cache them so we only JSON.stringify once per unique player-set.
-    const sessionSnapshots = new Map(); // sessionId → raw JSON string
+    const sessionSnapshots = new Map();
 
     for (const spec of specList) {
         if (!spec.ws || spec.ws.readyState !== WebSocket.OPEN) continue;
@@ -181,12 +151,10 @@ function tickSpectators() {
             if (!sessionSnapshots.has(sid)) {
                 const sess = gameSessions.get(sid);
                 if (!sess) {
-                    // Session gone — reuse global snapshot path below.
                     sessionSnapshots.set(sid, null);
                 } else {
                     const snapshot = {};
                     for (const cid of sess.playerIds) {
-                        // playerIds stores numbers; players{} is keyed by strings.
                         const p = players[cid] ?? players[String(cid)];
                         if (p) snapshot[cid] = buildPlayerSnapshot(p);
                     }
@@ -200,7 +168,6 @@ function tickSpectators() {
             raw = sessionSnapshots.get(sid);
         }
 
-        // Fallback: lobby spectator or dead session → send all players.
         if (!raw) {
             if (!sessionSnapshots.has('__global__')) {
                 const snapshot = {};
@@ -223,20 +190,15 @@ setInterval(tickSpectators, 1000 / SPECTATOR_HZ);
 // ─── Session listings ─────────────────────────────────────────────────────────
 
 function listActiveSessions() {
-    const result = [];
-    for (const [id, sess] of gameSessions.entries()) {
-        result.push({
-            sessionId:    id,
-            mode:         sess.mode,
-            tournamentId: sess.tournamentId ?? null,
-            round:        sess.round ?? null,
-            playerIds:    [...sess.playerIds],
-            startedAt:    sess.startedAt,
-            // O(1) thanks to the spectatorsBySession index.
-            spectators:   spectatorsBySession.get(id)?.size ?? 0,
-        });
-    }
-    return result;
+    return [...gameSessions.entries()].map(([id, sess]) => ({
+        sessionId:    id,
+        mode:         sess.mode,
+        tournamentId: sess.tournamentId ?? null,
+        round:        sess.round ?? null,
+        playerIds:    [...sess.playerIds],
+        startedAt:    sess.startedAt,
+        spectators:   spectatorsBySession.get(id)?.size ?? 0,
+    }));
 }
 
 // ─── Character selection ──────────────────────────────────────────────────────
@@ -246,7 +208,6 @@ function buildCharSelectAck(selectorCharId, selectorClientId, stageId) {
     const usedChars  = new Set([selectorCharId]);
     const playersOut = {};
 
-    // First pass: record already-chosen chars and collect slots needing assignment.
     for (let i = 0; i < Math.min(playerIds.length, 8); i++) {
         const cid    = playerIds[i];
         const charId = cid === selectorClientId ? selectorCharId : (playerCharSelected.get(cid) ?? null);
@@ -254,7 +215,6 @@ function buildCharSelectAck(selectorCharId, selectorClientId, stageId) {
         playersOut[i] = { clientId: cid, charId };
     }
 
-    // Second pass: assign fallback chars and attach asset paths.
     let altIdx = 0;
     for (let i = 0; i < Math.min(playerIds.length, 8); i++) {
         if (!playersOut[i].charId) {
@@ -264,9 +224,8 @@ function buildCharSelectAck(selectorCharId, selectorClientId, stageId) {
             altIdx++;
             playersOut[i].charId = charId;
         }
-        const cid    = playersOut[i].clientId;
-        const charId = playersOut[i].charId;
-        const a      = CHARACTER_ASSETS[charId] ?? CHARACTER_ASSETS.eld;
+        const { clientId: cid, charId } = playersOut[i];
+        const a = CHARACTER_ASSETS[charId] ?? CHARACTER_ASSETS.eld;
         playersOut[i] = { clientId: cid, charId, texCfg: a.texCfg, texSets: a.texSets, animBase: a.animBase };
     }
 
@@ -283,146 +242,104 @@ function sendAllCharSelectsTo(ws) {
 // ─── Player factory ───────────────────────────────────────────────────────────
 
 function createPlayer(id, saved, ws) {
-    const onGround    = saved ? (saved.onGround ?? true) : true;
-    const playerCount = Object.keys(players).length;
-    const side        = playerCount % 2 === 0 ? -1 : 1;
-    const spawnX      = side * (1.5 + Math.random() * 1.5);
-    const initX       = saved ? saved.x : spawnX;
-    const initFacing  = initX >= 0 ? -1 : 1;
+    const onGround   = saved ? (saved.onGround ?? true) : true;
+    const side       = Object.keys(players).length % 2 === 0 ? -1 : 1;
+    const initX      = saved ? saved.x : side * (1.5 + Math.random() * 1.5);
 
     return {
         id,
-        dbUserId: null,
-        x:  initX,
-        y:  saved ? saved.y : GROUND_Y,
-        vx: 0, vy: 0,
-        kbx: 0, kby: 0,
+        dbUserId:        null,
+        x:               initX,
+        y:               saved ? saved.y : GROUND_Y,
+        vx: 0, vy: 0,   kbx: 0, kby: 0,
         onGround,
-        jumpsLeft:      onGround ? 2 : 1,
-        facing:         initFacing,
-        dashing:        false,
-        dashTimer:      0,
-        dashDir:        0,
-        dashCooldown:   0,
-        dashEndWindow:  0,
-        attacking:      false,
-        attackTimer:    0,
-        attackCooldown: 0,
-        comboStep:      0,
-        comboWindow:    0,
-        _isDashAttack:  false,
-        hitId:          0,
-        hitTargets:     new Set(),
-        jumpId:         0,
-        crouching:      false,
-        animation:      'idle',
-        animTimer:      0,
-        stocks:         saved?.stocks ?? 3,
-        prevSessionId:  saved?.sessionId ?? null,
-        respawning:     false,
-        respawnTimer:   0,
-        voltage:        0,
-        voltageMaxed:   false,
-        blocking:       false,
-        blockLockout:   0,
-        blockHoldTicks: 0,
-        prevY:          0,
-        input: {
-            moveX: 0, jump: false, attack: false,
-            dash: false, dashDir: 0, crouch: false,
-            block: false, dashAttack: false,
-        },
-        ws,
+        jumpsLeft:       onGround ? 2 : 1,
+        facing:          initX >= 0 ? -1 : 1,
+        dashing:         false, dashTimer: 0,  dashDir: 0,
+        dashCooldown:    0,     dashEndWindow: 0,
+        attacking:       false, attackTimer: 0, attackCooldown: 0,
+        comboStep:       0,     comboWindow: 0,
+        _isDashAttack:   false,
+        hitId:           0,     hitTargets: new Set(),
+        jumpId:          0,
+        crouching:       false,
+        animation:       'idle', animTimer: 0,
+        stocks:          saved?.stocks ?? 3,
+        prevSessionId:   saved?.sessionId ?? null,
+        respawning:      false, respawnTimer: 0,
+        voltage:         0,     voltageMaxed: false,
+        blocking:        false, blockLockout: 0, blockHoldTicks: 0,
+        prevY:           0,
         charId:          null,
         moveSpeed:       MOVE_SPEED,
         dashSpeed:       DASH_SPEED,
         attackKnockback: 14.0,
         attackRange:     ATTACK_RANGE,
+        input: { moveX: 0, jump: false, attack: false, dash: false, dashDir: 0, crouch: false, block: false, dashAttack: false },
+        ws,
     };
 }
 
 // ─── playerFlags ──────────────────────────────────────────────────────────────
-// Tracks per-player in-match events consumed by achievements.js.
 
 function initPlayerFlags(session, clientIds) {
     session.playerFlags = {};
-    for (const cid of clientIds) {
+    for (const cid of clientIds)
         session.playerFlags[cid] = { tookDamage: false, completedCombo: false };
+}
+
+// ─── Session factory (shared by all match modes) ──────────────────────────────
+
+function createSession(mode, playerIds, extra = {}) {
+    const id = String(nextSessionId++);
+    const session = {
+        id, mode,
+        playerIds:    new Set(playerIds),
+        eliminated:   new Set(),
+        tournamentId: null, round: null, matchDbId: null,
+        startedAt:    new Date(), finished: false,
+        loserDbId:    null, loserStocks: 0,
+        playerFlags:  {},
+        ...extra,
+    };
+    initPlayerFlags(session, playerIds);
+    gameSessions.set(id, session);
+    for (const cid of playerIds) {
+        playerSession.set(cid, id);
+        const p = players[cid];
+        if (p) p.stocks = 3;
     }
+    return session;
 }
 
 // ─── Match modes ──────────────────────────────────────────────────────────────
 
 function startBrawl(clientIds) {
-    const id = String(nextSessionId++);
-    const session = {
-        id, mode: 'brawl',
-        playerIds: new Set(clientIds),
-        eliminated: new Set(),
-        tournamentId: null, round: null, matchDbId: null,
-        startedAt: new Date(), finished: false,
-        loserDbId: null, loserStocks: 0,
-        playerFlags: {},
-    };
-    initPlayerFlags(session, clientIds);
-    gameSessions.set(id, session);
-    for (const cid of clientIds) {
-        playerSession.set(cid, id);
-        const p = players[cid];
-        if (p) p.stocks = 3;
-    }
-    broadcastToSession(session, { type: 'match_start', mode: 'brawl', sessionId: id, players: clientIds, countdown: true });
+    const session = createSession('brawl', clientIds);
+    broadcastToSession(session, { type: 'match_start', mode: 'brawl', sessionId: session.id, players: clientIds, countdown: true });
 
     for (const spec of Object.values(spectators)) {
         if (spec.watchingSession !== null) continue;
-        setSpectatorSession(spec, id);
+        setSpectatorSession(spec, session.id);
         if (spec.ws.readyState === WebSocket.OPEN) {
-            spec.ws.send(JSON.stringify({ type: 'spectator_session_changed', watchingSession: id, activeSessions: listActiveSessions() }));
+            spec.ws.send(JSON.stringify({ type: 'spectator_session_changed', watchingSession: session.id, activeSessions: listActiveSessions() }));
             sendStateToSpectator(spec);
         }
     }
-    console.log(`[GAME] Brawl started: session ${id} — ${clientIds.length} players`);
+    console.log(`[GAME] Brawl started: session ${session.id} — ${clientIds.length} players`);
     return session;
 }
 
 function startDuel(clientId1, clientId2) {
-    const id = String(nextSessionId++);
-    const session = {
-        id, mode: '1v1',
-        playerIds: new Set([clientId1, clientId2]),
-        eliminated: new Set(),
-        tournamentId: null, round: null, matchDbId: null,
-        startedAt: new Date(), finished: false,
-        loserDbId: null, loserStocks: 0,
-        playerFlags: {},
-    };
-    initPlayerFlags(session, [clientId1, clientId2]);
-    gameSessions.set(id, session);
-    playerSession.set(clientId1, id);
-    playerSession.set(clientId2, id);
-    for (const cid of [clientId1, clientId2]) { const p = players[cid]; if (p) p.stocks = 3; }
-    broadcastToSession(session, { type: 'match_start', mode: '1v1', sessionId: id, countdown: true });
-    console.log(`[GAME] 1v1 started: session ${id} — players ${clientId1} vs ${clientId2}`);
+    const session = createSession('1v1', [clientId1, clientId2]);
+    broadcastToSession(session, { type: 'match_start', mode: '1v1', sessionId: session.id, countdown: true });
+    console.log(`[GAME] 1v1 started: session ${session.id} — players ${clientId1} vs ${clientId2}`);
     return session;
 }
 
 async function startTournamentMatch(clientId1, clientId2, tournamentId, round) {
-    const id = String(nextSessionId++);
-    const session = {
-        id, mode: 'tournament',
-        playerIds: new Set([clientId1, clientId2]),
-        eliminated: new Set(),
-        tournamentId, round, matchDbId: null,
-        startedAt: new Date(), finished: false,
-        loserDbId: null, loserStocks: 0,
-        playerFlags: {},
-    };
-    initPlayerFlags(session, [clientId1, clientId2]);
-    gameSessions.set(id, session);
-    playerSession.set(clientId1, id);
-    playerSession.set(clientId2, id);
-    for (const cid of [clientId1, clientId2]) { const p = players[cid]; if (p) p.stocks = 3; }
-    broadcastToSession(session, { type: 'match_start', mode: 'tournament', sessionId: id, tournamentId, round });
+    const session = createSession('tournament', [clientId1, clientId2], { tournamentId, round });
+    broadcastToSession(session, { type: 'match_start', mode: 'tournament', sessionId: session.id, tournamentId, round });
     return session;
 }
 
@@ -430,13 +347,11 @@ async function startTournament(clientIds, creatorDbId) {
     if (clientIds.length < 2) throw new Error('Need at least 2 players for a tournament');
 
     const { rows } = await db.query(
-        `INSERT INTO tournaments (name, status, created_by)
-         VALUES ($1, 'ongoing', $2) RETURNING id`,
+        `INSERT INTO tournaments (name, status, created_by) VALUES ($1, 'ongoing', $2) RETURNING id`,
         [`Tournament #${nextSessionId}`, creatorDbId]
     );
     const tournamentId = rows[0].id;
 
-    // Batch-insert all participants in a single query instead of one per player.
     const dbUserIds = clientIds.map(cid => players[cid]?.dbUserId).filter(Boolean);
     if (dbUserIds.length) {
         const placeholders = dbUserIds.map((_, i) => `($1, $${i + 2})`).join(', ');
@@ -454,41 +369,16 @@ async function startTournament(clientIds, creatorDbId) {
     return tournamentId;
 }
 
-// ─── Training mode ────────────────────────────────────────────────────────────
-
 function startTraining(humanClientId, cpuCharId = 'eld') {
-    const id  = String(nextSessionId++);
     const cpu = createCpuPlayer(cpuCharId, CHARACTER_DEFS, GROUND_Y);
-
-    players[cpu.id]    = cpu;
+    players[cpu.id] = cpu;
     playerCharSelected.set(cpu.id, cpuCharId);
 
-    const session = {
-        id, mode: '1v1',
-        playerIds:    new Set([humanClientId, cpu.id]),
-        eliminated:   new Set(),
-        tournamentId: null, round: null, matchDbId: null,
-        startedAt:    new Date(), finished: false,
-        loserDbId:    null, loserStocks: 0,
-        playerFlags:  {},
-        isCpuSession: true,
-        cpuId:        cpu.id,
-    };
-    initPlayerFlags(session, [humanClientId, cpu.id]);
-    gameSessions.set(id, session);
-    playerSession.set(humanClientId, id);
-    playerSession.set(cpu.id, id);
-
-    const p = players[humanClientId];
-    if (p) p.stocks = 3;
+    const session = createSession('1v1', [humanClientId, cpu.id], { isCpuSession: true, cpuId: cpu.id });
     cpu.stocks = 3;
 
-    broadcastToSession(session, {
-        type: 'match_start', mode: '1v1', sessionId: id,
-        countdown: true, cpuId: cpu.id,
-    });
-
-    console.log(`[GAME] Training started: session ${id} — player ${humanClientId} vs CPU ${cpu.id}`);
+    broadcastToSession(session, { type: 'match_start', mode: '1v1', sessionId: session.id, countdown: true, cpuId: cpu.id });
+    console.log(`[GAME] Training started: session ${session.id} — player ${humanClientId} vs CPU ${cpu.id}`);
     return session;
 }
 
@@ -508,9 +398,8 @@ function tryAutoMatch() {
         for (const cid of ready) {
             sess.playerIds.add(cid);
             playerSession.set(cid, sess.id);
-            if (sess.playerFlags && !sess.playerFlags[cid]) {
+            if (!sess.playerFlags[cid])
                 sess.playerFlags[cid] = { tookDamage: false, completedCombo: false };
-            }
             const p = players[cid];
             if (p && p.prevSessionId !== sess.id) p.stocks = 3;
             if (p) p.prevSessionId = null;
@@ -520,9 +409,10 @@ function tryAutoMatch() {
         return;
     }
 
-    if (ready.length < 2) return;
-    const sess = startBrawl(ready);
-    console.log(`[AUTO-MATCH] Brawl session ${sess.id} — players: ${[...sess.playerIds].join(', ')}`);
+    if (ready.length >= 2) {
+        const sess = startBrawl(ready);
+        console.log(`[AUTO-MATCH] Brawl session ${sess.id} — players: ${[...sess.playerIds].join(', ')}`);
+    }
 }
 
 // ─── Elimination & match resolution ──────────────────────────────────────────
@@ -531,20 +421,25 @@ function handleElimination(loser) {
     const sessionId = playerSession.get(loser.id);
     const session   = sessionId ? gameSessions.get(sessionId) : null;
 
+    if (session?.pendingWinner?.winnerId === loser.id) {
+        session.pendingWinner.resolveAfterRespawn = true;
+        return true;
+    }
+
     if (session) {
         session.eliminated.add(loser.id);
         session.loserDbId   = loser.dbUserId ?? null;
         session.loserStocks = loser.stocks ?? 0;
     }
 
-    const eliminatedWs   = loser.ws;
     const eliminatedId   = loser.id;
     const eliminatedDbId = loser.dbUserId ?? null;
+    const eliminatedWs   = loser.ws;
 
     delete players[eliminatedId];
     playerSession.delete(eliminatedId);
 
-    if (eliminatedWs && eliminatedWs.readyState === WebSocket.OPEN) {
+    if (eliminatedWs?.readyState === WebSocket.OPEN) {
         const newSpec = {
             id: eliminatedId, dbUserId: eliminatedDbId, ws: eliminatedWs,
             watchingSession: null, mode: 'overflow', dbRowId: null, eliminated: true,
@@ -564,12 +459,32 @@ function handleElimination(loser) {
     const remaining = [...session.playerIds].filter(id => !session.eliminated.has(id));
 
     if (remaining.length === 1) {
-        resolveMatchWinner(session, remaining[0], eliminatedId);
+        session.pendingWinner = { winnerId: remaining[0], loserId: eliminatedId };
     } else if (remaining.length === 0) {
         session.finished = true;
         broadcastToSession(session, { type: 'match_end', winner: null, loser: eliminatedId, matchId: null, mode: session.mode });
         setTimeout(() => gameSessions.delete(session.id), 6000);
     }
+}
+
+function cleanupSession(session, winnerClientId) {
+    gameSessions.delete(session.id);
+    delete hitstopBySession[session.id];
+    confirmedStageId = -1;
+    if (players[winnerClientId]) {
+        delete players[winnerClientId];
+        playerSession.delete(winnerClientId);
+    }
+    const nextSession = [...gameSessions.values()].find(s => !s.finished)?.id ?? null;
+    for (const spec of Object.values(spectators)) {
+        if (spec.watchingSession !== session.id) continue;
+        setSpectatorSession(spec, nextSession);
+        if (spec.ws.readyState === WebSocket.OPEN) {
+            spec.ws.send(JSON.stringify({ type: 'spectator_session_changed', watchingSession: nextSession, activeSessions: listActiveSessions() }));
+            if (nextSession) sendStateToSpectator(spec);
+        }
+    }
+    tryAutoMatch();
 }
 
 async function resolveMatchWinner(session, winnerClientId, loserClientId) {
@@ -582,18 +497,11 @@ async function resolveMatchWinner(session, winnerClientId, loserClientId) {
 
     broadcastToSession(session, { type: 'victory', winner: winnerClientId, loser: loserClientId, reloadRequired: true });
 
-    // Training sessions don't write to DB — no stats, no match history.
     if (session.isCpuSession) {
         broadcastToSession(session, { type: 'match_end', winner: winnerClientId, loser: loserClientId, matchId: null, mode: session.mode });
         setTimeout(() => {
             broadcastToSession(session, { type: 'match_finished', sessionId: session.id });
-            gameSessions.delete(session.id);
-            delete hitstopBySession[session.id];
-            confirmedStageId = -1;
-            if (players[winnerClientId]) {
-                delete players[winnerClientId];
-                playerSession.delete(winnerClientId);
-            }
+            cleanupSession(session, winnerClientId);
         }, 6000);
         return;
     }
@@ -615,17 +523,8 @@ async function resolveMatchWinner(session, winnerClientId, loserClientId) {
             );
         }
 
-        await updateStatsAfterMatch({
-            db,
-            winnerDbId,
-            loserDbId,
-            matchId:      session.matchDbId,
-            startedAt:    session.startedAt,
-            winnerStocks: winner?.stocks ?? 0,
-            loserStocks,
-        });
+        await updateStatsAfterMatch({ db, winnerDbId, loserDbId, matchId: session.matchDbId, startedAt: session.startedAt, winnerStocks: winner?.stocks ?? 0, loserStocks });
 
-        // Fire both stat updates in parallel — they touch different rows.
         await Promise.all([
             winnerDbId ? db.query(
                 `UPDATE user_stats SET wins = wins + 1, xp = xp + 100,
@@ -648,7 +547,6 @@ async function resolveMatchWinner(session, winnerClientId, loserClientId) {
                 isTournamentWin: session.mode === 'tournament',
             });
         }
-
     } catch (err) {
         console.error('[GAME] DB write error on match resolve:', err.message);
     }
@@ -659,28 +557,7 @@ async function resolveMatchWinner(session, winnerClientId, loserClientId) {
 
     setTimeout(() => {
         broadcastToSession(session, { type: 'match_finished', sessionId: session.id });
-        for (const spec of Object.values(spectators)) {
-            if (spec.watchingSession === session.id && spec.ws.readyState === WebSocket.OPEN) {
-                spec.ws.send(JSON.stringify({ type: 'match_finished', sessionId: session.id }));
-            }
-        }
-        gameSessions.delete(session.id);
-        delete hitstopBySession[session.id];
-        confirmedStageId = -1;
-        if (players[winnerClientId]) {
-            delete players[winnerClientId];
-            playerSession.delete(winnerClientId);
-        }
-        const nextSession = [...gameSessions.values()].find(s => !s.finished)?.id ?? null;
-        for (const spec of Object.values(spectators)) {
-            if (spec.watchingSession !== session.id) continue;
-            setSpectatorSession(spec, nextSession);
-            if (spec.ws.readyState === WebSocket.OPEN) {
-                spec.ws.send(JSON.stringify({ type: 'spectator_session_changed', watchingSession: nextSession, activeSessions: listActiveSessions() }));
-                if (nextSession) sendStateToSpectator(spec);
-            }
-        }
-        tryAutoMatch();
+        cleanupSession(session, winnerClientId);
     }, 6000);
 }
 
@@ -694,11 +571,11 @@ async function advanceTournament(tournamentId, newWinnerId) {
         return;
     }
 
-    const { rows: roundRows } = await db.query(
+    const { rows } = await db.query(
         `SELECT MAX(round) AS max_round FROM tournament_matches WHERE tournament_id = $1`,
         [tournamentId]
     );
-    const nextRound = (roundRows[0].max_round ?? 0) + 1;
+    const nextRound = (rows[0].max_round ?? 0) + 1;
 
     while (waiting.length >= 2) {
         const [a, b] = waiting.splice(0, 2);
@@ -726,10 +603,7 @@ async function finalizeTournament(tournamentId, championClientId) {
     } catch (err) {
         console.error('[TOURNAMENT] finalize error:', err.message);
     }
-    broadcastToAll({
-        type: 'tournament_end', tournamentId,
-        champion: championClientId, championDbId: champion?.dbUserId ?? null,
-    });
+    broadcastToAll({ type: 'tournament_end', tournamentId, champion: championClientId, championDbId: champion?.dbUserId ?? null });
     delete tournamentWaitingWinners[tournamentId];
     console.log(`[TOURNAMENT] ${tournamentId} finished — champion: ${championClientId}`);
 }
@@ -751,7 +625,7 @@ async function getLastWatchedSession(dbUserId) {
     }
 }
 
-// ─── Game tick ────────────────────────────────────────────────────────────────
+// ─── Respawn ──────────────────────────────────────────────────────────────────
 
 function tickRespawn() {
     for (const p of Object.values(players)) {
@@ -771,8 +645,8 @@ function tickRespawn() {
     }
 }
 
-// Passed to physics.js so it can broadcast hitstop and notify this module of
-// hit/combo events without a circular require.
+// ─── Hit context (passed to physics to avoid circular require) ────────────────
+
 const hitCtx = {
     get players()          { return players; },
     get playerSession()    { return playerSession; },
@@ -780,34 +654,32 @@ const hitCtx = {
     get hitstopBySession() { return hitstopBySession; },
     broadcastToSession,
     WebSocket,
-
     onHit(attackerClientId, targetClientId) {
-        const sessId = playerSession.get(attackerClientId);
-        if (!sessId) return;
-        const sess = gameSessions.get(sessId);
-        if (sess?.playerFlags?.[targetClientId]) {
-            sess.playerFlags[targetClientId].tookDamage = true;
-        }
+        const sess = gameSessions.get(playerSession.get(attackerClientId));
+        if (sess?.playerFlags?.[targetClientId]) sess.playerFlags[targetClientId].tookDamage = true;
     },
-
     onCombo3(attackerClientId) {
-        const sessId = playerSession.get(attackerClientId);
-        if (!sessId) return;
-        const sess = gameSessions.get(sessId);
-        if (sess?.playerFlags?.[attackerClientId]) {
-            sess.playerFlags[attackerClientId].completedCombo = true;
-        }
+        const sess = gameSessions.get(playerSession.get(attackerClientId));
+        if (sess?.playerFlags?.[attackerClientId]) sess.playerFlags[attackerClientId].completedCombo = true;
     },
 };
 
-// Reusable Sets — allocated once, cleared each tick to avoid GC pressure at 60 fps.
+// ─── Reusable tick sets (avoid GC pressure at 60 fps) ────────────────────────
+
 const _frozenIds        = new Set();
 const _hitstopFrozenIds = new Set();
+
+// ─── Game tick (60 Hz) ────────────────────────────────────────────────────────
 
 function tick() {
     _frozenIds.clear();
     for (const [cid, sid] of playerSession.entries()) {
         if (gameSessions.get(sid)?.finished) _frozenIds.add(cid);
+    }
+
+    const _pendingWinnerIds = new Set();
+    for (const session of gameSessions.values()) {
+        if (session.pendingWinner) _pendingWinnerIds.add(session.pendingWinner.winnerId);
     }
 
     for (const [sessId, hs] of Object.entries(hitstopBySession)) {
@@ -818,6 +690,10 @@ function tick() {
     tickRespawn();
 
     for (const p of aliveAll) {
+        if (_pendingWinnerIds.has(p.id)) {
+            p.input.moveX = 0; p.input.jump = false; p.input.attack = false;
+            p.input.dash = false; p.input.dashAttack = false; p.input.block = false;
+        }
         const { moveX, jump, attack, dash, dashDir, crouch, block, dashAttack } = p.input;
         p.input.jump = false; p.input.attack = false; p.input.dash = false; p.input.dashAttack = false;
         tickBlock(p, moveX, attack, dash, dashAttack, block, crouch);
@@ -837,20 +713,35 @@ function tick() {
 
     const alive        = aliveAll.filter(p => !_hitstopFrozenIds.has(p.id));
     const aliveForAnim = Object.values(players).filter(p => !_frozenIds.has(p.id));
+    const platforms    = STAGE_LAYOUTS[confirmedStageId] ?? STAGE_LAYOUTS[0];
+
     tickPhysics(alive);
     tickCollisions(alive);
-    tickPlatforms(alive, handleElimination, STAGE_LAYOUTS[confirmedStageId] ?? STAGE_LAYOUTS[0]);
+    tickPlatforms(alive, handleElimination, platforms);
     tickAnimations(aliveForAnim);
 
-    // Tick CPU players in active training sessions.
     for (const session of gameSessions.values()) {
         if (!session.isCpuSession || session.finished) continue;
-        const cpu = players[session.cpuId];
-        if (!cpu) continue;
+        const cpu    = players[session.cpuId];
         const target = [...session.playerIds]
             .filter(id => id !== session.cpuId && players[id] && !players[id].respawning)
             .map(id => players[id])[0] ?? null;
-        tickCpu(cpu, target);
+        if (cpu) tickCpu(cpu, target);
+    }
+
+    for (const session of gameSessions.values()) {
+        if (!session.pendingWinner) continue;
+        const { winnerId, loserId, resolveAfterRespawn } = session.pendingWinner;
+        const winner = players[winnerId];
+        if (!winner) {
+            session.pendingWinner = null;
+            resolveMatchWinner(session, winnerId, loserId);
+        } else if (winner.onGround) {
+            if (resolveAfterRespawn && winner.respawning) continue;
+            Object.assign(winner, { animation: 'idle', animTimer: 0, attacking: false, dashing: false, blocking: false, crouching: false });
+            session.pendingWinner = null;
+            resolveMatchWinner(session, winnerId, loserId);
+        }
     }
 
     broadcastState();
@@ -861,38 +752,18 @@ setInterval(tick, 1000 / TICK_RATE);
 // ─── Exports ──────────────────────────────────────────────────────────────────
 
 module.exports = {
-    players,
-    spectators,
-    lastState,
-    gameSessions,
-    playerSession,
-    playerCharSelected,
-    hitstopBySession,
+    players, spectators, lastState,
+    gameSessions, playerSession, playerCharSelected, hitstopBySession,
     get nextClientId()      { return nextClientId; },
     set nextClientId(v)     { nextClientId = v; },
     get nextSessionId()     { return nextSessionId; },
     get confirmedStageId()  { return confirmedStageId; },
     set confirmedStageId(v) { confirmedStageId = v; },
-
-    broadcastToSession,
-    broadcastToAll,
-    broadcastState,
-    sendStateToSpectator,
-    listActiveSessions,
-    buildCharSelectAck,
-    sendAllCharSelectsTo,
-    createPlayer,
-    startBrawl,
-    startDuel,
-    startTournament,
-    startTraining,
-    tryAutoMatch,
-    handleElimination,
-    resolveMatchWinner,
-    getLastWatchedSession,
-
-    MAX_PLAYERS,
-    GHOST_TTL,
+    broadcastToSession, broadcastToAll, broadcastState, sendStateToSpectator,
+    listActiveSessions, buildCharSelectAck, sendAllCharSelectsTo,
+    createPlayer, startBrawl, startDuel, startTournament, startTraining,
+    tryAutoMatch, handleElimination, resolveMatchWinner, getLastWatchedSession,
+    MAX_PLAYERS, GHOST_TTL,
     ATTACK_RANGE, ATTACK_RANGE_Y, DASH_ATTACK_RANGE_X,
     CHAR_IDS, CHARACTER_DEFS, CHARACTER_ASSETS,
 };

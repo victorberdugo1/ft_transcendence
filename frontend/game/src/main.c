@@ -1936,7 +1936,7 @@ static void MainLoop(void) {
                 players[s].visualWYInit          = true;
                 players[s].victoryFallVY         = 0.0f;
                 players[s].victoryLanding        = true;
-                players[s].victoryLandingTargetY = FindLandingY(players[s].wx, players[s].wy + 999.f);
+                players[s].victoryLandingTargetY = FindLandingY(players[s].wx, players[s].wy);
                 break;
             }
         }

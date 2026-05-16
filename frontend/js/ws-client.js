@@ -316,7 +316,17 @@ setInterval(() => {
             window._gameState = msg;
             if (window._victoryActive && window._victoryWinner >= 0) {
                 const wp = window._gameState.players[window._victoryWinner];
-                if (wp) { wp.animation = 'victory'; wp.frozen = true; }
+                if (wp) {
+                    // Only freeze and play victory animation once the server
+                    // confirms the winner has actually landed on the ground.
+                    // This prevents the character floating mid-air in victory pose.
+                    if (wp.onGround) {
+                        wp.animation = 'victory';
+                        wp.frozen    = true;
+                    }
+                    // While still airborne: let the server state play normally
+                    // (gravity, fall animation) — don't touch animation or frozen.
+                }
             }
             // Throttle sessionStorage writes to ~1/s — writing on every tick (60/s)
             // is synchronous I/O that blocks the main thread and causes lag.
@@ -361,7 +371,9 @@ setInterval(() => {
                 };
                 if (window._gameState && window._gameState.players) {
                     const wp = window._gameState.players[msg.winner];
-                    if (wp) { wp.animation = 'victory'; wp.frozen = true; }
+                    // Don't freeze mid-air — the 'state' handler will freeze
+                    // once onGround is confirmed by the server.
+                    if (wp && wp.onGround) { wp.animation = 'victory'; wp.frozen = true; }
                 }
                 window.dispatchEvent(new CustomEvent('victory_spectator', { detail: {
                     winner: msg.winner, loser: msg.loser, isWinner: false, spectating: true,
@@ -384,10 +396,9 @@ setInterval(() => {
                 isWinner,
                 reloadRequired: msg.reloadRequired ?? true,
             };
-            if (window._gameState && window._gameState.players) {
-                const wp = window._gameState.players[msg.winner];
-                if (wp) { wp.animation = 'victory'; wp.frozen = true; }
-            }
+            // Don't freeze the winner here — the 'state' handler will freeze
+            // them once the server confirms onGround: true, so they fall
+            // naturally instead of hanging in mid-air with a victory pose.
             setTimeout(() => {
                 window._overlayReady = true;  // FIX: faltaba esto — sin esto ws_overlay_ready() nunca
                                               // devolvía 1 para espectadores voluntarios, la animación
