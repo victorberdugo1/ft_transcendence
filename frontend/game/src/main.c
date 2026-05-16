@@ -202,6 +202,13 @@ typedef struct {
 
     char charId[32];
     int  slotIndex;
+
+    /* victoria: aterrizaje suave y camara de zoom */
+    bool  victoryLanding;    /* true mientras baja al suelo antes de la anim */
+    float visualWY;          /* Y visual suavizada por el cliente */
+    bool  visualWYInit;      /* si visualWY ya fue inicializada */
+    float victoryFallVY;     /* velocidad vertical de caida en victoria (unidades/s, negativo = bajar) */
+    float victoryLandingTargetY; /* Y destino del aterrizaje (suelo o plataforma) */
 } Player;
 
 static Player players[MAX_PLAYERS];
@@ -217,6 +224,8 @@ static bool  match_over       = false;
 static bool  victory_pending  = false;
 static int   winner_id        = -1;
 static char  winner_message[80] = {0};
+static float victory_msg_delay = 0.0f;  /* segundos restantes antes de mostrar el mensaje */
+#define VICTORY_MSG_DELAY 999.0f        /* la animación completa se ve; el overlay lo activa DrawGame al terminar */
 
 static float g_camShakeAmt   = 0.0f;
 static float g_camShakeTimer = 0.0f;
@@ -999,18 +1008,23 @@ static void FetchState(void) {
                 strcpy_safe(players[slot].animation, "jump", sizeof(players[slot].animation));
             }
         } else if (strncmp(players[slot].animation, panim, sizeof(players[slot].animation)) != 0) {
-            int ai = AnimIndex(panim);
-            if (ai != players[slot].animIndex && players[slot].character) {
-                LoadPlayerAnim(&players[slot], ai);
-                SetCharacterAutoPlay(players[slot].character, true);
-                players[slot].animIndex = ai;
+            /* Mientras el personaje esta aterrizando para la victoria no
+               aplicamos cambios de animacion del servidor: evita reproducir
+               "victory" en el aire antes de tocar suelo o plataforma. */
+            if (!players[slot].victoryLanding) {
+                int ai = AnimIndex(panim);
+                if (ai != players[slot].animIndex && players[slot].character) {
+                    LoadPlayerAnim(&players[slot], ai);
+                    SetCharacterAutoPlay(players[slot].character, true);
+                    players[slot].animIndex = ai;
+                }
+                if (strncmp(panim, "attack", 6) == 0 &&
+                        strncmp(players[slot].animation, "attack", 6) != 0) {
+                    players[slot].attackFlashTimer  = 0.3f;
+                    players[slot].attackFlashFacing = (prot > 1.0f) ? -1.0f : 1.0f;
+                }
+                strcpy_safe(players[slot].animation, panim, sizeof(players[slot].animation));
             }
-            if (strncmp(panim, "attack", 6) == 0 &&
-                    strncmp(players[slot].animation, "attack", 6) != 0) {
-                players[slot].attackFlashTimer  = 0.3f;
-                players[slot].attackFlashFacing = (prot > 1.0f) ? -1.0f : 1.0f;
-            }
-            strcpy_safe(players[slot].animation, panim, sizeof(players[slot].animation));
         }
     }
 
@@ -1051,10 +1065,93 @@ static Color VoltageBarColor(float t) {
 #define CAM_FOV_SPEC   50.0f
 #define CAM_Y_DEFAULT  1.2f
 
+/* ── Stage geometry (global para usarla en MainLoop y DrawGame) ─────────── */
+typedef struct { float cx, cy, hw; } PlatDef;
+typedef struct { float groundHw; int platCount; PlatDef plats[3]; } StageLayout;
+
+#define PLAT_VISUAL_OFFSET       0.1f   /* plataformas flotantes */
+#define PLAT_MAIN_VISUAL_OFFSET  0.05f  /* plataforma principal */
+
+static const StageLayout STAGE_DRAW[] = {
+    { 7.3f, 3, {{ -4.0f, 1.4f, 1.2f }, {  4.0f, 1.4f, 1.2f }, {  0.0f, 2.6f, 1.2f }} },
+    { 7.3f, 3, {{ -3.0f, 1.1f, 1.1f }, {  3.0f, 1.1f, 1.1f }, {  0.0f, 2.2f, 1.1f }} },
+    { 3.0f, 3, {{ -3.5f, 3.2f, 1.3f }, {  3.5f, 3.2f, 1.3f }, {  0.0f, 1.9f, 1.1f }} },
+    { 7.3f, 0, {{ 0 }} },
+};
+
+/* Devuelve la Y de la superficie más cercana por debajo de (wx, wy).
+   Si está sobre una plataforma (dentro de su ancho) aterriza ahí,
+   si no aterriza en el suelo (y=0). */
+static float FindLandingY(float wx, float wy) {
+    int sid = g_sss.selected;
+    if (sid < 0 || sid >= 4) sid = 0;
+    const StageLayout *sl = &STAGE_DRAW[sid];
+
+    float best = 0.0f;  /* suelo siempre disponible */
+    for (int i = 0; i < sl->platCount; i++) {
+        float cy = sl->plats[i].cy - PLAT_VISUAL_OFFSET;
+        float hw = sl->plats[i].hw;
+        /* Solo si el personaje está encima de la plataforma en X y por encima en Y */
+        if (cy < wy && fabsf(wx - sl->plats[i].cx) <= hw + 0.3f) {
+            if (cy > best) best = cy;
+        }
+    }
+    return best;
+}
+
+/* ── Daat void grid ─────────────────────────────────────────────────────── */
+static float g_voidTime = 0.0f;
+
+static void DrawDaatGrid(Camera cam) {
+    const float cellSize = 2.0f;
+    const float gridHalf = 80.0f;
+    const float floorY   = -1.5f;
+    const float ceilY    =  4.5f;
+
+    float scroll = fmodf(g_voidTime * 0.5f, cellSize);
+
+    BeginMode3D(cam);
+    BeginBlendMode(BLEND_ADDITIVE);
+    rlSetLineWidth(1.5f);
+
+    float planes[2] = { floorY, ceilY };
+    for (int pl = 0; pl < 2; pl++) {
+        float py = planes[pl];
+        unsigned char a = (pl == 0) ? 160 : 80;
+
+        rlBegin(RL_LINES);
+        for (float x = -gridHalf; x <= gridHalf + 0.01f; x += cellSize) {
+            rlColor4ub(40, 160, 255, a);
+            rlVertex3f(x, py, -gridHalf + scroll);
+            rlVertex3f(x, py,  gridHalf + scroll);
+        }
+        for (float z = -gridHalf; z <= gridHalf + 0.01f; z += cellSize) {
+            rlColor4ub(40, 160, 255, a);
+            rlVertex3f(-gridHalf, py, z + scroll);
+            rlVertex3f( gridHalf, py, z + scroll);
+        }
+        rlEnd();
+    }
+
+    EndBlendMode();
+    rlSetLineWidth(1.0f);
+    EndMode3D();
+}
+
 static void DrawGame(void) {
-    static float camX   = 0.0f;
-    static float camY   = CAM_Y_DEFAULT;
-    static float camFov = CAM_FOV_SPEC;
+    static float camX       = 0.0f;
+    static float camY       = CAM_Y_DEFAULT;
+    static float camTargetX  = 0.0f;
+    static float camTargetY  = CAM_Y_DEFAULT;
+    if (!victory_pending && !match_over) {
+        camTargetX = camX;
+        camTargetY = camY;
+    }
+    static float camFov     = CAM_FOV_SPEC;
+
+    /* Z de la camara: empieza en 9 (posicion normal) y durante victoria
+       se desliza hacia delante hasta quedar enfrente del personaje. */
+    static float camZ       = 9.0f;
 
     static float blinkTimer = 0.0f;
     static bool  blinkOn    = true;
@@ -1101,7 +1198,65 @@ static void DrawGame(void) {
         }
     }
 
-    if (is_spectator) {
+    if (victory_pending || match_over) {
+        /* ── Camara de victoria ──────────────────────────────────────────────
+           La cámara se pone DELANTE DE LA CARA del ganador, como un enemigo
+           parado frente a él en la plataforma.
+
+           Todos los personajes están en Z=0. La cámara normalmente está en
+           Z=9 y mira hacia Z=0 — por eso siempre los ve de lado.
+
+           La solución: la cámara se desplaza en X hacia donde mira el
+           personaje, y luego apunta HACIA ATRÁS (hacia el personaje desde
+           delante). Así la cámara queda "enfrente de su cara".
+
+           drawRot = visualRotation + PI/2
+           El personaje mira hacia: (cos(drawRot), 0, sin(drawRot)) en el
+           plano XZ. Como todos están en Z=0 y solo se mueven en X, la
+           dirección relevante es el componente X: cos(drawRot).
+
+           Si cos(drawRot) > 0 → mira hacia +X → cámara va a su +X
+           Si cos(drawRot) < 0 → mira hacia -X → cámara va a su -X
+
+           Distancia: 5 unidades en X desde el personaje.
+           La cámara se mantiene en Z=9 y apunta al personaje en (winX, torso, 0).
+        ─────────────────────────────────────────────────────────────────── */
+        float winX   = 0.0f, winY = 0.0f, winRot = 0.0f;
+        bool  found  = false;
+        for (int s = 0; s < MAX_PLAYERS; s++) {
+            if (!players[s].active || players[s].id != winner_id) continue;
+            winX   = players[s].wx;
+            winY   = players[s].visualWYInit ? players[s].visualWY : players[s].wy;
+            winRot = players[s].visualRotation;
+            found  = true;
+            break;
+        }
+        if (!found) { winX = camX; winY = 0.0f; winRot = 0.0f; }
+
+        /* El personaje mira hacia +X o -X (juego 2D lateral).
+           Para verle de FRENTE: cámara en X delante de su cara, Z=0 (mismo
+           plano que el personaje) apuntando hacia él. */
+        float facingX = (cosf(winRot) >= 0.0f) ? 1.0f : -1.0f;
+        float dist    = 4.5f;
+        float tgtCamX = winX + facingX * dist;
+        float tgtCamZ = 0.0f;
+        float tgtCamY = winY + 0.4f;
+        float tgtFov  = 42.0f;
+
+        float spd = 0.08f;
+        camX += (tgtCamX - camX) * spd;
+        camY += (tgtCamY - camY) * spd;
+        camZ += (tgtCamZ - camZ) * spd;
+
+        camTargetX += (winX          - camTargetX) * spd;
+        camTargetY += ((winY + 0.5f) - camTargetY) * spd;
+
+        camFov += (tgtFov - camFov) * spd;
+
+        camShakeOffX = 0.0f;
+        camShakeOffY = 0.0f;
+
+    } else if (is_spectator) {
         float sumX = 0.0f; int n = 0;
         for (int s = 0; s < MAX_PLAYERS; s++) {
             if (players[s].active == 1 && !players[s].respawning) { sumX += players[s].wx; n++; }
@@ -1113,6 +1268,7 @@ static void DrawGame(void) {
         if (camX + CAM_HALF_W > STAGE_RIGHT) camX = STAGE_RIGHT - CAM_HALF_W;
         camY   = CAM_Y_DEFAULT;
         camFov = CAM_FOV_SPEC;
+        camZ   = 9.0f;
     } else {
         float minX =  1e9f, maxX = -1e9f;
         float minY =  1e9f, maxY = -1e9f;
@@ -1140,44 +1296,71 @@ static void DrawGame(void) {
 
             float targetFov = CAM_FOV_MIN + (CAM_FOV_MAX - CAM_FOV_MIN) * t;
 
-            float halfVis = 4.5f + t * 3.0f;
-            if (cx - halfVis < STAGE_LEFT)  cx = STAGE_LEFT  + halfVis;
-            if (cx + halfVis > STAGE_RIGHT) cx = STAGE_RIGHT - halfVis;
+            float camDist    = 9.0f;
+            float halfVisReal = camDist * tanf((camFov * 0.5f) * DEG2RAD);
+            float margin     = 0.8f;
+
+            float clampedCx = cx;
+            if (clampedCx - halfVisReal + margin < STAGE_LEFT)
+                clampedCx = STAGE_LEFT  + halfVisReal - margin;
+            if (clampedCx + halfVisReal - margin > STAGE_RIGHT)
+                clampedCx = STAGE_RIGHT - halfVisReal + margin;
 
             float targetY = cy * 0.35f + CAM_Y_DEFAULT * 0.65f;
             if (targetY < 0.4f) targetY = 0.4f;
             if (targetY > 3.5f) targetY = 3.5f;
 
-            camX   += (cx        - camX)   * 0.06f;
+            camX   += (clampedCx - camX)   * 0.06f;
             camY   += (targetY   - camY)   * 0.06f;
             camFov += (targetFov - camFov) * 0.05f;
         }
+        camZ = 9.0f;
     }
 
-    scene_cam.position = (Vector3){ camX + camShakeOffX, camY + camShakeOffY, 9.0f };
-    scene_cam.target   = (Vector3){ camX + camShakeOffX, camY + camShakeOffY, 0.0f };
-    scene_cam.up       = (Vector3){ 0.0f, 1.0f, 0.0f };
-    scene_cam.fovy     = camFov;
+    // ── Stage geometry ────────────────────────────────────────────────────────
+    int sid = g_sss.selected;
+    if (sid < 0 || sid >= 4) sid = 0;
+    const StageLayout *sl = &STAGE_DRAW[sid];
+
+    /* Asignar posicion y target de la camara */
+    if (victory_pending || match_over) {
+        scene_cam.position = (Vector3){ camX, camY, camZ };
+        scene_cam.target   = (Vector3){ camTargetX, camTargetY, 0.0f };
+    } else {
+        scene_cam.position = (Vector3){ camX + camShakeOffX, camY + camShakeOffY, camZ };
+        scene_cam.target   = (Vector3){ camX + camShakeOffX, camY + camShakeOffY, 0.0f };
+    }
+    scene_cam.up   = (Vector3){ 0.0f, 1.0f, 0.0f };
+    scene_cam.fovy = camFov;
 
     BeginDrawing();
     ClearBackground((Color){ 10, 10, 28, 255 });
 
+    /* Skybox */
     BeginMode3D(scene_cam);
-    {
-        Skybox_Draw(scene_cam);
-
-        const float stageW    = STAGE_RIGHT - STAGE_LEFT;
-        const float stageVisW = stageW - 1.4f;
-        const float stageVisY = STAGE_Y - 0.08f;
-        DrawCube     ((Vector3){ 0.0f, stageVisY, 0.0f }, stageVisW, PLATFORM_H, 0.6f, (Color){ 60,  60,  90, 255 });
-        DrawCubeWires((Vector3){ 0.0f, stageVisY, 0.0f }, stageVisW, PLATFORM_H, 0.6f, (Color){100, 100, 160, 200 });
-
-        const float platW = 2.4f, platH = 0.1f;
-        DrawCube((Vector3){-4.0f, 1.6f, 0.0f}, platW, platH, 0.5f, (Color){ 50, 70, 110, 255 });
-        DrawCube((Vector3){ 4.0f, 1.6f, 0.0f}, platW, platH, 0.5f, (Color){ 50, 70, 110, 255 });
-        DrawCube((Vector3){ 0.0f, 2.8f, 0.0f}, platW, platH, 0.5f, (Color){ 50, 70, 110, 255 });
-    }
+    Skybox_Draw(scene_cam);
     EndMode3D();
+
+    /* Grid neon Daat */
+    if (g_sss.selected == 3) {
+        g_voidTime += dt;
+        DrawDaatGrid(scene_cam);
+    }
+
+    /* Plataformas */
+    {
+        const float stageVisY = -(PLATFORM_H * 0.5f) - PLAT_MAIN_VISUAL_OFFSET;
+        float groundVisW = sl->groundHw * 2.0f;
+        BeginMode3D(scene_cam);
+        DrawCube     ((Vector3){ 0.0f, stageVisY, 0.0f }, groundVisW, PLATFORM_H, 0.6f, (Color){ 60,  60,  90, 255 });
+        DrawCubeWires((Vector3){ 0.0f, stageVisY, 0.0f }, groundVisW, PLATFORM_H, 0.6f, (Color){100, 100, 160, 200 });
+        for (int pi = 0; pi < sl->platCount; pi++) {
+            float pw = sl->plats[pi].hw * 2.0f;
+            DrawCube((Vector3){ sl->plats[pi].cx, sl->plats[pi].cy - PLAT_VISUAL_OFFSET, 0.0f },
+                     pw, 0.1f, 0.5f, (Color){ 50, 70, 110, 255 });
+        }
+        EndMode3D();
+    }
 
     const float TURN_SPEED = 12.0f;
 
@@ -1196,9 +1379,8 @@ static void DrawGame(void) {
 
         if (p->character->animController && !p->character->animController->playing) {
             if (victory_pending && p->id == winner_id) {
-                match_over      = true;
-                victory_pending = false;
-                ws_consume_victory();
+                /* La animacion termino: damos 0.6s de margen y luego el overlay */
+                victory_msg_delay = 0.6f;
                 int last = p->character->animation.frameCount - 1;
                 if (last < 0) last = 0;
                 p->character->currentFrame = last;
@@ -1239,7 +1421,42 @@ static void DrawGame(void) {
             p->visualRotation = (fabsf(diff) <= step) ? target : cur + (diff > 0 ? step : -step);
         }
 
-        float visualY = p->wy - (p->hasAnchorY ? p->anchorYOffset : 0.0f);
+        /* Aterrizaje suave de victoria con gravedad */
+        if (p->victoryLanding) {
+            if (!p->visualWYInit) {
+                p->visualWY     = p->wy;
+                p->visualWYInit = true;
+                p->victoryFallVY = 0.0f;
+            }
+            float targetY = p->victoryLandingTargetY;
+            if (p->visualWY > targetY + 0.01f) {
+                const float GRAVITY = 18.0f;
+                p->victoryFallVY -= GRAVITY * dt;
+                p->visualWY      += p->victoryFallVY * dt;
+                if (p->visualWY < targetY) p->visualWY = targetY;
+            } else {
+                p->visualWY       = targetY;
+                p->victoryLanding = false;
+                int vi = AnimIndex("victory");
+                LoadPlayerAnim(p, vi);
+                SetCharacterAutoPlay(p->character, true);
+                p->character->currentFrame = 0;
+                p->character->forceUpdate  = true;
+                p->animIndex = vi;
+                strcpy_safe(p->animation, ANIM_NAME[vi], sizeof(p->animation));
+            }
+        } else if (!p->visualWYInit) {
+            p->visualWY     = p->wy;
+            p->visualWYInit = true;
+        } else if (!victory_pending && !match_over) {
+            p->visualWY = p->wy;
+        }
+
+        bool isWinner = (victory_pending || match_over) && p->id == winner_id;
+        float victoryRaise = (isWinner && !p->victoryLanding) ? 0.07f : 0.0f;
+        float visualY = (p->victoryLanding || isWinner)
+                        ? (p->visualWY - (p->hasAnchorY ? p->anchorYOffset : 0.0f) + victoryRaise)
+                        : (p->wy       - (p->hasAnchorY ? p->anchorYOffset : 0.0f));
 
         float playerShakeX = 0.0f, playerShakeY = 0.0f;
         if (p->hitShakeTimer > 0.0f) {
@@ -1264,10 +1481,10 @@ static void DrawGame(void) {
     if (IsKeyPressed(KEY_U)) debug_mode = !debug_mode;
     if (debug_mode) {
         BeginMode3D(scene_cam);
-        DrawCubeWires((Vector3){ 0.0f,  0.0f, 0.0f }, 16.0f, 0.05f, 0.1f, (Color){  0, 200, 255, 160 });
-        DrawCubeWires((Vector3){-4.0f,  1.6f, 0.0f },  2.4f, 0.05f, 0.1f, (Color){  0, 200, 255, 160 });
-        DrawCubeWires((Vector3){ 4.0f,  1.6f, 0.0f },  2.4f, 0.05f, 0.1f, (Color){  0, 200, 255, 160 });
-        DrawCubeWires((Vector3){ 0.0f,  2.8f, 0.0f },  2.4f, 0.05f, 0.1f, (Color){  0, 200, 255, 160 });
+        DrawCubeWires((Vector3){ 0.0f, -(PLATFORM_H * 0.5f), 0.0f }, sl->groundHw * 2.0f, 0.05f, 0.1f, (Color){  0, 200, 255, 160 });
+        for (int pi = 0; pi < sl->platCount; pi++)
+            DrawCubeWires((Vector3){ sl->plats[pi].cx, sl->plats[pi].cy, 0.0f },
+                          sl->plats[pi].hw * 2.0f, 0.05f, 0.1f, (Color){  0, 200, 255, 160 });
         DrawLine3D((Vector3){-8.0f, -6.0f, 0}, (Vector3){-8.0f, 4.0f, 0}, (Color){255,  60,  60, 180 });
         DrawLine3D((Vector3){ 8.0f, -6.0f, 0}, (Vector3){ 8.0f, 4.0f, 0}, (Color){255,  60,  60, 180 });
         DrawLine3D((Vector3){-10.f, -6.0f, 0}, (Vector3){10.0f,-6.0f, 0}, (Color){255,  60,  60, 180 });
@@ -1350,6 +1567,20 @@ static void DrawGame(void) {
                      (Color){200,200,200,180});
     } else {
         DrawText("Connecting...", SCREEN_W - 100, 8, 12, (Color){220,140,40,255});
+    }
+
+    /* Durante victory_pending: titulo flotante */
+    if (victory_pending && winner_message[0] != '\0') {
+        const bool iWon2 = (!is_spectator && my_id == winner_id);
+        if (iWon2) {
+            static float vt = 0.0f;
+            vt += GetFrameTime() * 2.5f;
+            unsigned char va = (unsigned char)(180 + 75 * sinf(vt));
+            const char *vtxt = "VICTORY!";
+            int vsz = 52;
+            int vw  = MeasureText(vtxt, vsz);
+            DrawText(vtxt, (SCREEN_W - vw) / 2, SCREEN_H / 5, vsz, (Color){255,215,0,va});
+        }
     }
 
     if (match_over && winner_message[0] != '\0') {
@@ -1688,32 +1919,37 @@ static void MainLoop(void) {
         int vstate = ws_get_victory_state();
         if (vstate != 0) {
             int wid         = ws_get_victory_winner();
-            victory_pending = true;
-            winner_id       = wid;
+            victory_pending   = true;
+            winner_id         = wid;
+            victory_msg_delay = VICTORY_MSG_DELAY;
 
             snprintf(winner_message, sizeof(winner_message),
                      (vstate == 1) ? "VICTORY" : "DERROTA");
 
-            int vi = AnimIndex("victory");
             for (int s = 0; s < MAX_PLAYERS; s++) {
                 if (!players[s].active || players[s].id != winner_id) continue;
-                if (players[s].character) {
-                    LoadPlayerAnim(&players[s], vi);
-                    SetCharacterAutoPlay(players[s].character, true);
-                    players[s].character->currentFrame = 0;
-                    players[s].character->forceUpdate  = true;
-                }
-                players[s].animIndex = vi;
-                strcpy_safe(players[s].animation, ANIM_NAME[vi], sizeof(players[s].animation));
+                /* Siempre activamos victoryLanding: la gravedad cliente baja al
+                   personaje hasta la superficie mas cercana. Si ya esta en el
+                   suelo o plataforma cae 0 unidades y la animacion arranca
+                   en el mismo frame. */
+                players[s].visualWY              = players[s].wy;
+                players[s].visualWYInit          = true;
+                players[s].victoryFallVY         = 0.0f;
+                players[s].victoryLanding        = true;
+                players[s].victoryLandingTargetY = FindLandingY(players[s].wx, players[s].wy + 999.f);
                 break;
             }
         }
     }
 
-    if (!match_over && victory_pending && ws_overlay_ready()) {
-        match_over      = true;
-        victory_pending = false;
-        ws_consume_victory();
+    if (!match_over && victory_pending) {
+        if (victory_msg_delay > 0.0f) {
+            victory_msg_delay -= GetFrameTime();
+        } else if (ws_overlay_ready()) {
+            match_over      = true;
+            victory_pending = false;
+            ws_consume_victory();
+        }
     }
 
     DrawGame();

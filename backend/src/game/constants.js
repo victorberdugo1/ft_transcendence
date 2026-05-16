@@ -80,12 +80,39 @@ const ANIM_DURATIONS = {
 const COMBO_WINDOW = 0.25;
 
 // ─── Stage geometry ───────────────────────────────────────────────────────────
-const PLATFORMS = [
-    { x:  0, y: GROUND_Y, hw: (STAGE_RIGHT - STAGE_LEFT) / 2 },
-    { x: -4, y: 1.6,      hw: 1.2 },
-    { x:  4, y: 1.6,      hw: 1.2 },
-    { x:  0, y: 2.8,      hw: 1.2 },
+// Cada stage es un array de plataformas { x, y, hw }.
+// La primera entrada es siempre el suelo (y = GROUND_Y).
+const STAGE_LAYOUTS = [
+    // 0 — Karnamru: battlefield clásico
+    [
+        { x:  0, y: GROUND_Y, hw: 7.3 },
+        { x: -4, y: 1.4,      hw: 1.2 },
+        { x:  4, y: 1.4,      hw: 1.2 },
+        { x:  0, y: 2.6,      hw: 1.2 },
+    ],
+    // 1 — Surya: plataformas más juntas y bajas, combate cerrado
+    [
+        { x:  0, y: GROUND_Y, hw: 7.3 },
+        { x: -3, y: 1.1,      hw: 1.1 },
+        { x:  3, y: 1.1,      hw: 1.1 },
+        { x:  0, y: 2.2,      hw: 1.1 },
+    ],
+    // 2 — Vayusvara: suelo estrecho, acción aérea
+    [
+        { x:  0,   y: GROUND_Y, hw: 3.0 },
+        { x: -3.5, y: 3.2,      hw: 1.3 },
+        { x:  3.5, y: 3.2,      hw: 1.3 },
+        { x:  0,   y: 1.9,      hw: 1.1 },
+    ],
+    // 3 — Daat: Final Destination, solo suelo plano
+    [
+        { x: 0, y: GROUND_Y, hw: 7.3 },
+    ],
 ];
+
+// PLATFORMS apunta al layout del stage activo (el servidor lo sobreescribe en runtime).
+// Uso: const PLATFORMS = STAGE_LAYOUTS[confirmedStageId] ?? STAGE_LAYOUTS[0];
+const PLATFORMS = STAGE_LAYOUTS[0];
 
 const PLAYER_RADIUS = 0.24;
 const PLAYER_HEIGHT = 0.72;
@@ -120,6 +147,6 @@ module.exports = {
     BLOCK_KB_MULTIPLIER, BLOCK_MOVE_FACTOR, BLOCK_HOLD_TICKS, BLOCK_DASH_LOCKOUT,
     HITSTOP_THRESHOLDS, HITSTOP_SHAKE,
     ANIM_DURATIONS, COMBO_WINDOW,
-    PLATFORMS, PLAYER_RADIUS, PLAYER_HEIGHT, MAX_PLAYERS,
+    STAGE_LAYOUTS, PLATFORMS, PLAYER_RADIUS, PLAYER_HEIGHT, MAX_PLAYERS,
     CHARACTER_DEFS, CHARACTER_ASSETS, CHAR_IDS,
 };

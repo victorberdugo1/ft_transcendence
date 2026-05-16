@@ -11,7 +11,7 @@ const {
     DASH_ATTACK_WINDOW, DASH_ATTACK_KB_MULT, DASH_ATTACK_RANGE_X,
     BLOCK_KB_MULTIPLIER, BLOCK_MOVE_FACTOR, BLOCK_HOLD_TICKS, BLOCK_DASH_LOCKOUT,
     ANIM_DURATIONS, COMBO_WINDOW,
-    PLATFORMS, PLAYER_RADIUS, PLAYER_HEIGHT,
+    PLAYER_RADIUS, PLAYER_HEIGHT,
 } = require('./constants');
 
 // ─── Voltage helpers ──────────────────────────────────────────────────────────
@@ -323,10 +323,10 @@ function resolvePlayerCollision(a, b) {
     b.x += dir * sep;
 }
 
-function tickPlatforms(alive, handleElimination) {
+function tickPlatforms(alive, handleElimination, platforms) {
     for (const p of alive) {
         let landed = false;
-        for (const plat of PLATFORMS) {
+        for (const plat of platforms) {
             const inRange  = Math.abs(p.x - plat.x) <= plat.hw;
             const wasAbove = p.prevY >= plat.y - PLAYER_HEIGHT;
             const crossed  = p.y <= plat.y && (p.vy + p.kby) <= 0;

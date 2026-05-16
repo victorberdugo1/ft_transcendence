@@ -7,7 +7,7 @@ const {
     TICK_RATE, TICK_DT, GHOST_TTL,
     GROUND_Y, MOVE_SPEED, DASH_SPEED, ATTACK_RANGE,
     ATTACK_RANGE_Y, DASH_ATTACK_RANGE_X,
-    MAX_PLAYERS,
+    MAX_PLAYERS, STAGE_LAYOUTS,
     CHARACTER_DEFS, CHARACTER_ASSETS, CHAR_IDS,
 } = require('./constants');
 
@@ -839,7 +839,7 @@ function tick() {
     const aliveForAnim = Object.values(players).filter(p => !_frozenIds.has(p.id));
     tickPhysics(alive);
     tickCollisions(alive);
-    tickPlatforms(alive, handleElimination);
+    tickPlatforms(alive, handleElimination, STAGE_LAYOUTS[confirmedStageId] ?? STAGE_LAYOUTS[0]);
     tickAnimations(aliveForAnim);
 
     // Tick CPU players in active training sessions.
