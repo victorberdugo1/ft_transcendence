@@ -9,19 +9,16 @@ async function listNotifications(req, res) {
             [req.user.user_id]
         );
         res.json({ notifications: rows });
-    } catch (err) {
+    } catch {
         res.status(500).json({ error: 'Internal error' });
     }
 }
 
 async function markAllRead(req, res) {
     try {
-        await db.query(
-            `UPDATE notifications SET is_read = TRUE WHERE user_id = $1`,
-            [req.user.user_id]
-        );
+        await db.query(`UPDATE notifications SET is_read = TRUE WHERE user_id = $1`, [req.user.user_id]);
         res.json({ ok: true });
-    } catch (err) {
+    } catch {
         res.status(500).json({ error: 'Internal error' });
     }
 }
@@ -33,7 +30,7 @@ async function markOneRead(req, res) {
             [req.params.id, req.user.user_id]
         );
         res.json({ ok: true });
-    } catch (err) {
+    } catch {
         res.status(500).json({ error: 'Internal error' });
     }
 }

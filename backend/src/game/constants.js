@@ -1,11 +1,9 @@
 'use strict';
 
-// ─── Tick ─────────────────────────────────────────────────────────────────────
 const TICK_RATE = 60;
 const TICK_DT   = 1 / TICK_RATE;
 const GHOST_TTL = 30_000;
 
-// ─── Physics ──────────────────────────────────────────────────────────────────
 const GRAVITY         = -28.0;
 const JUMP_FORCE      =  10.8;
 const MOVE_SPEED      =   5.0;
@@ -16,12 +14,10 @@ const GROUND_Y        =   0.0;
 const KNOCKBACK_DECAY =   0.85;
 const MIN_KNOCKBACK   =   0.05;
 
-// ─── Stage ────────────────────────────────────────────────────────────────────
 const STAGE_LEFT   = -8.0;
 const STAGE_RIGHT  =  8.0;
 const STAGE_BOTTOM = -6.0;
 
-// ─── Attack ───────────────────────────────────────────────────────────────────
 const ATTACK_DURATION  = 0.3;
 const ATTACK_COOLDOWN  = 0.5;
 const ATTACK_RANGE     = 0.525;
@@ -29,24 +25,19 @@ const ATTACK_RANGE_Y   = 0.5;
 const ATTACK_KNOCKBACK = 14.0;
 const ATTACK_KB_UP     =  6.0;
 
-// ─── Voltage ──────────────────────────────────────────────────────────────────
 const VOLTAGE_MAX         = 200;
 const VOLTAGE_PER_HIT     =  12;
 const VOLTAGE_DRAIN_BLOCK =   8;
 
-// ─── Dash attack ──────────────────────────────────────────────────────────────
 const DASH_ATTACK_WINDOW  = 0.18;
 const DASH_ATTACK_KB_MULT = 1.65;
 const DASH_ATTACK_RANGE_X = 1.65;
 
-// ─── Block ────────────────────────────────────────────────────────────────────
 const BLOCK_KB_MULTIPLIER = 0.15;
 const BLOCK_MOVE_FACTOR   = 0.05;
 const BLOCK_HOLD_TICKS    = 35;
 const BLOCK_DASH_LOCKOUT  = 0.6;
 
-// ─── Hitstop ──────────────────────────────────────────────────────────────────
-// HITSTOP_SHAKE is also consumed by ws-client.js — single source of truth.
 const HITSTOP_THRESHOLDS = {
     ultra:  { minVoltage: 200, frames: 22 },
     heavy:  { minVoltage: 150, frames: { min: 15, max: 22 } },
@@ -63,7 +54,6 @@ const HITSTOP_SHAKE = {
     ultra:  0.18,
 };
 
-// ─── Animation durations ──────────────────────────────────────────────────────
 const ANIM_DURATIONS = {
     attack_air:     0.5,
     attack_crouch:  0.5,
@@ -79,46 +69,35 @@ const ANIM_DURATIONS = {
 
 const COMBO_WINDOW = 0.25;
 
-// ─── Stage geometry ───────────────────────────────────────────────────────────
-// Cada stage es un array de plataformas { x, y, hw }.
-// La primera entrada es siempre el suelo (y = GROUND_Y).
 const STAGE_LAYOUTS = [
-    // 0 — Karnamru: battlefield clásico
     [
         { x:  0, y: GROUND_Y, hw: 7.3 },
         { x: -4, y: 1.4,      hw: 1.2 },
         { x:  4, y: 1.4,      hw: 1.2 },
         { x:  0, y: 2.6,      hw: 1.2 },
     ],
-    // 1 — Surya: plataformas más juntas y bajas, combate cerrado
     [
         { x:  0, y: GROUND_Y, hw: 7.3 },
         { x: -3, y: 1.1,      hw: 1.1 },
         { x:  3, y: 1.1,      hw: 1.1 },
         { x:  0, y: 2.2,      hw: 1.1 },
     ],
-    // 2 — Vayusvara: suelo estrecho, acción aérea
     [
         { x:  0,   y: GROUND_Y, hw: 3.0 },
         { x: -3.5, y: 3.2,      hw: 1.3 },
         { x:  3.5, y: 3.2,      hw: 1.3 },
         { x:  0,   y: 1.9,      hw: 1.1 },
     ],
-    // 3 — Daat: Final Destination, solo suelo plano
     [
         { x: 0, y: GROUND_Y, hw: 7.3 },
     ],
 ];
 
-// PLATFORMS apunta al layout del stage activo (el servidor lo sobreescribe en runtime).
-// Uso: const PLATFORMS = STAGE_LAYOUTS[confirmedStageId] ?? STAGE_LAYOUTS[0];
-const PLATFORMS = STAGE_LAYOUTS[0];
-
+const PLATFORMS    = STAGE_LAYOUTS[0];
 const PLAYER_RADIUS = 0.24;
 const PLAYER_HEIGHT = 0.72;
 const MAX_PLAYERS   = 8;
 
-// ─── Characters ───────────────────────────────────────────────────────────────
 const CHARACTER_DEFS = {
     eld: { name: 'Eldwin',  moveSpeed: 4.5, dashSpeed: 13.0, attackKnockback: 16.0, attackRange: 0.55 },
     hil: { name: 'Hilda',   moveSpeed: 5.5, dashSpeed: 15.0, attackKnockback: 12.0, attackRange: 0.50 },

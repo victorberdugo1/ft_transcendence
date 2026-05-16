@@ -37,6 +37,56 @@ typedef struct {
 
 static SkyboxState g_sky = { {0}, {0}, {0}, {0}, 0, false, -1 };
 
+static Texture2D g_platTex[4]   = {0};
+static int       g_platTexStage = -1;
+static Model     g_platGroundModel;   /* modelo del suelo principal */
+static Model     g_platFloatModel;    /* modelo de plataformas flotantes */
+static bool      g_platModelReady = false;
+
+/* Escala las UVs de un mesh para tiling 1:1 (1 repetición por unidad de mundo) */
+static void TileUVs(Mesh *m, float w, float d) {
+    if (!m->texcoords) return;
+    for (int i = 0; i < m->vertexCount; i++) {
+        m->texcoords[i * 2 + 0] *= w;
+        m->texcoords[i * 2 + 1] *= d;
+    }
+    UpdateMeshBuffer(*m, 1, m->texcoords, m->vertexCount * 2 * sizeof(float), 0);
+}
+
+static void PlatTex_Load(int stageId) {
+    if (g_platTexStage == stageId) return;
+    if (g_platTexStage >= 0 && g_platTex[g_platTexStage].id > 0)
+        UnloadTexture(g_platTex[g_platTexStage]);
+
+    char path[64];
+    snprintf(path, sizeof(path), "data/textures/plat%d.jpg", stageId);
+    if (FileExists(path)) {
+        g_platTex[stageId] = LoadTexture(path);
+        SetTextureWrap(g_platTex[stageId], TEXTURE_WRAP_REPEAT);
+    }
+    g_platTexStage = stageId;
+
+    if (g_platModelReady && g_platTex[stageId].id > 0) {
+        SetMaterialTexture(&g_platGroundModel.materials[0], MATERIAL_MAP_DIFFUSE, g_platTex[stageId]);
+        SetMaterialTexture(&g_platFloatModel.materials[0],  MATERIAL_MAP_DIFFUSE, g_platTex[stageId]);
+    }
+}
+
+static void PlatTex_Unload(void) {
+    for (int i = 0; i < 4; i++)
+        if (g_platTex[i].id > 0) { UnloadTexture(g_platTex[i]); g_platTex[i].id = 0; }
+    if (g_platModelReady) {
+        UnloadModel(g_platGroundModel);
+        UnloadModel(g_platFloatModel);
+        g_platModelReady = false;
+    }
+    g_platTexStage = -1;
+}
+
+static void DrawCubeWithTex(Model *mdl, Vector3 pos, float w, float h, float d) {
+    DrawModelEx(*mdl, pos, (Vector3){0,1,0}, 0.0f, (Vector3){w, h, d}, WHITE);
+}
+
 static void Skybox_Load(int stageId) {
     if (g_sky.loaded) {
         UnloadModel(g_sky.model);
@@ -1148,18 +1198,14 @@ static void DrawGame(void) {
         camTargetY = camY;
     }
     static float camFov     = CAM_FOV_SPEC;
-
-    /* Z de la camara: empieza en 9 (posicion normal) y durante victoria
-       se desliza hacia delante hasta quedar enfrente del personaje. */
     static float camZ       = 9.0f;
-
     static float blinkTimer = 0.0f;
     static bool  blinkOn    = true;
 
     const float dt = GetFrameTime();
 
-    if (g_sky.loadedStage != g_sss.selected)
-        Skybox_Load(g_sss.selected);
+    if (g_sky.loadedStage  != g_sss.selected) Skybox_Load(g_sss.selected);
+    if (g_platTexStage     != g_sss.selected) PlatTex_Load(g_sss.selected);
 
     int   hitstopFrames = ws_get_hitstop_frames_left();
     float shakeAmt      = ws_get_hitstop_shake();
@@ -1199,28 +1245,9 @@ static void DrawGame(void) {
     }
 
     if (victory_pending || match_over) {
-        /* ── Camara de victoria ──────────────────────────────────────────────
-           La cámara se pone DELANTE DE LA CARA del ganador, como un enemigo
-           parado frente a él en la plataforma.
-
-           Todos los personajes están en Z=0. La cámara normalmente está en
-           Z=9 y mira hacia Z=0 — por eso siempre los ve de lado.
-
-           La solución: la cámara se desplaza en X hacia donde mira el
-           personaje, y luego apunta HACIA ATRÁS (hacia el personaje desde
-           delante). Así la cámara queda "enfrente de su cara".
-
-           drawRot = visualRotation + PI/2
-           El personaje mira hacia: (cos(drawRot), 0, sin(drawRot)) en el
-           plano XZ. Como todos están en Z=0 y solo se mueven en X, la
-           dirección relevante es el componente X: cos(drawRot).
-
-           Si cos(drawRot) > 0 → mira hacia +X → cámara va a su +X
-           Si cos(drawRot) < 0 → mira hacia -X → cámara va a su -X
-
-           Distancia: 5 unidades en X desde el personaje.
-           La cámara se mantiene en Z=9 y apunta al personaje en (winX, torso, 0).
-        ─────────────────────────────────────────────────────────────────── */
+        /* Cámara de victoria: se pone delante de la cara del ganador, como un
+           rival parado frente a él en la plataforma. La cámara se desplaza en X
+           hacia donde mira el personaje (Z=0) y apunta de vuelta hacia su cuerpo. */
         float winX   = 0.0f, winY = 0.0f, winRot = 0.0f;
         bool  found  = false;
         for (int s = 0; s < MAX_PLAYERS; s++) {
@@ -1233,26 +1260,20 @@ static void DrawGame(void) {
         }
         if (!found) { winX = camX; winY = 0.0f; winRot = 0.0f; }
 
-        /* El personaje mira hacia +X o -X (juego 2D lateral).
-           Para verle de FRENTE: cámara en X delante de su cara, Z=0 (mismo
-           plano que el personaje) apuntando hacia él. */
         float facingX = (cosf(winRot) >= 0.0f) ? 1.0f : -1.0f;
         float dist    = 4.5f;
         float tgtCamX = winX + facingX * dist;
-        float tgtCamZ = 0.0f;
         float tgtCamY = winY + 0.4f;
+        float tgtCamZ = 0.0f;
         float tgtFov  = 42.0f;
 
         float spd = 0.08f;
         camX += (tgtCamX - camX) * spd;
         camY += (tgtCamY - camY) * spd;
         camZ += (tgtCamZ - camZ) * spd;
-
         camTargetX += (winX          - camTargetX) * spd;
         camTargetY += ((winY + 0.5f) - camTargetY) * spd;
-
-        camFov += (tgtFov - camFov) * spd;
-
+        camFov     += (tgtFov        - camFov)      * spd;
         camShakeOffX = 0.0f;
         camShakeOffY = 0.0f;
 
@@ -1322,13 +1343,12 @@ static void DrawGame(void) {
     if (sid < 0 || sid >= 4) sid = 0;
     const StageLayout *sl = &STAGE_DRAW[sid];
 
-    /* Asignar posicion y target de la camara */
     if (victory_pending || match_over) {
-        scene_cam.position = (Vector3){ camX, camY, camZ };
-        scene_cam.target   = (Vector3){ camTargetX, camTargetY, 0.0f };
+        scene_cam.position = (Vector3){ camX,                   camY,                   camZ };
+        scene_cam.target   = (Vector3){ camTargetX,             camTargetY,             0.0f };
     } else {
-        scene_cam.position = (Vector3){ camX + camShakeOffX, camY + camShakeOffY, camZ };
-        scene_cam.target   = (Vector3){ camX + camShakeOffX, camY + camShakeOffY, 0.0f };
+        scene_cam.position = (Vector3){ camX + camShakeOffX,    camY + camShakeOffY,    camZ };
+        scene_cam.target   = (Vector3){ camX + camShakeOffX,    camY + camShakeOffY,    0.0f };
     }
     scene_cam.up   = (Vector3){ 0.0f, 1.0f, 0.0f };
     scene_cam.fovy = camFov;
@@ -1352,13 +1372,20 @@ static void DrawGame(void) {
         const float stageVisY = -(PLATFORM_H * 0.5f) - PLAT_MAIN_VISUAL_OFFSET;
         float groundVisW = sl->groundHw * 2.0f;
         BeginMode3D(scene_cam);
-        DrawCube     ((Vector3){ 0.0f, stageVisY, 0.0f }, groundVisW, PLATFORM_H, 0.6f, (Color){ 60,  60,  90, 255 });
-        DrawCubeWires((Vector3){ 0.0f, stageVisY, 0.0f }, groundVisW, PLATFORM_H, 0.6f, (Color){100, 100, 160, 200 });
-        for (int pi = 0; pi < sl->platCount; pi++) {
-            float pw = sl->plats[pi].hw * 2.0f;
-            DrawCube((Vector3){ sl->plats[pi].cx, sl->plats[pi].cy - PLAT_VISUAL_OFFSET, 0.0f },
-                     pw, 0.1f, 0.5f, (Color){ 50, 70, 110, 255 });
+        if (g_platModelReady && g_platTexStage >= 0 && g_platTex[g_platTexStage].id > 0) {
+            DrawCubeWithTex(&g_platGroundModel, (Vector3){ 0.0f, stageVisY, 0.0f }, groundVisW, PLATFORM_H, 0.6f);
+            for (int pi = 0; pi < sl->platCount; pi++) {
+                float pw = sl->plats[pi].hw * 2.0f;
+                DrawCubeWithTex(&g_platFloatModel, (Vector3){ sl->plats[pi].cx, sl->plats[pi].cy - PLAT_VISUAL_OFFSET, 0.0f }, pw, 0.1f, 0.5f);
+            }
+        } else {
+            DrawCube((Vector3){ 0.0f, stageVisY, 0.0f }, groundVisW, PLATFORM_H, 0.6f, (Color){ 60, 60, 90, 255 });
+            for (int pi = 0; pi < sl->platCount; pi++) {
+                float pw = sl->plats[pi].hw * 2.0f;
+                DrawCube((Vector3){ sl->plats[pi].cx, sl->plats[pi].cy - PLAT_VISUAL_OFFSET, 0.0f }, pw, 0.1f, 0.5f, (Color){ 50, 70, 110, 255 });
+            }
         }
+        DrawCubeWires((Vector3){ 0.0f, stageVisY, 0.0f }, groundVisW, PLATFORM_H, 0.6f, (Color){100, 100, 160, 100});
         EndMode3D();
     }
 
@@ -1971,11 +1998,28 @@ int main(void) {
     };
 
     game_ready = true;
+
+    /* Modelos de plataforma con UVs tileadas 1:1 (1 repetición por unidad) */
+    {
+        /* Suelo principal: ~14.6 x 0.12 x 0.6 — tileamos en X y Z */
+        Mesh mg = GenMeshCube(1.0f, 1.0f, 1.0f);
+        TileUVs(&mg, 10.0f, 0.2f);
+        g_platGroundModel = LoadModelFromMesh(mg);
+
+        /* Plataformas flotantes: ~2.4 x 0.1 x 0.5 */
+        Mesh mf = GenMeshCube(1.0f, 1.0f, 1.0f);
+        TileUVs(&mf, 2.0f, 0.2f);
+        g_platFloatModel = LoadModelFromMesh(mf);
+
+        g_platModelReady = true;
+    }
+
     emscripten_set_main_loop(MainLoop, 0, 1);
 
     for (int i = 0; i < MAX_PLAYERS; i++)
         if (players[i].active) FreePlayer(&players[i]);
     Skybox_Unload();
+    PlatTex_Unload();
     CloseWindow();
     return 0;
 }

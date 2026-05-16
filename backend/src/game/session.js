@@ -5,10 +5,8 @@ const db        = require('../db');
 
 const {
     TICK_RATE, TICK_DT, GHOST_TTL,
-    GROUND_Y, MOVE_SPEED, DASH_SPEED, ATTACK_RANGE,
-    ATTACK_RANGE_Y, DASH_ATTACK_RANGE_X,
-    MAX_PLAYERS, STAGE_LAYOUTS,
-    CHARACTER_DEFS, CHARACTER_ASSETS, CHAR_IDS,
+    GROUND_Y, MOVE_SPEED, DASH_SPEED, ATTACK_RANGE, ATTACK_RANGE_Y, DASH_ATTACK_RANGE_X,
+    MAX_PLAYERS, STAGE_LAYOUTS, CHARACTER_DEFS, CHARACTER_ASSETS, CHAR_IDS,
 } = require('./constants');
 
 const {
@@ -18,31 +16,30 @@ const {
 
 let checkAndGrantAchievements = async () => {};
 let updateStatsAfterMatch     = async () => {};
-try { ({ checkAndGrantAchievements } = require('./achievements')); } catch { /* not yet available */ }
-try { ({ updateStatsAfterMatch }     = require('./stats'));        } catch { /* not yet available */ }
+try { ({ checkAndGrantAchievements } = require('./achievements')); } catch { }
+try { ({ updateStatsAfterMatch }     = require('./stats'));        } catch { }
 
 const { createCpuPlayer, tickCpu } = require('./ai');
 
-// ─── Module state ─────────────────────────────────────────────────────────────
+// ─── State ────────────────────────────────────────────────────────────────────
 
-const players    = {};
-const spectators = {};
-const lastState  = {};
-
-const gameSessions       = new Map();
-const playerSession      = new Map();
-const playerCharSelected = new Map();
-const hitstopBySession   = {};
+const players             = {};
+const spectators          = {};
+const lastState           = {};
+const gameSessions        = new Map();
+const playerSession       = new Map();
+const playerCharSelected  = new Map();
+const hitstopBySession    = {};
 const spectatorsBySession = new Map();
 
 let nextClientId  = 1;
 let nextSessionId = 1;
 let frameId       = 0;
 let tournamentWaitingWinners = {};
-let confirmedStageId = -1;  // -1 = not yet chosen
+let confirmedStageId = -1;
 let DEBUG_AUTO_MATCH = true;
 
-// ─── Spectator session index ──────────────────────────────────────────────────
+// ─── Spectator helpers ────────────────────────────────────────────────────────
 
 function setSpectatorSession(spec, newSessionId) {
     const old = spec.watchingSession;
@@ -58,7 +55,7 @@ function setSpectatorSession(spec, newSessionId) {
     }
 }
 
-// ─── Broadcast helpers ────────────────────────────────────────────────────────
+// ─── Broadcast ────────────────────────────────────────────────────────────────
 
 function broadcastToSession(session, msg) {
     const raw = JSON.stringify(msg);
@@ -78,7 +75,7 @@ function broadcastToAll(msg) {
     for (const spec of Object.values(spectators)) if (spec.ws?.readyState === WebSocket.OPEN) spec.ws.send(raw);
 }
 
-// ─── Player snapshot & state broadcast ───────────────────────────────────────
+// ─── Player snapshot ──────────────────────────────────────────────────────────
 
 function buildPlayerSnapshot(p) {
     return {
@@ -130,62 +127,52 @@ function sendStateToSpectator(spec) {
     spec.ws.send(JSON.stringify({ type: 'state', frameId: ++frameId, players: snapshot }));
 }
 
-// ─── Spectator stream (15 Hz, independent of game tick) ──────────────────────
+// ─── Spectator stream (15 Hz) ─────────────────────────────────────────────────
 
-const SPECTATOR_HZ     = 15;
-let   spectatorFrameId = 0;
+let spectatorFrameId = 0;
 
 function tickSpectators() {
     const specList = Object.values(spectators);
     if (specList.length === 0) return;
 
-    const sessionSnapshots = new Map();
+    const cache = new Map();
 
     for (const spec of specList) {
         if (!spec.ws || spec.ws.readyState !== WebSocket.OPEN) continue;
-
         const sid = spec.watchingSession;
         let raw;
 
         if (sid) {
-            if (!sessionSnapshots.has(sid)) {
+            if (!cache.has(sid)) {
                 const sess = gameSessions.get(sid);
                 if (!sess) {
-                    sessionSnapshots.set(sid, null);
+                    cache.set(sid, null);
                 } else {
                     const snapshot = {};
                     for (const cid of sess.playerIds) {
                         const p = players[cid] ?? players[String(cid)];
                         if (p) snapshot[cid] = buildPlayerSnapshot(p);
                     }
-                    sessionSnapshots.set(sid, JSON.stringify({
-                        type: 'state_spectator',
-                        frameId: ++spectatorFrameId,
-                        players: snapshot,
-                    }));
+                    cache.set(sid, JSON.stringify({ type: 'state_spectator', frameId: ++spectatorFrameId, players: snapshot }));
                 }
             }
-            raw = sessionSnapshots.get(sid);
+            raw = cache.get(sid);
         }
 
         if (!raw) {
-            if (!sessionSnapshots.has('__global__')) {
+            if (!cache.has('__global__')) {
                 const snapshot = {};
                 for (const [id, p] of Object.entries(players)) snapshot[id] = buildPlayerSnapshot(p);
-                sessionSnapshots.set('__global__', JSON.stringify({
-                    type: 'state_spectator',
-                    frameId: ++spectatorFrameId,
-                    players: snapshot,
-                }));
+                cache.set('__global__', JSON.stringify({ type: 'state_spectator', frameId: ++spectatorFrameId, players: snapshot }));
             }
-            raw = sessionSnapshots.get('__global__');
+            raw = cache.get('__global__');
         }
 
         if (raw) spec.ws.send(raw);
     }
 }
 
-setInterval(tickSpectators, 1000 / SPECTATOR_HZ);
+setInterval(tickSpectators, 1000 / 15);
 
 // ─── Session listings ─────────────────────────────────────────────────────────
 
@@ -204,8 +191,8 @@ function listActiveSessions() {
 // ─── Character selection ──────────────────────────────────────────────────────
 
 function buildCharSelectAck(selectorCharId, selectorClientId, stageId) {
-    const playerIds  = Object.keys(players).map(Number);
-    const usedChars  = new Set([selectorCharId]);
+    const playerIds = Object.keys(players).map(Number);
+    const usedChars = new Set([selectorCharId]);
     const playersOut = {};
 
     for (let i = 0; i < Math.min(playerIds.length, 8); i++) {
@@ -242,73 +229,58 @@ function sendAllCharSelectsTo(ws) {
 // ─── Player factory ───────────────────────────────────────────────────────────
 
 function createPlayer(id, saved, ws) {
-    const onGround   = saved ? (saved.onGround ?? true) : true;
-    const side       = Object.keys(players).length % 2 === 0 ? -1 : 1;
-    const initX      = saved ? saved.x : side * (1.5 + Math.random() * 1.5);
+    const onGround = saved ? (saved.onGround ?? true) : true;
+    const side     = Object.keys(players).length % 2 === 0 ? -1 : 1;
+    const initX    = saved ? saved.x : side * (1.5 + Math.random() * 1.5);
 
     return {
         id,
         dbUserId:        null,
         x:               initX,
         y:               saved ? saved.y : GROUND_Y,
-        vx: 0, vy: 0,   kbx: 0, kby: 0,
+        vx: 0, vy: 0, kbx: 0, kby: 0,
         onGround,
         jumpsLeft:       onGround ? 2 : 1,
         facing:          initX >= 0 ? -1 : 1,
-        dashing:         false, dashTimer: 0,  dashDir: 0,
-        dashCooldown:    0,     dashEndWindow: 0,
-        attacking:       false, attackTimer: 0, attackCooldown: 0,
-        comboStep:       0,     comboWindow: 0,
-        _isDashAttack:   false,
-        hitId:           0,     hitTargets: new Set(),
-        jumpId:          0,
-        crouching:       false,
-        animation:       'idle', animTimer: 0,
+        dashing: false, dashTimer: 0, dashDir: 0,
+        dashCooldown: 0, dashEndWindow: 0,
+        attacking: false, attackTimer: 0, attackCooldown: 0,
+        comboStep: 0, comboWindow: 0, _isDashAttack: false,
+        hitId: 0, hitTargets: new Set(), jumpId: 0,
+        crouching: false, animation: 'idle', animTimer: 0,
         stocks:          saved?.stocks ?? 3,
         prevSessionId:   saved?.sessionId ?? null,
-        respawning:      false, respawnTimer: 0,
-        voltage:         0,     voltageMaxed: false,
-        blocking:        false, blockLockout: 0, blockHoldTicks: 0,
-        prevY:           0,
-        charId:          null,
-        moveSpeed:       MOVE_SPEED,
-        dashSpeed:       DASH_SPEED,
-        attackKnockback: 14.0,
-        attackRange:     ATTACK_RANGE,
+        respawning: false, respawnTimer: 0,
+        voltage: 0, voltageMaxed: false,
+        blocking: false, blockLockout: 0, blockHoldTicks: 0,
+        prevY: 0, charId: null,
+        moveSpeed: MOVE_SPEED, dashSpeed: DASH_SPEED,
+        attackKnockback: 14.0, attackRange: ATTACK_RANGE,
         input: { moveX: 0, jump: false, attack: false, dash: false, dashDir: 0, crouch: false, block: false, dashAttack: false },
         ws,
     };
 }
 
-// ─── playerFlags ──────────────────────────────────────────────────────────────
-
-function initPlayerFlags(session, clientIds) {
-    session.playerFlags = {};
-    for (const cid of clientIds)
-        session.playerFlags[cid] = { tookDamage: false, completedCombo: false };
-}
-
-// ─── Session factory (shared by all match modes) ──────────────────────────────
+// ─── Session factory ──────────────────────────────────────────────────────────
 
 function createSession(mode, playerIds, extra = {}) {
-    const id = String(nextSessionId++);
+    const id      = String(nextSessionId++);
     const session = {
         id, mode,
         playerIds:    new Set(playerIds),
         eliminated:   new Set(),
         tournamentId: null, round: null, matchDbId: null,
         startedAt:    new Date(), finished: false,
-        loserDbId:    null, loserStocks: 0,
-        playerFlags:  {},
+        loserDbId: null, loserStocks: 0, playerFlags: {},
         ...extra,
     };
-    initPlayerFlags(session, playerIds);
-    gameSessions.set(id, session);
     for (const cid of playerIds) {
+        session.playerFlags[cid] = { tookDamage: false, completedCombo: false };
         playerSession.set(cid, id);
         const p = players[cid];
         if (p) p.stocks = 3;
     }
+    gameSessions.set(id, session);
     return session;
 }
 
@@ -317,7 +289,6 @@ function createSession(mode, playerIds, extra = {}) {
 function startBrawl(clientIds) {
     const session = createSession('brawl', clientIds);
     broadcastToSession(session, { type: 'match_start', mode: 'brawl', sessionId: session.id, players: clientIds, countdown: true });
-
     for (const spec of Object.values(spectators)) {
         if (spec.watchingSession !== null) continue;
         setSpectatorSession(spec, session.id);
@@ -333,7 +304,7 @@ function startBrawl(clientIds) {
 function startDuel(clientId1, clientId2) {
     const session = createSession('1v1', [clientId1, clientId2]);
     broadcastToSession(session, { type: 'match_start', mode: '1v1', sessionId: session.id, countdown: true });
-    console.log(`[GAME] 1v1 started: session ${session.id} — players ${clientId1} vs ${clientId2}`);
+    console.log(`[GAME] 1v1 started: session ${session.id} — ${clientId1} vs ${clientId2}`);
     return session;
 }
 
@@ -364,7 +335,7 @@ async function startTournament(clientIds, creatorDbId) {
     const shuffled = [...clientIds].sort(() => Math.random() - 0.5);
     for (let i = 0; i < shuffled.length - 1; i += 2) {
         const sess = await startTournamentMatch(shuffled[i], shuffled[i + 1], tournamentId, 1);
-        console.log(`[TOURNAMENT] Round 1 match: ${shuffled[i]} vs ${shuffled[i + 1]} → session ${sess.id}`);
+        console.log(`[TOURNAMENT] Round 1: ${shuffled[i]} vs ${shuffled[i + 1]} → session ${sess.id}`);
     }
     return tournamentId;
 }
@@ -373,10 +344,8 @@ function startTraining(humanClientId, cpuCharId = 'eld') {
     const cpu = createCpuPlayer(cpuCharId, CHARACTER_DEFS, GROUND_Y);
     players[cpu.id] = cpu;
     playerCharSelected.set(cpu.id, cpuCharId);
-
     const session = createSession('1v1', [humanClientId, cpu.id], { isCpuSession: true, cpuId: cpu.id });
     cpu.stocks = 3;
-
     broadcastToSession(session, { type: 'match_start', mode: '1v1', sessionId: session.id, countdown: true, cpuId: cpu.id });
     console.log(`[GAME] Training started: session ${session.id} — player ${humanClientId} vs CPU ${cpu.id}`);
     return session;
@@ -432,10 +401,7 @@ function handleElimination(loser) {
         session.loserStocks = loser.stocks ?? 0;
     }
 
-    const eliminatedId   = loser.id;
-    const eliminatedDbId = loser.dbUserId ?? null;
-    const eliminatedWs   = loser.ws;
-
+    const { id: eliminatedId, dbUserId: eliminatedDbId, ws: eliminatedWs } = loser;
     delete players[eliminatedId];
     playerSession.delete(eliminatedId);
 
@@ -490,9 +456,9 @@ function cleanupSession(session, winnerClientId) {
 async function resolveMatchWinner(session, winnerClientId, loserClientId) {
     session.finished = true;
 
-    const winner      = players[winnerClientId];
-    const winnerDbId  = winner?.dbUserId ?? null;
-    const loserDbId   = session.loserDbId ?? null;
+    const winner     = players[winnerClientId];
+    const winnerDbId = winner?.dbUserId ?? null;
+    const loserDbId  = session.loserDbId ?? null;
     const loserStocks = session.loserStocks ?? 0;
 
     broadcastToSession(session, { type: 'victory', winner: winnerClientId, loser: loserClientId, reloadRequired: true });
@@ -528,8 +494,8 @@ async function resolveMatchWinner(session, winnerClientId, loserClientId) {
         await Promise.all([
             winnerDbId ? db.query(
                 `UPDATE user_stats SET wins = wins + 1, xp = xp + 100,
-                 level = GREATEST(level, FLOOR(SQRT((xp + 100) / 50.0))::int),
-                 updated_at = NOW() WHERE user_id = $1`,
+                 level = GREATEST(level, FLOOR(SQRT((xp + 100) / 50.0))::int), updated_at = NOW()
+                 WHERE user_id = $1`,
                 [winnerDbId]
             ) : Promise.resolve(),
             loserDbId ? db.query(
@@ -595,8 +561,8 @@ async function finalizeTournament(tournamentId, championClientId) {
         if (champion?.dbUserId) {
             await db.query(
                 `UPDATE user_stats SET xp = xp + 500,
-                 level = GREATEST(level, FLOOR(SQRT((xp + 500) / 50))::int),
-                 updated_at = NOW() WHERE user_id = $1`,
+                 level = GREATEST(level, FLOOR(SQRT((xp + 500) / 50))::int), updated_at = NOW()
+                 WHERE user_id = $1`,
                 [champion.dbUserId]
             );
         }
@@ -607,8 +573,6 @@ async function finalizeTournament(tournamentId, championClientId) {
     delete tournamentWaitingWinners[tournamentId];
     console.log(`[TOURNAMENT] ${tournamentId} finished — champion: ${championClientId}`);
 }
-
-// ─── DB helpers ───────────────────────────────────────────────────────────────
 
 async function getLastWatchedSession(dbUserId) {
     if (!dbUserId) return null;
@@ -637,15 +601,13 @@ function tickRespawn() {
             x:  (Math.random() - 0.5) * 4,
             y:  2.0,
             vx: 0, vy: 0, kbx: 0, kby: 0,
-            jumpsLeft: 2,
-            onGround:  false,
-            animation: 'idle',
-            voltage:   0,
+            jumpsLeft: 2, onGround: false,
+            animation: 'idle', voltage: 0,
         });
     }
 }
 
-// ─── Hit context (passed to physics to avoid circular require) ────────────────
+// ─── Hit context ──────────────────────────────────────────────────────────────
 
 const hitCtx = {
     get players()          { return players; },
@@ -664,12 +626,10 @@ const hitCtx = {
     },
 };
 
-// ─── Reusable tick sets (avoid GC pressure at 60 fps) ────────────────────────
+// ─── Game tick (60 Hz) ────────────────────────────────────────────────────────
 
 const _frozenIds        = new Set();
 const _hitstopFrozenIds = new Set();
-
-// ─── Game tick (60 Hz) ────────────────────────────────────────────────────────
 
 function tick() {
     _frozenIds.clear();
@@ -692,10 +652,10 @@ function tick() {
     for (const p of aliveAll) {
         if (_pendingWinnerIds.has(p.id)) {
             p.input.moveX = 0; p.input.jump = false; p.input.attack = false;
-            p.input.dash = false; p.input.dashAttack = false; p.input.block = false;
+            p.input.dash  = false; p.input.dashAttack = false; p.input.block = false;
         }
         const { moveX, jump, attack, dash, dashDir, crouch, block, dashAttack } = p.input;
-        p.input.jump = false; p.input.attack = false; p.input.dash = false; p.input.dashAttack = false;
+        p.input.jump = p.input.attack = p.input.dash = p.input.dashAttack = false;
         tickBlock(p, moveX, attack, dash, dashAttack, block, crouch);
         tickDash(p, dash, dashDir, moveX, block, crouch);
         tickMovement(p, moveX, jump, crouch);
