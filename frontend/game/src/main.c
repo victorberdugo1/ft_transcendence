@@ -19,13 +19,10 @@
 static float ATTACK_RANGE   = 0.525f;
 static float ATTACK_RANGE_Y = 0.5f;
 
-static int    SCREEN_W   = 800;
-static int    SCREEN_H   = 600;
+static int    SCREEN_W = 800;
+static int    SCREEN_H = 600;
 static Camera scene_cam;
 
-// ---------------------------------------------------------------------------
-// Skybox
-// ---------------------------------------------------------------------------
 #include "rlgl.h"
 
 typedef struct {
@@ -54,13 +51,13 @@ static void Skybox_Load(int stageId) {
     g_sky.shader = LoadShader("data/shaders/skybox.vs", "data/shaders/skybox.fs");
     int envMap = MATERIAL_MAP_CUBEMAP;
     int doGamma = 0, vflipped = 1;
-    SetShaderValue(g_sky.shader, GetShaderLocation(g_sky.shader, "environmentMap"), &envMap,    SHADER_UNIFORM_INT);
-    SetShaderValue(g_sky.shader, GetShaderLocation(g_sky.shader, "doGamma"),        &doGamma,   SHADER_UNIFORM_INT);
-    SetShaderValue(g_sky.shader, GetShaderLocation(g_sky.shader, "vflipped"),       &vflipped,  SHADER_UNIFORM_INT);
+    SetShaderValue(g_sky.shader, GetShaderLocation(g_sky.shader, "environmentMap"), &envMap,   SHADER_UNIFORM_INT);
+    SetShaderValue(g_sky.shader, GetShaderLocation(g_sky.shader, "doGamma"),        &doGamma,  SHADER_UNIFORM_INT);
+    SetShaderValue(g_sky.shader, GetShaderLocation(g_sky.shader, "vflipped"),       &vflipped, SHADER_UNIFORM_INT);
     g_sky.locTime = GetShaderLocation(g_sky.shader, "time");
 
-    Image img      = LoadImage(imgPath);
-    g_sky.cubemap  = LoadTextureCubemap(img, CUBEMAP_LAYOUT_AUTO_DETECT);
+    Image img     = LoadImage(imgPath);
+    g_sky.cubemap = LoadTextureCubemap(img, CUBEMAP_LAYOUT_AUTO_DETECT);
     UnloadImage(img);
 
     g_sky.mesh  = GenMeshCube(1.0f, 1.0f, 1.0f);
@@ -85,37 +82,31 @@ static void Skybox_Draw(Camera cam) {
 
     rlDisableBackfaceCulling();
     rlDisableDepthMask();
-
-    // Usar rlgl directamente: evita que Raylib active normal/texcoord/tangent/color
-    // que no existen en el skybox shader -> INVALID_VALUE disableVertexAttribArray en WebGL.
     rlEnableShader(g_sky.shader.id);
 
-    // Actualizar tiempo para animacion del skybox
     if (g_sky.locTime >= 0) {
         float t = (float)GetTime();
         rlSetUniform(g_sky.locTime, &t, SHADER_UNIFORM_FLOAT, 1);
     }
 
-    // Vista sin traslacion + proyeccion
     Matrix matView = MatrixLookAt(cam.position, cam.target, cam.up);
     matView.m12 = 0.0f; matView.m13 = 0.0f; matView.m14 = 0.0f;
     Matrix matProj = MatrixPerspective(
         cam.fovy * DEG2RAD,
         (float)SCREEN_W / (float)SCREEN_H,
         0.01f, 1000.0f);
+
     int locView = GetShaderLocation(g_sky.shader, "matView");
     int locProj = GetShaderLocation(g_sky.shader, "matProjection");
     if (locView >= 0) rlSetUniformMatrix(locView, matView);
     if (locProj >= 0) rlSetUniformMatrix(locProj, matProj);
 
-    // Cubemap al slot 0
     int locEnv = GetShaderLocation(g_sky.shader, "environmentMap");
     int slot = 0;
     if (locEnv >= 0) rlSetUniform(locEnv, &slot, SHADER_UNIFORM_INT, 1);
     rlActiveTextureSlot(0);
     rlEnableTextureCubemap(g_sky.cubemap.id);
 
-    // Solo vertexPosition, ningun otro atributo
     rlEnableVertexArray(g_sky.mesh.vaoId);
     int locPos = GetShaderLocationAttrib(g_sky.shader, "vertexPosition");
     if (locPos >= 0) {
@@ -128,120 +119,107 @@ static void Skybox_Draw(Camera cam) {
 
     rlDisableTextureCubemap();
     rlDisableShader();
-
     rlEnableDepthMask();
     rlEnableBackfaceCulling();
 }
-// ---------------------------------------------------------------------------
 
 static const char *ANIM_JSON[ANIM_COUNT] = {
-	"data/animations/idle.json",
-	"data/animations/walk.json",
-	"data/animations/jump.json",
-	"data/animations/attack_air.json",
-	"data/animations/attack_combo_1.json",
-	"data/animations/attack_combo_2.json",
-	"data/animations/attack_combo_3.json",
-	"data/animations/attack_crouch.json",
-	"data/animations/dash.json",
-	"data/animations/crouch.json",
-	"data/animations/crouch.json",  // crouch_loop
-	"data/animations/hurt.json",
-	"data/animations/block.json",
-	"data/animations/attack_dash.json",
-	"data/animations/victory.json",
+    "data/animations/idle.json",
+    "data/animations/walk.json",
+    "data/animations/jump.json",
+    "data/animations/attack_air.json",
+    "data/animations/attack_combo_1.json",
+    "data/animations/attack_combo_2.json",
+    "data/animations/attack_combo_3.json",
+    "data/animations/attack_crouch.json",
+    "data/animations/dash.json",
+    "data/animations/crouch.json",
+    "data/animations/crouch.json",
+    "data/animations/hurt.json",
+    "data/animations/block.json",
+    "data/animations/attack_dash.json",
+    "data/animations/victory.json",
 };
 
 static const char *ANIM_META[ANIM_COUNT] = {
-	"data/animations/idle.anim",
-	"data/animations/walk.anim",
-	"data/animations/jump.anim",
-	"data/animations/attack_air.anim",
-	"data/animations/attack_combo_1.anim",
-	"data/animations/attack_combo_2.anim",
-	"data/animations/attack_combo_3.anim",
-	"data/animations/attack_crouch.anim",
-	"data/animations/dash.anim",
-	"data/animations/crouch.anim",
-	"data/animations/crouch.anim",  // crouch_loop
-	"data/animations/hurt.anim",
-	"data/animations/block.anim",
-	"data/animations/attack_dash.anim",
-	"data/animations/victory.anim",
+    "data/animations/idle.anim",
+    "data/animations/walk.anim",
+    "data/animations/jump.anim",
+    "data/animations/attack_air.anim",
+    "data/animations/attack_combo_1.anim",
+    "data/animations/attack_combo_2.anim",
+    "data/animations/attack_combo_3.anim",
+    "data/animations/attack_crouch.anim",
+    "data/animations/dash.anim",
+    "data/animations/crouch.anim",
+    "data/animations/crouch.anim",
+    "data/animations/hurt.anim",
+    "data/animations/block.anim",
+    "data/animations/attack_dash.anim",
+    "data/animations/victory.anim",
 };
 
 static const char *ANIM_NAME[ANIM_COUNT] = {
-	"idle", "walk", "jump",
-	"attack_air", "attack_combo_1", "attack_combo_2", "attack_combo_3",
-	"attack_crouch", "dash", "crouch", "crouch_loop",
-	"hurt", "block", "attack_dash",
-	"victory",
+    "idle", "walk", "jump",
+    "attack_air", "attack_combo_1", "attack_combo_2", "attack_combo_3",
+    "attack_crouch", "dash", "crouch", "crouch_loop",
+    "hurt", "block", "attack_dash",
+    "victory",
 };
 
 typedef struct {
+    int  id;
+    int  active;
 
-	int  id;
-	int  active;
+    float wx, wy;
+    float rotation;
+    float visualRotation;
 
+    char animation[24];
+    int  animIndex;
 
-	float wx, wy;
-	float rotation;
-	float visualRotation;
+    int   stocks;
+    bool  respawning;
+    bool  crouching;
+    int   hitId;
+    int   jumpId;
+    float voltage;
+    bool  voltageMaxed;
+    bool  blocking;
 
+    float attackFlashTimer;
+    float attackFlashFacing;
 
-	char animation[24];
-	int  animIndex;
+    float hitShakeAmt;
+    float hitShakeTimer;
 
+    Vector3 referenceCenter;
+    bool    hasReferenceCenter;
+    float   anchorYOffset;
+    bool    hasAnchorY;
 
-	int   stocks;
-	bool  respawning;
-	bool  crouching;
-	int   hitId;
-	int   jumpId;
-	float voltage;
-	bool  voltageMaxed;
-	bool  blocking;
+    AnimatedCharacter *character;
 
-
-	float attackFlashTimer;
-	float attackFlashFacing;
-
-
-	float hitShakeAmt;
-	float hitShakeTimer;
-
-
-	Vector3 referenceCenter;
-	bool    hasReferenceCenter;
-	float   anchorYOffset;
-	bool    hasAnchorY;
-
-
-	AnimatedCharacter *character;
-
-	char charId[32];
-	int  slotIndex;
+    char charId[32];
+    int  slotIndex;
 } Player;
 
 static Player players[MAX_PLAYERS];
-static int    my_id            = -1;
-static bool   is_spectator     = false;
-static bool   game_ready       = false;
-static bool   debug_mode       = false;
+static int    my_id        = -1;
+static bool   is_spectator = false;
+static bool   game_ready   = false;
+static bool   debug_mode   = false;
 
-static int    no_id_frames     = 0;
+static int    no_id_frames = 0;
 #define NO_ID_SPECTATOR_FRAMES 180
 
+static bool  match_over       = false;
+static bool  victory_pending  = false;
+static int   winner_id        = -1;
+static char  winner_message[80] = {0};
 
-static bool   match_over          = false;
-static bool   victory_pending     = false;   // victory received, playing anim, overlay not yet shown
-static int    winner_id           = -1;
-static char   winner_message[80]  = {0};
-
-
-static float  g_camShakeAmt   = 0.0f;
-static float  g_camShakeTimer = 0.0f;
-
+static float g_camShakeAmt   = 0.0f;
+static float g_camShakeTimer = 0.0f;
 
 #define MAX_PENDING 8
 static int pending_ids[MAX_PENDING];
@@ -251,7 +229,6 @@ static void InitPlayer(Player *p, int id);
 static void FreePlayer(Player *p);
 static void FetchState(void);
 static void DrawGame(void);
-
 
 int   ws_get_victory_state(void);
 int   ws_get_victory_winner(void);
@@ -264,80 +241,63 @@ float ws_get_hitstop_shake(void);
 int   ws_get_hitstop_target_id(void);
 
 EM_JS(int, js_canvas_width, (void), {
-		return (window._canvasWidth > 0) ? (window._canvasWidth | 0) : 800;
-		});
+    return (window._canvasWidth > 0) ? (window._canvasWidth | 0) : 800;
+});
 EM_JS(int, js_canvas_height, (void), {
-		return (window._canvasHeight > 0) ? (window._canvasHeight | 0) : 600;
-		});
+    return (window._canvasHeight > 0) ? (window._canvasHeight | 0) : 600;
+});
 EM_JS(int, ws_get_my_id, (void), {
-		return (window._myClientId > 0) ? (window._myClientId | 0) : -1;
-		});
-
-
+    return (window._myClientId > 0) ? (window._myClientId | 0) : -1;
+});
 EM_JS(int, ws_is_spectator, (void), {
-		return (window._isSpectator && window._myClientId > 0) ? 1 : 0;
-		});
-
+    return (window._isSpectator && window._myClientId > 0) ? 1 : 0;
+});
 EM_JS(float, ws_get_attack_range, (void), {
-		return (window._gameConfig && window._gameConfig.attackRange)
-		? window._gameConfig.attackRange : 0.525;
-		});
+    return (window._gameConfig && window._gameConfig.attackRange)
+        ? window._gameConfig.attackRange : 0.525;
+});
 EM_JS(float, ws_get_attack_range_y, (void), {
-		return (window._gameConfig && window._gameConfig.attackRangeY)
-		? window._gameConfig.attackRangeY : 0.5;
-		});
+    return (window._gameConfig && window._gameConfig.attackRangeY)
+        ? window._gameConfig.attackRangeY : 0.5;
+});
 EM_JS(int, ws_player_count, (void), {
-		if (!window._gameState || !window._gameState.players) return 0;
-		return Object.keys(window._gameState.players).length;
-		});
-
+    if (!window._gameState || !window._gameState.players) return 0;
+    return Object.keys(window._gameState.players).length;
+});
 EM_JS(int, ws_get_victory_state, (void), {
     if (!window._victoryActive || window._victoryConsumed) return 0;
     return window._victoryIsWinner ? 1 : 2;
 });
-
-
 EM_JS(int, ws_get_victory_winner, (void), {
     if (!window._victoryActive || window._victoryConsumed) return -1;
     return window._victoryWinner | 0;
 });
-
 EM_JS(void, ws_consume_victory, (void), {
     window._victoryConsumed = true;
     window._overlayReady    = false;
 });
-
 EM_JS(int, ws_overlay_ready, (void), {
     return (window._overlayReady && !window._victoryConsumed) ? 1 : 0;
 });
-
 EM_JS(int, ws_get_hitstop_frames_left, (void), {
     var hs = window._hitstopState;
-    if (!hs || hs.framesLeft <= 0) {
-        window._hitstopState = null;
-        return 0;
-    }
+    if (!hs || hs.framesLeft <= 0) { window._hitstopState = null; return 0; }
     var f = hs.framesLeft;
     hs.framesLeft--;
     return f;
 });
-
 EM_JS(float, ws_get_hitstop_shake, (void), {
     var hs = window._hitstopState;
     if (!hs || !hs.shakeAmt || hs.startFrames <= 0) return 0.0;
-
     var t = hs.framesLeft / hs.startFrames;
     if (t < 0.0) t = 0.0;
     return hs.shakeAmt * t;
 });
-
-
 EM_JS(int, ws_get_hitstop_target_id, (void), {
     var hs = window._hitstopState;
     if (!hs) return -1;
     return (hs.targetId | 0);
 });
-
 EM_JS(int, ws_get_countdown, (void), {
     if (!window._countdownStart || window._countdownDone) return 0;
     var elapsed = (performance.now() - window._countdownStart) / 1000.0;
@@ -346,42 +306,34 @@ EM_JS(int, ws_get_countdown, (void), {
     window._countdownDone = true;
     return 0;
 });
-
-
 EM_JS(float, ws_get_countdown_elapsed, (void), {
     if (!window._countdownStart || window._countdownDone) return 0.0;
     return (performance.now() - window._countdownStart) / 1000.0;
 });
-
 EM_JS(int, ws_get_player, (int idx, char *buf, int len), {
-		if (!window._gameState || !window._gameState.players) return 0;
-		const ids = Object.keys(window._gameState.players);
-		if (idx >= ids.length) return 0;
-		const p = window._gameState.players[ids[idx]];
-		if (!p) return 0;
-		const fields = [
-		p.id | 0,
-		(p.x        ?? 0).toFixed(3),
-		(p.y        ?? 0).toFixed(3),
-		(p.rotation ?? 0).toFixed(4),
-		p.animation || 'idle',
-		p.stocks    ?? 3,
-		p.respawning    ? 1 : 0,
-		p.hitId     ?? 0,
-		p.crouching     ? 1 : 0,
-		p.jumpId    ?? 0,
-		(p.voltage  ?? 0).toFixed(1),
-		p.blocking      ? 1 : 0,
-		p.voltageMaxed  ? 1 : 0,
-		].join('|');
-		stringToUTF8(fields, buf, len);
-		return 1;
+    if (!window._gameState || !window._gameState.players) return 0;
+    const ids = Object.keys(window._gameState.players);
+    if (idx >= ids.length) return 0;
+    const p = window._gameState.players[ids[idx]];
+    if (!p) return 0;
+    const fields = [
+        p.id | 0,
+        (p.x        ?? 0).toFixed(3),
+        (p.y        ?? 0).toFixed(3),
+        (p.rotation ?? 0).toFixed(4),
+        p.animation || 'idle',
+        p.stocks    ?? 3,
+        p.respawning    ? 1 : 0,
+        p.hitId     ?? 0,
+        p.crouching     ? 1 : 0,
+        p.jumpId    ?? 0,
+        (p.voltage  ?? 0).toFixed(1),
+        p.blocking      ? 1 : 0,
+        p.voltageMaxed  ? 1 : 0,
+    ].join('|');
+    stringToUTF8(fields, buf, len);
+    return 1;
 });
-
-// Read charId for a given clientId directly from the live game state.
-// This works even for remote players because the server now broadcasts charId
-// in every state snapshot, so we don't have to rely on _charSelectData
-// (which only contains the local player's own selection).
 EM_JS(int, ws_get_player_char_id_by_client, (int playerId, char *buf, int len), {
     buf = buf | 0;
     if (!window._gameState || !window._gameState.players) {
@@ -403,17 +355,13 @@ static const CharDef CHARS[4] = {
 };
 #define CHARS_COUNT 4
 
-
-// ---------------------------------------------------------------------------
-// Stage Select Screen (SSS) — solo el host (primer jugador) elige el stage.
-// ---------------------------------------------------------------------------
 typedef struct { int id; const char *name; const char *preview; const char *desc; } StageDef;
 
 static const StageDef STAGES[] = {
-{ 0, "Karnamru",  "data/stage_00.jpg", "City frozen in time"  },
-{ 1, "Surya",     "data/stage_01.jpg", "Eternal crystal lake" },
-{ 2, "Vayusvara", "data/stage_02.jpg", "Floating sky ruins"   },
-{ 3, "Daat",      "data/stage_03.jpg", "The hidden abyss"     },
+    { 0, "Karnamru",  "data/stage_00.jpg", "City frozen in time"  },
+    { 1, "Surya",     "data/stage_01.jpg", "Eternal crystal lake" },
+    { 2, "Vayusvara", "data/stage_02.jpg", "Floating sky ruins"   },
+    { 3, "Daat",      "data/stage_03.jpg", "The hidden abyss"     },
 };
 #define STAGES_COUNT 4
 
@@ -425,21 +373,14 @@ static struct {
     int       selected;
     Texture2D previews[STAGES_COUNT];
     bool      previewsLoaded;
-    bool      isHost;           // true solo para el primer jugador
+    bool      isHost;
 } g_sss = { SSS_SELECTING, 0, 0, {0}, false, false };
 
-// JS helper: devuelve 1 si este cliente es el host (el de menor ID).
-// Devuelve 0 si aún no tenemos _myClientId (todavía conectando).
 EM_JS(int, ws_is_host, (void), {
-    // Si aún no tenemos ID, no decidir nada — esperar.
     var myId = window._myClientId;
     if (myId === undefined || myId === null || myId <= 0) return 0;
-
-    // Si el servidor lo dice explícitamente, confiar en eso.
     if (window._isHost === true)  return 1;
     if (window._isHost === false) return 0;
-
-    // Fallback: host = jugador con el ID más bajo en el gameState.
     var gs = window._gameState;
     if (!gs || !gs.players) return 0;
     var ids = Object.keys(gs.players).map(function(k){ return parseInt(k); });
@@ -447,18 +388,13 @@ EM_JS(int, ws_is_host, (void), {
     var minId = ids.reduce(function(a,b){ return a < b ? a : b; });
     return (myId === minId) ? 1 : 0;
 });
-
-// JS helper: envía el stage elegido al servidor para que todos lo reciban.
 EM_JS(void, ws_send_stage_select, (int stageId), {
     if (typeof window.sendStageSelect === 'function') window.sendStageSelect(stageId | 0);
     try { sessionStorage.setItem('pendingStageId', stageId | 0); } catch(e) {}
 });
-
-// JS helper: devuelve el stageId confirmado por el servidor (-1 si aún no llega).
 EM_JS(int, ws_get_confirmed_stage, (void), {
     if (window._confirmedStageId !== undefined && window._confirmedStageId >= 0)
         return window._confirmedStageId | 0;
-    // Fallback: leer de sessionStorage (solo si la clave existe y es un número válido).
     try {
         var v = sessionStorage.getItem('confirmedStageId');
         if (v !== null && v.length > 0) {
@@ -474,7 +410,6 @@ static void SSS_LoadPreviews(void) {
     for (int i = 0; i < STAGES_COUNT; i++) {
         if (FileExists(STAGES[i].preview))
             g_sss.previews[i] = LoadTexture(STAGES[i].preview);
-        // Si no existe la imagen, quedará con id=0 y se dibujará un placeholder.
     }
     g_sss.previewsLoaded = true;
 }
@@ -485,18 +420,12 @@ static void SSS_UnloadPreviews(void) {
     g_sss.previewsLoaded = false;
 }
 
-// Devuelve true cuando el SSS ha terminado y se puede pasar al CSS.
 static bool SSS_UpdateAndDraw(void) {
-
-    // Intentar confirmar si somos host en cada frame hasta saberlo.
     if (!g_sss.isHost) g_sss.isHost = (bool)ws_is_host();
 
-    // Todos los clientes (host y no-host): si el servidor confirmó el stage, salir.
-    // Esto garantiza que todos usen el mismo stage/skybox.
     {
         int confirmed = ws_get_confirmed_stage();
         if (confirmed >= 0) {
-            // Buscar el indice en STAGES[] que corresponde al stageId confirmado.
             int idx = 0;
             for (int i = 0; i < STAGES_COUNT; i++) {
                 if (STAGES[i].id == confirmed) { idx = i; break; }
@@ -511,14 +440,12 @@ static bool SSS_UpdateAndDraw(void) {
     int sw = GetScreenWidth(), sh = GetScreenHeight();
     ClearBackground((Color){8, 8, 18, 255});
 
-    int titleSz  = (int)(sw * 0.038f); if (titleSz < 22) titleSz = 22; if (titleSz > 60) titleSz = 60;
-    int nameSz   = (int)(sw * 0.022f); if (nameSz  < 14) nameSz  = 14; if (nameSz  > 34) nameSz  = 34;
-    int descSz   = (int)(sw * 0.015f); if (descSz  < 11) descSz  = 11; if (descSz  > 22) descSz  = 22;
-    int hintSz   = (int)(sw * 0.015f); if (hintSz  < 11) hintSz  = 11; if (hintSz  > 22) hintSz  = 22;
+    int titleSz = (int)(sw * 0.038f); if (titleSz < 22) titleSz = 22; if (titleSz > 60) titleSz = 60;
+    int nameSz  = (int)(sw * 0.022f); if (nameSz  < 14) nameSz  = 14; if (nameSz  > 34) nameSz  = 34;
+    int descSz  = (int)(sw * 0.015f); if (descSz  < 11) descSz  = 11; if (descSz  > 22) descSz  = 22;
+    int hintSz  = (int)(sw * 0.015f); if (hintSz  < 11) hintSz  = 11; if (hintSz  > 22) hintSz  = 22;
+    int titleY  = (int)(sh * 0.04f);
 
-    int titleY = (int)(sh * 0.04f);
-
-    // Sin ID aún: todavía conectando.
     if (ws_get_my_id() <= 0) {
         const char *conn = "Conectando...";
         DrawText(conn, (sw - MeasureText(conn, titleSz)) / 2, sh / 2 - titleSz / 2,
@@ -526,7 +453,6 @@ static bool SSS_UpdateAndDraw(void) {
         return false;
     }
 
-    // No-host: esperar a que el host elija. Bloqueado hasta recibir stage_confirmed.
     if (!g_sss.isHost) {
         const char *wait = "Esperando seleccion de escenario...";
         DrawText(wait, (sw - MeasureText(wait, titleSz)) / 2, sh / 2 - titleSz / 2,
@@ -534,14 +460,12 @@ static bool SSS_UpdateAndDraw(void) {
         return false;
     }
 
-    // Host: mostrar la selección.
     SSS_LoadPreviews();
 
     const char *title = "Elige el escenario";
     DrawText(title, (sw - MeasureText(title, titleSz)) / 2, titleY, titleSz, WHITE);
 
-    // Layout de tarjetas (paisaje 16:9 aprox).
-    int cardW = (int)(sw * 0.88f / (STAGES_COUNT + (STAGES_COUNT - 1) * 0.06f));
+    int cardW    = (int)(sw * 0.88f / (STAGES_COUNT + (STAGES_COUNT - 1) * 0.06f));
     if (cardW < 100) cardW = 100;
     if (cardW > 320) cardW = 320;
     int previewH = (int)(cardW * 9.0f / 16.0f);
@@ -559,7 +483,6 @@ static bool SSS_UpdateAndDraw(void) {
 
     Vector2 mouse = GetMousePosition();
 
-    // Navegación teclado/ratón.
     if (g_sss.phase == SSS_SELECTING) {
         for (int i = 0; i < STAGES_COUNT; i++) {
             Rectangle card = { startX + i*(cardW+gap), startY, cardW, cardH };
@@ -571,9 +494,8 @@ static bool SSS_UpdateAndDraw(void) {
             g_sss.hovered = (g_sss.hovered + 1) % STAGES_COUNT;
     }
 
-    // Dibujar tarjetas.
     for (int i = 0; i < STAGES_COUNT; i++) {
-        Rectangle card = { startX + i*(cardW+gap), startY, cardW, cardH };
+        Rectangle card  = { startX + i*(cardW+gap), startY, cardW, cardH };
         bool hover  = (g_sss.phase == SSS_SELECTING && i == g_sss.hovered);
         bool chosen = (i == g_sss.selected && g_sss.phase == SSS_WAITING);
 
@@ -583,37 +505,29 @@ static bool SSS_UpdateAndDraw(void) {
         DrawRectangleRec(card, bg);
         DrawRectangleLinesEx(card, chosen ? 3.0f : 2.0f, border);
 
-        // Preview de imagen o placeholder de color.
         Rectangle previewRect = { card.x + 2, card.y + 2, cardW - 4, previewH - 2 };
         Texture2D tex = g_sss.previews[i];
         if (tex.id > 0) {
-            Rectangle src = { 0, 0, tex.width, tex.height };
-            DrawTexturePro(tex, src, previewRect, (Vector2){0,0}, 0.0f, WHITE);
+            DrawTexturePro(tex, (Rectangle){0,0,tex.width,tex.height}, previewRect, (Vector2){0,0}, 0.0f, WHITE);
         } else {
-            // Placeholder de color único por stage.
             Color placeholders[4] = {
-                {40, 60, 110, 255}, {20, 60, 50, 255},
-                {90, 30, 20, 255},  {30, 50, 30, 255}
+                {40,60,110,255}, {20,60,50,255}, {90,30,20,255}, {30,50,30,255}
             };
             DrawRectangleRec(previewRect, placeholders[i % 4]);
             DrawText("?", previewRect.x + (previewRect.width  - MeasureText("?", 32)) / 2,
-                          previewRect.y + (previewRect.height - 32) / 2, 32,
-                          (Color){200, 200, 200, 120});
+                          previewRect.y + (previewRect.height - 32) / 2, 32, (Color){200,200,200,120});
         }
 
-        // Nombre del stage.
-        const char *nm = STAGES[i].name;
-        int nmY = card.y + previewH + (labelH / 2 - nameSz) / 2;
+        const char *nm  = STAGES[i].name;
+        int nmY  = card.y + previewH + (labelH / 2 - nameSz) / 2;
         DrawText(nm, card.x + (cardW - MeasureText(nm, nameSz)) / 2, nmY, nameSz, border);
 
-        // Descripción corta.
         const char *dsc = STAGES[i].desc;
         int dscY = nmY + nameSz + 2;
         if (dscY + descSz < card.y + cardH - 2)
             DrawText(dsc, card.x + (cardW - MeasureText(dsc, descSz)) / 2, dscY, descSz,
-                     (Color){150, 150, 180, 200});
+                     (Color){150,150,180,200});
 
-        // Parpadeo al confirmar.
         if (chosen) {
             static float blinkT = 0.0f;
             blinkT += GetFrameTime();
@@ -638,13 +552,11 @@ static bool SSS_UpdateAndDraw(void) {
     } else if (g_sss.phase == SSS_WAITING) {
         const char *wait = "Confirmando escenario...";
         DrawText(wait, (sw - MeasureText(wait, hintSz)) / 2,
-                 sh - (int)(sh * 0.05f), hintSz, (Color){200, 200, 80, 255});
+                 sh - (int)(sh * 0.05f), hintSz, (Color){200,200,80,255});
     }
 
     return false;
 }
-
-// ---------------------------------------------------------------------------
 
 typedef enum { CSS_SELECTING, CSS_WAITING_ACK, CSS_WAITING_GAME, CSS_DONE } CssPhase;
 
@@ -658,12 +570,9 @@ static struct {
     char      savedCharId[32];
 } g_css = { CSS_SELECTING, 0, -1, {0}, false, 0.0f, "" };
 
-
 EM_JS(int, ws_char_select_ready, (void), {
     return (window._charSelectConfirmed && window._charSelectData && window._charSelectData.charId) ? 1 : 0;
 });
-
-
 EM_JS(int, ws_get_slot_char_id, (int slotIdx, char *buf, int len), {
     buf = buf | 0;
     if (!window._charSelectData || !window._charSelectData.players) { stringToUTF8("", buf, len); return 0; }
@@ -672,20 +581,14 @@ EM_JS(int, ws_get_slot_char_id, (int slotIdx, char *buf, int len), {
     stringToUTF8(p.charId, buf, len);
     return 1;
 });
-
-
 EM_JS(void, ws_send_char_select, (const char *charId, int charIdx, int stageId), {
     var id = UTF8ToString(charId);
     try { sessionStorage.setItem('pendingCharSelect', JSON.stringify({charId:id,charIdx:charIdx,stageId:stageId})); } catch(e){}
     if (typeof window.sendCharSelect === 'function') window.sendCharSelect(id, charIdx, stageId);
 });
-
-
 EM_JS(int, ws_match_started, (void), {
     return (window._countdownStart != null || window._countdownDone === true) ? 1 : 0;
 });
-
-
 EM_JS(int, ws_get_saved_char_id, (char *buf, int len), {
     buf = buf | 0;
     try {
@@ -693,221 +596,204 @@ EM_JS(int, ws_get_saved_char_id, (char *buf, int len), {
         if (!raw) { stringToUTF8("", buf, len); return 0; }
         var d = JSON.parse(raw);
         if (!d || !d.charId) { stringToUTF8("", buf, len); return 0; }
-
         window._charSelectData = d;
         stringToUTF8(d.charId, buf, len);
         return 1;
     } catch(e) { stringToUTF8("", buf, len); return 0; }
 });
-
 EM_JS(void, ws_clear_char_select, (void), {
     window._charSelectData = null;
     try { sessionStorage.removeItem('pendingCharSelect'); sessionStorage.removeItem('charSelectData'); } catch(e){}
 });
 
-
 static void strcpy_safe(char *dst, const char *src, size_t n) {
-	strncpy(dst, src, n - 1);
-	dst[n - 1] = '\0';
+    strncpy(dst, src, n - 1);
+    dst[n - 1] = '\0';
 }
-
 
 static int AnimIndex(const char *name) {
-	for (int i = 0; i < ANIM_COUNT; i++)
-		if (strcmp(name, ANIM_NAME[i]) == 0) return i;
-	return 0;
+    for (int i = 0; i < ANIM_COUNT; i++)
+        if (strcmp(name, ANIM_NAME[i]) == 0) return i;
+    return 0;
 }
-
 
 static Vector3 CalcAnimCenter(const AnimationFrame *frame) {
-	if (!frame || !frame->valid || frame->personCount == 0)
-		return (Vector3){ 0, 0, 0 };
-
-	Vector3 sum  = { 0, 0, 0 };
-	int     n    = 0;
-	for (int pi = 0; pi < frame->personCount; pi++) {
-		const Person *person = &frame->persons[pi];
-		if (!person->active) continue;
-		for (int b = 0; b < person->boneCount; b++) {
-			const Bone *bone = &person->bones[b];
-			if (!bone->position.valid) continue;
-			sum = Vector3Add(sum, bone->position.position);
-			n++;
-		}
-	}
-	return n > 0 ? Vector3Scale(sum, 1.0f / (float)n) : (Vector3){ 0, 0, 0 };
+    if (!frame || !frame->valid || frame->personCount == 0)
+        return (Vector3){ 0, 0, 0 };
+    Vector3 sum = { 0, 0, 0 };
+    int     n   = 0;
+    for (int pi = 0; pi < frame->personCount; pi++) {
+        const Person *person = &frame->persons[pi];
+        if (!person->active) continue;
+        for (int b = 0; b < person->boneCount; b++) {
+            const Bone *bone = &person->bones[b];
+            if (!bone->position.valid) continue;
+            sum = Vector3Add(sum, bone->position.position);
+            n++;
+        }
+    }
+    return n > 0 ? Vector3Scale(sum, 1.0f / (float)n) : (Vector3){ 0, 0, 0 };
 }
-
 
 static int FindBoneByName(const Person *person, const char *name) {
-	if (!person || !name) return -1;
-	for (int b = 0; b < person->boneCount; b++)
-		if (strcmp(person->bones[b].name, name) == 0) return b;
-	return -1;
+    if (!person || !name) return -1;
+    for (int b = 0; b < person->boneCount; b++)
+        if (strcmp(person->bones[b].name, name) == 0) return b;
+    return -1;
 }
-
 
 static bool GetBonePosition(const AnimationFrame *frame, const char *name, Vector3 *outPos) {
-	if (!frame || !outPos || !frame->valid) return false;
-	for (int pi = 0; pi < frame->personCount; pi++) {
-		const Person *person = &frame->persons[pi];
-		if (!person->active) continue;
-		int idx = FindBoneByName(person, name);
-		if (idx >= 0 && person->bones[idx].position.valid) {
-			*outPos = person->bones[idx].position.position;
-			return true;
-		}
-	}
-	return false;
+    if (!frame || !outPos || !frame->valid) return false;
+    for (int pi = 0; pi < frame->personCount; pi++) {
+        const Person *person = &frame->persons[pi];
+        if (!person->active) continue;
+        int idx = FindBoneByName(person, name);
+        if (idx >= 0 && person->bones[idx].position.valid) {
+            *outPos = person->bones[idx].position.position;
+            return true;
+        }
+    }
+    return false;
 }
-
 
 static bool CalcAnkleMidPoint(const AnimationFrame *frame, Vector3 *outPos) {
-	if (!frame || !outPos || !frame->valid) return false;
-	Vector3 left = {0}, right = {0};
-	bool hasL = GetBonePosition(frame, "LAnkle", &left);
-	bool hasR = GetBonePosition(frame, "RAnkle", &right);
-	if (!hasL || !hasR) return false;
-	*outPos = Vector3Scale(Vector3Add(left, right), 0.5f);
-	return true;
+    if (!frame || !outPos || !frame->valid) return false;
+    Vector3 left = {0}, right = {0};
+    bool hasL = GetBonePosition(frame, "LAnkle", &left);
+    bool hasR = GetBonePosition(frame, "RAnkle", &right);
+    if (!hasL || !hasR) return false;
+    *outPos = Vector3Scale(Vector3Add(left, right), 0.5f);
+    return true;
 }
 
-
 static void ApplyOffsetToAnim(BonesAnimation *anim, Vector3 offset) {
-	if (!anim || !anim->isLoaded) return;
-	for (int f = 0; f < anim->frameCount; f++) {
-		AnimationFrame *frame = &anim->frames[f];
-		if (!frame->valid) continue;
-		for (int pi = 0; pi < frame->personCount; pi++) {
-			Person *person = &frame->persons[pi];
-			if (!person->active) continue;
-			for (int b = 0; b < person->boneCount; b++) {
-				Bone *bone = &person->bones[b];
-				if (bone->position.valid)
-					bone->position.position = Vector3Add(bone->position.position, offset);
-			}
-		}
-	}
+    if (!anim || !anim->isLoaded) return;
+    for (int f = 0; f < anim->frameCount; f++) {
+        AnimationFrame *frame = &anim->frames[f];
+        if (!frame->valid) continue;
+        for (int pi = 0; pi < frame->personCount; pi++) {
+            Person *person = &frame->persons[pi];
+            if (!person->active) continue;
+            for (int b = 0; b < person->boneCount; b++) {
+                Bone *bone = &person->bones[b];
+                if (bone->position.valid)
+                    bone->position.position = Vector3Add(bone->position.position, offset);
+            }
+        }
+    }
 }
 
 static void StabilizeAnimX(BonesAnimation *anim) {
-	if (!anim || !anim->isLoaded || anim->frameCount < 2) return;
+    if (!anim || !anim->isLoaded || anim->frameCount < 2) return;
 
+    float baseX = 0.0f;
+    int   n0    = 0;
+    AnimationFrame *f0 = &anim->frames[0];
+    for (int pi = 0; pi < f0->personCount; pi++) {
+        const Person *person = &f0->persons[pi];
+        if (!person->active) continue;
+        for (int b = 0; b < person->boneCount; b++)
+            if (person->bones[b].position.valid) {
+                baseX += person->bones[b].position.position.x;
+                n0++;
+            }
+    }
+    if (n0 == 0) return;
+    baseX /= (float)n0;
 
-	float baseX = 0.0f;
-	int   n0    = 0;
-	AnimationFrame *f0 = &anim->frames[0];
-	for (int pi = 0; pi < f0->personCount; pi++) {
-		const Person *person = &f0->persons[pi];
-		if (!person->active) continue;
-		for (int b = 0; b < person->boneCount; b++)
-			if (person->bones[b].position.valid) {
-				baseX += person->bones[b].position.position.x;
-				n0++;
-			}
-	}
-	if (n0 == 0) return;
-	baseX /= (float)n0;
-
-
-	for (int f = 1; f < anim->frameCount; f++) {
-		AnimationFrame *frame = &anim->frames[f];
-		if (!frame->valid) continue;
-		float cx = 0.0f; int n = 0;
-		for (int pi = 0; pi < frame->personCount; pi++) {
-			const Person *person = &frame->persons[pi];
-			if (!person->active) continue;
-			for (int b = 0; b < person->boneCount; b++)
-				if (person->bones[b].position.valid) { cx += person->bones[b].position.position.x; n++; }
-		}
-		if (n == 0) continue;
-		float dx = baseX - (cx / (float)n);
-		if (fabsf(dx) < 0.0001f) continue;
-		for (int pi = 0; pi < frame->personCount; pi++) {
-			Person *person = &frame->persons[pi];
-			if (!person->active) continue;
-			for (int b = 0; b < person->boneCount; b++)
-				if (person->bones[b].position.valid)
-					person->bones[b].position.position.x += dx;
-		}
-	}
+    for (int f = 1; f < anim->frameCount; f++) {
+        AnimationFrame *frame = &anim->frames[f];
+        if (!frame->valid) continue;
+        float cx = 0.0f; int n = 0;
+        for (int pi = 0; pi < frame->personCount; pi++) {
+            const Person *person = &frame->persons[pi];
+            if (!person->active) continue;
+            for (int b = 0; b < person->boneCount; b++)
+                if (person->bones[b].position.valid) { cx += person->bones[b].position.position.x; n++; }
+        }
+        if (n == 0) continue;
+        float dx = baseX - (cx / (float)n);
+        if (fabsf(dx) < 0.0001f) continue;
+        for (int pi = 0; pi < frame->personCount; pi++) {
+            Person *person = &frame->persons[pi];
+            if (!person->active) continue;
+            for (int b = 0; b < person->boneCount; b++)
+                if (person->bones[b].position.valid)
+                    person->bones[b].position.position.x += dx;
+        }
+    }
 }
 
-
 static float TransitionDuration(const char *anim) {
-	if (!anim)                               return 0.10f;
-	if (strncmp(anim, "idle",        4) == 0) return 0.10f;
-	if (strncmp(anim, "walk",        4) == 0) return 0.10f;
-	if (strncmp(anim, "jump",        4) == 0) return 0.08f;
-	if (strncmp(anim, "crouch",      6) == 0) return 0.10f;
-	if (strncmp(anim, "dash",        4) == 0) return 0.06f;
-	if (strncmp(anim, "hurt",        4) == 0) return 0.10f;
-	if (strncmp(anim, "block",       5) == 0) return 0.08f;
-	if (strncmp(anim, "attack_dash", 11) == 0) return 0.06f;
-	return 0.12f;
+    if (!anim)                                return 0.10f;
+    if (strncmp(anim, "idle",        4) == 0) return 0.10f;
+    if (strncmp(anim, "walk",        4) == 0) return 0.10f;
+    if (strncmp(anim, "jump",        4) == 0) return 0.08f;
+    if (strncmp(anim, "crouch",      6) == 0) return 0.10f;
+    if (strncmp(anim, "dash",        4) == 0) return 0.06f;
+    if (strncmp(anim, "hurt",        4) == 0) return 0.10f;
+    if (strncmp(anim, "block",       5) == 0) return 0.08f;
+    if (strncmp(anim, "attack_dash", 11) == 0) return 0.06f;
+    return 0.12f;
 }
 
 static bool LoadAnimWithOffset(Player *p, const char *jsonPath, const char *metaPath) {
-	if (!p || !p->character) return false;
-	if (!LoadAnimation(p->character, jsonPath, metaPath)) return false;
+    if (!p || !p->character) return false;
+    if (!LoadAnimation(p->character, jsonPath, metaPath)) return false;
 
-	SetAnimationTransitionDuration(p->character, TransitionDuration(p->animation));
+    SetAnimationTransitionDuration(p->character, TransitionDuration(p->animation));
 
-	BonesAnimation *anim = &p->character->animation;
-	if (!anim->isLoaded || anim->frameCount == 0) return true;
+    BonesAnimation *anim = &p->character->animation;
+    if (!anim->isLoaded || anim->frameCount == 0) return true;
 
-	StabilizeAnimX(anim);
+    StabilizeAnimX(anim);
 
-	Vector3 thisCenter = {0};
-	bool    hasCtr     = CalcAnkleMidPoint(&anim->frames[0], &thisCenter);
-	if (!hasCtr) thisCenter = CalcAnimCenter(&anim->frames[0]);
+    Vector3 thisCenter = {0};
+    bool hasCtr = CalcAnkleMidPoint(&anim->frames[0], &thisCenter);
+    if (!hasCtr) thisCenter = CalcAnimCenter(&anim->frames[0]);
 
-	if (!p->hasReferenceCenter) {
+    if (!p->hasReferenceCenter) {
+        Vector3 xzOffset = { -thisCenter.x, 0.0f, -thisCenter.z };
+        if (fabsf(xzOffset.x) > 0.001f || fabsf(xzOffset.z) > 0.001f)
+            ApplyOffsetToAnim(anim, xzOffset);
 
-		Vector3 xzOffset = { -thisCenter.x, 0.0f, -thisCenter.z };
-		if (fabsf(xzOffset.x) > 0.001f || fabsf(xzOffset.z) > 0.001f)
-			ApplyOffsetToAnim(anim, xzOffset);
+        hasCtr = CalcAnkleMidPoint(&anim->frames[0], &thisCenter);
+        if (!hasCtr) thisCenter = CalcAnimCenter(&anim->frames[0]);
 
+        p->referenceCenter    = thisCenter;
+        p->hasReferenceCenter = true;
+        p->anchorYOffset      = thisCenter.y;
+        p->hasAnchorY         = true;
+    } else {
+        Vector3 delta = Vector3Subtract(p->referenceCenter, thisCenter);
+        if (Vector3Length(delta) > 0.001f)
+            ApplyOffsetToAnim(anim, delta);
+    }
 
-		hasCtr = CalcAnkleMidPoint(&anim->frames[0], &thisCenter);
-		if (!hasCtr) thisCenter = CalcAnimCenter(&anim->frames[0]);
-
-		p->referenceCenter    = thisCenter;
-		p->hasReferenceCenter = true;
-		p->anchorYOffset      = thisCenter.y;
-		p->hasAnchorY         = true;
-	} else {
-
-		Vector3 delta = Vector3Subtract(p->referenceCenter, thisCenter);
-		if (Vector3Length(delta) > 0.001f)
-			ApplyOffsetToAnim(anim, delta);
-	}
-
-	p->character->forceUpdate = true;
-	return true;
+    p->character->forceUpdate = true;
+    return true;
 }
 
 static void QueuePlayerInit(int id) {
-	for (int i = 0; i < pending_count; i++)
-		if (pending_ids[i] == id) return;
-	if (pending_count < MAX_PENDING)
-		pending_ids[pending_count++] = id;
+    for (int i = 0; i < pending_count; i++)
+        if (pending_ids[i] == id) return;
+    if (pending_count < MAX_PENDING)
+        pending_ids[pending_count++] = id;
 }
 
-
 static void FlushOnePlayerInit(void) {
-	if (pending_count == 0) return;
+    if (pending_count == 0) return;
 
-	int id = pending_ids[0];
-	memmove(pending_ids, pending_ids + 1, (size_t)(pending_count - 1) * sizeof(int));
-	pending_count--;
+    int id = pending_ids[0];
+    memmove(pending_ids, pending_ids + 1, (size_t)(pending_count - 1) * sizeof(int));
+    pending_count--;
 
-	for (int s = 0; s < MAX_PLAYERS; s++) {
-		if (players[s].id == id && players[s].active == 2) {
-			InitPlayer(&players[s], id);
-			break;
-		}
-	}
+    for (int s = 0; s < MAX_PLAYERS; s++) {
+        if (players[s].id == id && players[s].active == 2) {
+            InitPlayer(&players[s], id);
+            break;
+        }
+    }
 }
 
 static const CharDef *FindCharDef(const char *id) {
@@ -918,8 +804,8 @@ static const CharDef *FindCharDef(const char *id) {
 }
 
 static void LoadPlayerAnim(Player *p, int animIdx) {
-    const CharDef *cd = FindCharDef(p->charId);
-    const char *base  = (cd && cd->animBase[0]) ? cd->animBase : NULL;
+    const CharDef *cd  = FindCharDef(p->charId);
+    const char *base   = (cd && cd->animBase[0]) ? cd->animBase : NULL;
     const char *origJson = ANIM_JSON[animIdx];
     const char *origMeta = ANIM_META[animIdx];
     if (base) {
@@ -934,691 +820,622 @@ static void LoadPlayerAnim(Player *p, int animIdx) {
 }
 
 static void InitPlayer(Player *p, int id) {
+    const Player prev = *p;
 
-	const Player prev = *p;
+    memset(p, 0, sizeof(Player));
+    p->id                 = id;
+    p->active             = 1;
+    p->animIndex          = prev.animIndex;
+    p->wx                 = prev.wx;
+    p->wy                 = prev.wy;
+    p->rotation           = prev.rotation;
+    p->visualRotation     = prev.visualRotation;
+    p->stocks             = prev.stocks > 0 ? prev.stocks : 3;
+    p->hitId              = prev.hitId;
+    p->anchorYOffset      = prev.anchorYOffset;
+    p->hasAnchorY         = prev.hasAnchorY;
+    p->referenceCenter    = prev.referenceCenter;
+    p->hasReferenceCenter = prev.hasReferenceCenter;
+    strcpy_safe(p->animation, prev.animation, sizeof(p->animation));
+    strncpy(p->charId, prev.charId, sizeof(p->charId)-1);
+    p->slotIndex = prev.slotIndex;
 
-	memset(p, 0, sizeof(Player));
-	p->id                 = id;
-	p->active             = 1;
-	p->animIndex          = prev.animIndex;
-	p->wx                 = prev.wx;
-	p->wy                 = prev.wy;
-	p->rotation           = prev.rotation;
-	p->visualRotation     = prev.visualRotation;
-	p->stocks             = prev.stocks > 0 ? prev.stocks : 3;
-	p->hitId              = prev.hitId;
-	p->anchorYOffset      = prev.anchorYOffset;
-	p->hasAnchorY         = prev.hasAnchorY;
-	p->referenceCenter    = prev.referenceCenter;
-	p->hasReferenceCenter = prev.hasReferenceCenter;
-	strcpy_safe(p->animation, prev.animation, sizeof(p->animation));
-	strncpy(p->charId, prev.charId, sizeof(p->charId)-1);
-	p->slotIndex = prev.slotIndex;
+    if (!p->charId[0]) {
+        char cid[32] = {0};
+        if (ws_get_player_char_id_by_client(p->id, cid, sizeof(cid)) && cid[0])
+            strncpy(p->charId, cid, sizeof(p->charId)-1);
+        else if (ws_get_slot_char_id(p->slotIndex, cid, sizeof(cid)) && cid[0])
+            strncpy(p->charId, cid, sizeof(p->charId)-1);
+    }
 
+    const CharDef *cd   = FindCharDef(p->charId);
+    const char *texCfg  = cd ? cd->texCfg  : "data/textures/default/bone_textures.txt";
+    const char *texSets = cd ? cd->texSets : "data/textures/default/texture_sets.txt";
 
-	if (!p->charId[0]) {
-		char cid[32] = {0};
-		// Try state snapshot first (has charId for all players, not just local)
-		if (ws_get_player_char_id_by_client(p->id, cid, sizeof(cid)) && cid[0])
-			strncpy(p->charId, cid, sizeof(p->charId)-1);
-		else if (ws_get_slot_char_id(p->slotIndex, cid, sizeof(cid)) && cid[0])
-			strncpy(p->charId, cid, sizeof(p->charId)-1);
-	}
+    p->character = CreateAnimatedCharacter(texCfg, texSets);
 
-	const CharDef *cd   = FindCharDef(p->charId);
-	const char *texCfg  = cd ? cd->texCfg  : "data/textures/default/bone_textures.txt";
-	const char *texSets = cd ? cd->texSets : "data/textures/default/texture_sets.txt";
-
-	p->character = CreateAnimatedCharacter(texCfg, texSets);
-
-	if (p->character) {
-		LockAnimationRootXZ(p->character, true);
-		SetCharacterBillboards(p->character, true, true);
-		SetCharacterAutoPlay(p->character, true);
-		LoadPlayerAnim(p, p->animIndex);
-	}
+    if (p->character) {
+        LockAnimationRootXZ(p->character, true);
+        SetCharacterBillboards(p->character, true, true);
+        SetCharacterAutoPlay(p->character, true);
+        LoadPlayerAnim(p, p->animIndex);
+    }
 }
 
 static void FreePlayer(Player *p) {
-	if (p->character) {
-		DestroyAnimatedCharacter(p->character);
-		p->character = NULL;
-	}
-	p->active = 0;
-	p->id     = -1;
+    if (p->character) {
+        DestroyAnimatedCharacter(p->character);
+        p->character = NULL;
+    }
+    p->active = 0;
+    p->id     = -1;
 }
 
 static int ParsePlayer(const char *buf,
-		int *id, float *x, float *y, float *rot,
-		char *anim, int animLen,
-		int *stocks, int *respawning, int *hitId,
-		int *crouching, int *jumpId,
-		float *voltage, int *blocking, int *voltageMaxed)
+        int *id, float *x, float *y, float *rot,
+        char *anim, int animLen,
+        int *stocks, int *respawning, int *hitId,
+        int *crouching, int *jumpId,
+        float *voltage, int *blocking, int *voltageMaxed)
 {
-	char  tmp[256];
-	char *tok;
-	strncpy(tmp, buf, 255); tmp[255] = '\0';
+    char  tmp[256];
+    char *tok;
+    strncpy(tmp, buf, 255); tmp[255] = '\0';
 
-	tok = strtok(tmp,  "|"); if (!tok) return 0; *id         = atoi(tok);
-	tok = strtok(NULL, "|"); if (!tok) return 0; *x          = (float)atof(tok);
-	tok = strtok(NULL, "|"); if (!tok) return 0; *y          = (float)atof(tok);
-	tok = strtok(NULL, "|"); if (!tok) return 0; *rot        = (float)atof(tok);
+    tok = strtok(tmp,  "|"); if (!tok) return 0; *id    = atoi(tok);
+    tok = strtok(NULL, "|"); if (!tok) return 0; *x     = (float)atof(tok);
+    tok = strtok(NULL, "|"); if (!tok) return 0; *y     = (float)atof(tok);
+    tok = strtok(NULL, "|"); if (!tok) return 0; *rot   = (float)atof(tok);
 
-	tok = strtok(NULL, "|");
-	strncpy(anim, tok ? tok : "idle", (size_t)(animLen - 1));
-	anim[animLen - 1] = '\0';
+    tok = strtok(NULL, "|");
+    strncpy(anim, tok ? tok : "idle", (size_t)(animLen - 1));
+    anim[animLen - 1] = '\0';
 
-	tok = strtok(NULL, "|"); *stocks       = tok ? atoi(tok) : 3;
-	tok = strtok(NULL, "|"); *respawning   = tok ? atoi(tok) : 0;
-	tok = strtok(NULL, "|"); *hitId        = tok ? atoi(tok) : 0;
-	tok = strtok(NULL, "|"); *crouching    = tok ? atoi(tok) : 0;
-	tok = strtok(NULL, "|"); *jumpId       = tok ? atoi(tok) : 0;
-	tok = strtok(NULL, "|"); *voltage      = tok ? (float)atof(tok) : 0.0f;
-	tok = strtok(NULL, "|"); *blocking     = tok ? atoi(tok) : 0;
-	tok = strtok(NULL, "|"); *voltageMaxed = tok ? atoi(tok) : 0;
+    tok = strtok(NULL, "|"); *stocks       = tok ? atoi(tok) : 3;
+    tok = strtok(NULL, "|"); *respawning   = tok ? atoi(tok) : 0;
+    tok = strtok(NULL, "|"); *hitId        = tok ? atoi(tok) : 0;
+    tok = strtok(NULL, "|"); *crouching    = tok ? atoi(tok) : 0;
+    tok = strtok(NULL, "|"); *jumpId       = tok ? atoi(tok) : 0;
+    tok = strtok(NULL, "|"); *voltage      = tok ? (float)atof(tok) : 0.0f;
+    tok = strtok(NULL, "|"); *blocking     = tok ? atoi(tok) : 0;
+    tok = strtok(NULL, "|"); *voltageMaxed = tok ? atoi(tok) : 0;
 
-	return 1;
+    return 1;
 }
 
 static void FetchState(void) {
+    int  count = ws_player_count();
+    char buf[256];
+    int  seen[MAX_PLAYERS] = {0};
 
+    for (int i = 0; i < count && i < MAX_PLAYERS; i++) {
+        if (!ws_get_player(i, buf, sizeof(buf))) continue;
 
-	int  count = ws_player_count();
-	char buf[256];
-	int  seen[MAX_PLAYERS] = {0};
+        int   pid, pstocks, prespawning, phitId, pcrouching, pjumpId, pblocking, pvoltageMaxed;
+        float px, py, prot, pvoltage;
+        char  panim[24];
 
-	for (int i = 0; i < count && i < MAX_PLAYERS; i++) {
-		if (!ws_get_player(i, buf, sizeof(buf))) continue;
+        if (!ParsePlayer(buf, &pid, &px, &py, &prot, panim, sizeof(panim),
+                    &pstocks, &prespawning, &phitId, &pcrouching, &pjumpId,
+                    &pvoltage, &pblocking, &pvoltageMaxed)) continue;
 
-		int   pid, pstocks, prespawning, phitId, pcrouching, pjumpId, pblocking, pvoltageMaxed;
-		float px, py, prot, pvoltage;
-		char  panim[24];
+        if (is_spectator && my_id > 0 && pid == my_id) continue;
 
-		if (!ParsePlayer(buf, &pid, &px, &py, &prot, panim, sizeof(panim),
-					&pstocks, &prespawning, &phitId, &pcrouching, &pjumpId,
-					&pvoltage, &pblocking, &pvoltageMaxed)) continue;
+        int slot = -1;
+        for (int s = 0; s < MAX_PLAYERS; s++)
+            if (players[s].active && players[s].id == pid) { slot = s; break; }
+        if (slot < 0)
+            for (int s = 0; s < MAX_PLAYERS; s++)
+                if (!players[s].active) { slot = s; break; }
+        if (slot < 0) continue;
 
+        if (!players[slot].active) {
+            players[slot].id        = pid;
+            players[slot].active    = 2;
+            players[slot].slotIndex = slot;
+            {
+                char _cid[32] = {0};
+                if (ws_get_player_char_id_by_client(pid, _cid, sizeof(_cid)) && _cid[0]) {
+                    strncpy(players[slot].charId, _cid, sizeof(players[slot].charId)-1);
+                } else if (ws_get_slot_char_id(slot, _cid, sizeof(_cid)) && _cid[0]) {
+                    strncpy(players[slot].charId, _cid, sizeof(players[slot].charId)-1);
+                }
+            }
+            if (!players[slot].charId[0])
+                strncpy(players[slot].charId, "default", sizeof(players[slot].charId)-1);
 
-		if (is_spectator && my_id > 0 && pid == my_id) continue;
+            players[slot].animIndex = AnimIndex(panim);
+            strcpy_safe(players[slot].animation, panim, sizeof(players[slot].animation));
+            QueuePlayerInit(pid);
+        }
 
+        seen[slot] = 1;
 
-		int slot = -1;
-		for (int s = 0; s < MAX_PLAYERS; s++)
-			if (players[s].active && players[s].id == pid) { slot = s; break; }
-		if (slot < 0)
-			for (int s = 0; s < MAX_PLAYERS; s++)
-				if (!players[s].active) { slot = s; break; }
-		if (slot < 0) continue;
+        {
+            char _newCid[32] = {0};
+            ws_get_player_char_id_by_client(pid, _newCid, sizeof(_newCid));
+            if (_newCid[0] && strncmp(_newCid, players[slot].charId, sizeof(players[slot].charId)) != 0) {
+                strncpy(players[slot].charId, _newCid, sizeof(players[slot].charId)-1);
+                if (players[slot].character) {
+                    DestroyAnimatedCharacter(players[slot].character);
+                    players[slot].character = NULL;
+                }
+                players[slot].active             = 2;
+                players[slot].hasReferenceCenter = false;
+                players[slot].hasAnchorY         = false;
+                players[slot].animIndex          = AnimIndex(panim);
+                strcpy_safe(players[slot].animation, panim, sizeof(players[slot].animation));
+                QueuePlayerInit(pid);
+            }
+        }
 
+        players[slot].wx           = px;
+        players[slot].wy           = py;
+        players[slot].rotation     = prot;
+        if (players[slot].active == 2) players[slot].visualRotation = prot;
+        players[slot].stocks       = pstocks;
+        players[slot].respawning   = (bool)prespawning;
+        players[slot].crouching    = (bool)pcrouching;
+        players[slot].voltage      = pvoltage;
+        players[slot].voltageMaxed = (bool)pvoltageMaxed;
+        players[slot].blocking     = (bool)pblocking;
 
-		if (!players[slot].active) {
-			players[slot].id        = pid;
-			players[slot].active    = 2;
-			players[slot].slotIndex = slot;
-			{
-				char _cid[32] = {0};
-				if (ws_get_player_char_id_by_client(pid, _cid, sizeof(_cid)) && _cid[0]) {
-					strncpy(players[slot].charId, _cid, sizeof(players[slot].charId)-1);
-				} else if (ws_get_slot_char_id(slot, _cid, sizeof(_cid)) && _cid[0]) {
-					strncpy(players[slot].charId, _cid, sizeof(players[slot].charId)-1);
-				}
-			}
+        if (phitId != players[slot].hitId) {
+            players[slot].hitId = phitId;
+            if (players[slot].character) {
+                int ai = AnimIndex("hurt");
+                LoadPlayerAnim(&players[slot], ai);
+                SetCharacterAutoPlay(players[slot].character, true);
+                players[slot].animIndex = ai;
+                strcpy_safe(players[slot].animation, "hurt", sizeof(players[slot].animation));
+            }
+        } else if (pjumpId != players[slot].jumpId) {
+            players[slot].jumpId = pjumpId;
+            if (players[slot].character) {
+                int ai = AnimIndex("jump");
+                LoadPlayerAnim(&players[slot], ai);
+                SetCharacterAutoPlay(players[slot].character, true);
+                players[slot].animIndex = ai;
+                strcpy_safe(players[slot].animation, "jump", sizeof(players[slot].animation));
+            }
+        } else if (strncmp(players[slot].animation, panim, sizeof(players[slot].animation)) != 0) {
+            int ai = AnimIndex(panim);
+            if (ai != players[slot].animIndex && players[slot].character) {
+                LoadPlayerAnim(&players[slot], ai);
+                SetCharacterAutoPlay(players[slot].character, true);
+                players[slot].animIndex = ai;
+            }
+            if (strncmp(panim, "attack", 6) == 0 &&
+                    strncmp(players[slot].animation, "attack", 6) != 0) {
+                players[slot].attackFlashTimer  = 0.3f;
+                players[slot].attackFlashFacing = (prot > 1.0f) ? -1.0f : 1.0f;
+            }
+            strcpy_safe(players[slot].animation, panim, sizeof(players[slot].animation));
+        }
+    }
 
-			// Si aún no hay charId confirmado, usamos "default" como placeholder
-			// para que el jugador sea visible en la arena desde el principio
-			// (con default.png). El bloque de re-init que viene a continuación
-			// detectará el cambio de "default" al charId real en cuanto llegue
-			// la selección confirmada del servidor.
-			if (!players[slot].charId[0]) {
-				strncpy(players[slot].charId, "default", sizeof(players[slot].charId)-1);
-			}
-
-			players[slot].animIndex = AnimIndex(panim);
-			strcpy_safe(players[slot].animation, panim, sizeof(players[slot].animation));
-			QueuePlayerInit(pid);
-		}
-
-		seen[slot] = 1;
-
-		// If the server snapshot now carries a confirmed charId that differs
-		// from what we have loaded (e.g. we initialised with the 'eld' default
-		// before this player had selected), tear down and re-init with the
-		// correct textures.  This is the main fix for "first client always sees
-		// rivals with the generic texture".
-		{
-			char _newCid[32] = {0};
-			ws_get_player_char_id_by_client(pid, _newCid, sizeof(_newCid));
-			if (_newCid[0] && strncmp(_newCid, players[slot].charId, sizeof(players[slot].charId)) != 0) {
-				strncpy(players[slot].charId, _newCid, sizeof(players[slot].charId)-1);
-				if (players[slot].character) {
-					DestroyAnimatedCharacter(players[slot].character);
-					players[slot].character = NULL;
-				}
-				players[slot].active             = 2;
-				players[slot].hasReferenceCenter = false;
-				players[slot].hasAnchorY         = false;
-				players[slot].animIndex          = AnimIndex(panim);
-				strcpy_safe(players[slot].animation, panim, sizeof(players[slot].animation));
-				QueuePlayerInit(pid);
-			}
-		}
-
-		players[slot].wx           = px;
-		players[slot].wy           = py;
-		players[slot].rotation     = prot;
-		if (players[slot].active == 2) players[slot].visualRotation = prot;
-		players[slot].stocks       = pstocks;
-		players[slot].respawning   = (bool)prespawning;
-		players[slot].crouching    = (bool)pcrouching;
-		players[slot].voltage      = pvoltage;
-		players[slot].voltageMaxed = (bool)pvoltageMaxed;
-		players[slot].blocking     = (bool)pblocking;
-
-
-		if (phitId != players[slot].hitId) {
-			players[slot].hitId = phitId;
-			if (players[slot].character) {
-				int ai = AnimIndex("hurt");
-				LoadPlayerAnim(&players[slot], ai);
-				SetCharacterAutoPlay(players[slot].character, true);
-				players[slot].animIndex = ai;
-				strcpy_safe(players[slot].animation, "hurt", sizeof(players[slot].animation));
-			}
-		} else if (pjumpId != players[slot].jumpId) {
-			players[slot].jumpId = pjumpId;
-			if (players[slot].character) {
-				int ai = AnimIndex("jump");
-				LoadPlayerAnim(&players[slot], ai);
-				SetCharacterAutoPlay(players[slot].character, true);
-				players[slot].animIndex = ai;
-				strcpy_safe(players[slot].animation, "jump", sizeof(players[slot].animation));
-			}
-		} else if (strncmp(players[slot].animation, panim, sizeof(players[slot].animation)) != 0) {
-			int ai = AnimIndex(panim);
-			if (ai != players[slot].animIndex && players[slot].character) {
-				LoadPlayerAnim(&players[slot], ai);
-				SetCharacterAutoPlay(players[slot].character, true);
-				players[slot].animIndex = ai;
-			}
-
-			if (strncmp(panim, "attack", 6) == 0 &&
-					strncmp(players[slot].animation, "attack", 6) != 0) {
-				players[slot].attackFlashTimer  = 0.3f;
-				players[slot].attackFlashFacing = (prot > 1.0f) ? -1.0f : 1.0f;
-			}
-			strcpy_safe(players[slot].animation, panim, sizeof(players[slot].animation));
-		}
-	}
-
-
-	for (int s = 0; s < MAX_PLAYERS; s++) {
-		if (!players[s].active || seen[s]) continue;
-
-
-		for (int q = 0; q < pending_count; q++) {
-			if (pending_ids[q] != players[s].id) continue;
-			memmove(pending_ids + q, pending_ids + q + 1,
-					(size_t)(pending_count - q - 1) * sizeof(int));
-			pending_count--;
-			break;
-		}
-
-		if (players[s].active == 1) FreePlayer(&players[s]);
-		else { players[s].active = 0; players[s].id = -1; }
-	}
+    for (int s = 0; s < MAX_PLAYERS; s++) {
+        if (!players[s].active || seen[s]) continue;
+        for (int q = 0; q < pending_count; q++) {
+            if (pending_ids[q] != players[s].id) continue;
+            memmove(pending_ids + q, pending_ids + q + 1,
+                    (size_t)(pending_count - q - 1) * sizeof(int));
+            pending_count--;
+            break;
+        }
+        if (players[s].active == 1) FreePlayer(&players[s]);
+        else { players[s].active = 0; players[s].id = -1; }
+    }
 }
-
 
 static Color LerpColor(Color a, Color b, float u) {
-	return (Color){
-		(unsigned char)(a.r + (b.r - a.r) * u),
-			(unsigned char)(a.g + (b.g - a.g) * u),
-			(unsigned char)(a.b + (b.b - a.b) * u),
-			(unsigned char)(a.a + (b.a - a.a) * u),
-	};
+    return (Color){
+        (unsigned char)(a.r + (b.r - a.r) * u),
+        (unsigned char)(a.g + (b.g - a.g) * u),
+        (unsigned char)(a.b + (b.b - a.b) * u),
+        (unsigned char)(a.a + (b.a - a.a) * u),
+    };
 }
-
 
 static const Color VOLTAGE_COL_BLUE   = { 20,  80, 255, 230 };
 static const Color VOLTAGE_COL_YELLOW = {255, 220,   0, 230 };
 static const Color VOLTAGE_COL_RED    = {255,   0,   0, 230 };
 
 static Color VoltageBarColor(float t) {
-	if (t <= 0.5f) return LerpColor(VOLTAGE_COL_BLUE,   VOLTAGE_COL_YELLOW, t * 2.0f);
-	else           return LerpColor(VOLTAGE_COL_YELLOW, VOLTAGE_COL_RED,    (t - 0.5f) * 2.0f);
+    if (t <= 0.5f) return LerpColor(VOLTAGE_COL_BLUE,   VOLTAGE_COL_YELLOW, t * 2.0f);
+    else           return LerpColor(VOLTAGE_COL_YELLOW, VOLTAGE_COL_RED,    (t - 0.5f) * 2.0f);
 }
 
-static float SpectatorCamX(float currentCamX) {
-	float sumX = 0.0f;
-	int   n    = 0;
-	for (int s = 0; s < MAX_PLAYERS; s++) {
-		if (players[s].active == 1 && !players[s].respawning) {
-			sumX += players[s].wx;
-			n++;
-		}
-	}
-
-	float targetX = (n > 0) ? (sumX / (float)n) : 0.0f;
-
-
-	float newX = currentCamX + (targetX - currentCamX) * 0.05f;
-
-	const float CAM_HALF_W = 5.0f;
-	if (newX - CAM_HALF_W < STAGE_LEFT)  newX = STAGE_LEFT  + CAM_HALF_W;
-	if (newX + CAM_HALF_W > STAGE_RIGHT) newX = STAGE_RIGHT - CAM_HALF_W;
-	return newX;
-}
+#define CAM_FOV_MIN    27.0f
+#define CAM_FOV_MAX    74.0f
+#define CAM_FOV_SPEC   50.0f
+#define CAM_Y_DEFAULT  1.2f
 
 static void DrawGame(void) {
-	static float camX      = 0.0f;
-	static float blinkTimer = 0.0f;
-	static bool  blinkOn    = true;
-
-	const float dt = GetFrameTime();
-
-	// Cargar el skybox del stage elegido en el primer frame de juego.
-	if (g_sky.loadedStage != g_sss.selected) {
-		Skybox_Load(g_sss.selected);
-	}
-
-
-	int   hitstopFrames = ws_get_hitstop_frames_left();
-	float shakeAmt      = ws_get_hitstop_shake();
-	int   targetId      = ws_get_hitstop_target_id();
-
-
-	float animDt = (hitstopFrames > 0) ? 0.0f : dt;
-
-
-	if (shakeAmt > 0.0f && shakeAmt > g_camShakeAmt) {
-		g_camShakeAmt   = shakeAmt;
-		g_camShakeTimer = 0.18f;
-	}
-
-
-	if (shakeAmt > 0.0f && targetId >= 0) {
-		for (int s = 0; s < MAX_PLAYERS; s++) {
-			if (!players[s].active || players[s].id != targetId) continue;
-			if (shakeAmt > players[s].hitShakeAmt) {
-				players[s].hitShakeAmt   = shakeAmt * 1.6f;
-				players[s].hitShakeTimer = 0.22f;
-			}
-			break;
-		}
-	}
-
-
-	float camShakeOffX = 0.0f, camShakeOffY = 0.0f;
-	if (g_camShakeTimer > 0.0f) {
-		g_camShakeTimer -= dt;
-		if (g_camShakeTimer < 0.0f) {
-			g_camShakeTimer = 0.0f;
-			g_camShakeAmt   = 0.0f;
-		} else {
-
-			float decay = g_camShakeTimer / 0.18f;
-			float amp   = g_camShakeAmt * decay * decay;
-
-			float t = (float)GetTime();
-			camShakeOffX = amp * sinf(t * 97.3f);
-			camShakeOffY = amp * sinf(t * 113.7f + 1.4f) * 0.5f;
-		}
-	}
-
-
-	if (is_spectator) {
-
-		camX = SpectatorCamX(camX);
-	} else {
-
-		for (int s = 0; s < MAX_PLAYERS; s++) {
-			if (!players[s].active || players[s].id != my_id) continue;
-			camX += (players[s].wx - camX) * 0.08f;
-			break;
-		}
-		const float CAM_HALF_W = 5.0f;
-		if (camX - CAM_HALF_W < STAGE_LEFT)  camX = STAGE_LEFT  + CAM_HALF_W;
-		if (camX + CAM_HALF_W > STAGE_RIGHT) camX = STAGE_RIGHT - CAM_HALF_W;
-	}
-
-	scene_cam.position = (Vector3){ camX + camShakeOffX, 1.2f + camShakeOffY, 9.0f };
-	scene_cam.target   = (Vector3){ camX + camShakeOffX, 1.2f + camShakeOffY, 0.0f };
-	scene_cam.up       = (Vector3){ 0.0f, 1.0f, 0.0f };
-
-
-	BeginDrawing();
-	ClearBackground((Color){ 10, 10, 28, 255 });
-
-
-	BeginMode3D(scene_cam);
-	{
-		// Skybox: se dibuja primero, sin escribir en depth buffer.
-		Skybox_Draw(scene_cam);
-
-		const float stageW = STAGE_RIGHT - STAGE_LEFT;
-		DrawCube     ((Vector3){ 0.0f, STAGE_Y, 0.0f }, stageW, PLATFORM_H, 0.6f, (Color){ 60,  60,  90, 255 });
-		DrawCubeWires((Vector3){ 0.0f, STAGE_Y, 0.0f }, stageW, PLATFORM_H, 0.6f, (Color){100, 100, 160, 200 });
-
-		const float platW = 2.4f, platH = 0.1f;
-		DrawCube((Vector3){-4.0f, 1.6f, 0.0f}, platW, platH, 0.5f, (Color){ 50, 70, 110, 255 });
-		DrawCube((Vector3){ 4.0f, 1.6f, 0.0f}, platW, platH, 0.5f, (Color){ 50, 70, 110, 255 });
-		DrawCube((Vector3){ 0.0f, 2.8f, 0.0f}, platW, platH, 0.5f, (Color){ 50, 70, 110, 255 });
-	}
-	EndMode3D();
-
-
-	const float TURN_SPEED = 12.0f;
-
-	for (int s = 0; s < MAX_PLAYERS; s++) {
-		Player *p = &players[s];
-		if (p->active != 1 || !p->character || p->respawning) continue;
-
-		if (is_spectator && my_id > 0 && p->id == my_id) continue;
-
-
-		if (p->character->currentFrame < 0 ||
-				p->character->currentFrame >= p->character->animation.frameCount) {
-			p->character->currentFrame = 0;
-			p->character->forceUpdate  = true;
-		}
-
-		UpdateAnimatedCharacter(p->character, animDt);
-
-
-		if (p->character->animController && !p->character->animController->playing) {
-
-			if (victory_pending && p->id == winner_id) {
-				// Victory animation just finished — now show the overlay
-				match_over      = true;
-				victory_pending = false;
-				ws_consume_victory();
-				int last = p->character->animation.frameCount - 1;
-				if (last < 0) last = 0;
-				p->character->currentFrame = last;
-				p->character->forceUpdate  = true;
-				SetCharacterAutoPlay(p->character, false);
-			} else if (match_over && p->id == winner_id) {
-				int last = p->character->animation.frameCount - 1;
-				if (last < 0) last = 0;
-				p->character->currentFrame = last;
-				p->character->forceUpdate  = true;
-				SetCharacterAutoPlay(p->character, false);
-			} else if (p->animIndex == AnimIndex("crouch") || p->animIndex == AnimIndex("jump")) {
-				int last = p->character->animation.frameCount - 1;
-				if (last < 0) last = 0;
-				p->character->currentFrame = last;
-				p->character->forceUpdate  = true;
-				SetCharacterAutoPlay(p->character, false);
-			} else if (p->animIndex != AnimIndex("idle")) {
-				strcpy_safe(p->animation, "idle", sizeof(p->animation));
-				p->animIndex = AnimIndex("idle");
-				LoadPlayerAnim(p, 0);
-				SetCharacterAutoPlay(p->character, true);
-			}
-		}
-
-		if (p->character->autoCenterCalculated) {
-			p->character->autoCenter.x = 0.0f;
-			p->character->autoCenter.z = 0.0f;
-		}
-
-
-		{
-			float target = p->rotation;
-			float cur    = p->visualRotation;
-			float diff   = target - cur;
-			while (diff >  (float)M_PI) diff -= 2.0f * (float)M_PI;
-			while (diff < -(float)M_PI) diff += 2.0f * (float)M_PI;
-			float step = TURN_SPEED * dt;
-			p->visualRotation = (fabsf(diff) <= step) ? target : cur + (diff > 0 ? step : -step);
-		}
-
-		float    visualY  = p->wy - (p->hasAnchorY ? p->anchorYOffset : 0.0f);
-
-
-		float playerShakeX = 0.0f, playerShakeY = 0.0f;
-		if (p->hitShakeTimer > 0.0f) {
-			p->hitShakeTimer -= dt;
-			if (p->hitShakeTimer < 0.0f) {
-				p->hitShakeTimer = 0.0f;
-				p->hitShakeAmt   = 0.0f;
-			} else {
-				float decay = p->hitShakeTimer / 0.22f;
-				float amp   = p->hitShakeAmt * decay * decay;
-				float t     = (float)GetTime();
-
-				playerShakeX = amp * sinf(t * 141.2f + (float)p->id * 2.3f);
-				playerShakeY = amp * sinf(t * 127.8f + (float)p->id * 3.7f) * 0.4f;
-			}
-		}
-
-		Vector3  worldPos = { p->wx + playerShakeX, visualY + playerShakeY, 0.0f };
-		float    drawRot  = p->visualRotation + (float)M_PI_2;
-
-		DrawAnimatedCharacterTransformed(p->character, scene_cam, worldPos, drawRot);
-	}
-
-
-	if (IsKeyPressed(KEY_U)) debug_mode = !debug_mode;
-	if (debug_mode) {
-		BeginMode3D(scene_cam);
-
-
-		DrawCubeWires((Vector3){ 0.0f,  0.0f, 0.0f }, 16.0f, 0.05f, 0.1f, (Color){  0, 200, 255, 160 });
-		DrawCubeWires((Vector3){-4.0f,  1.6f, 0.0f },  2.4f, 0.05f, 0.1f, (Color){  0, 200, 255, 160 });
-		DrawCubeWires((Vector3){ 4.0f,  1.6f, 0.0f },  2.4f, 0.05f, 0.1f, (Color){  0, 200, 255, 160 });
-		DrawCubeWires((Vector3){ 0.0f,  2.8f, 0.0f },  2.4f, 0.05f, 0.1f, (Color){  0, 200, 255, 160 });
-		DrawLine3D((Vector3){-8.0f, -6.0f, 0}, (Vector3){-8.0f, 4.0f, 0}, (Color){255,  60,  60, 180 });
-		DrawLine3D((Vector3){ 8.0f, -6.0f, 0}, (Vector3){ 8.0f, 4.0f, 0}, (Color){255,  60,  60, 180 });
-		DrawLine3D((Vector3){-10.f, -6.0f, 0}, (Vector3){10.0f,-6.0f, 0}, (Color){255,  60,  60, 180 });
-
-		for (int s = 0; s < MAX_PLAYERS; s++) {
-			Player *p = &players[s];
-			if (p->active != 1 || p->respawning) continue;
-			if (is_spectator && my_id > 0 && p->id == my_id) continue;
-
-			Vector3 wp = { p->wx, p->wy, 0.0f };
-			Color   cc = (p->id == my_id) ? (Color){ 0, 255, 100, 220 }
-			: (Color){255,  80,  80, 220 };
-
-			DrawCubeWires((Vector3){ wp.x, wp.y + 0.36f, 0.0f }, 0.48f, 0.72f, 0.05f, cc);
-			DrawSphere(wp, 0.06f, cc);
-
-			if (p->attackFlashTimer > 0.0f) {
-				p->attackFlashTimer -= dt;
-				if (p->attackFlashTimer > 0.0f) {
-					DrawCubeWires(
-							(Vector3){ wp.x + p->attackFlashFacing * (ATTACK_RANGE * 0.5f), wp.y + 0.5f, 0.0f },
-							ATTACK_RANGE, ATTACK_RANGE_Y, 0.05f,
-							(Color){ 255, 255, 0, 220 }
-							);
-				}
-			}
-		}
-		EndMode3D();
-	}
-
-
-	blinkTimer += dt;
-	if (blinkTimer > 0.18f) { blinkTimer = 0.0f; blinkOn = !blinkOn; }
-
-	const int BAR_W  = 120;
-	const int BAR_H  = 8;
-	int       hudY   = 8;
-
-	for (int s = 0; s < MAX_PLAYERS; s++) {
-		Player *p = &players[s];
-		if (!p->active) continue;
-
-		const bool isMe    = (!is_spectator && p->id == my_id);
-		const Color nameCol = isMe ? YELLOW : WHITE;
-
-
-		char hud[48];
-		snprintf(hud, sizeof(hud), "P%d: %d stocks", p->id, p->stocks);
-		DrawText(hud, 8, hudY, 12, nameCol);
-		hudY += 14;
-
-
-		DrawRectangle(8, hudY, BAR_W, BAR_H, (Color){ 30, 30, 50, 200 });
-
-
-		float t = p->voltage / 200.0f;
-		Color fillCol;
-		if (p->voltageMaxed) {
-			fillCol = blinkOn ? (Color){ 255, 30, 30, 255 } : (Color){ 255, 160, 0, 255 };
-		} else {
-			fillCol = VoltageBarColor(t);
-		}
-		int fillW = (int)(BAR_W * t);
-		if (fillW > 0) DrawRectangle(8, hudY, fillW, BAR_H, fillCol);
-
-
-		if (p->voltageMaxed && blinkOn)
-			DrawRectangleLines(8, hudY, BAR_W, BAR_H, (Color){ 255, 80, 80, 255 });
-
-
-		char vLabel[12];
-		snprintf(vLabel, sizeof(vLabel), "%.0f%%", p->voltage);
-		Color vLabelCol = (p->voltageMaxed && blinkOn) ? (Color){ 255, 80, 80, 255 } : nameCol;
-		DrawText(vLabel, 8 + BAR_W + 4, hudY, 10, vLabelCol);
-
-
-		if (p->blocking)
-			DrawText("[BLK]", 8 + BAR_W + 38, hudY, 10, (Color){ 80, 200, 255, 255 });
-
-		hudY += BAR_H + 6;
-	}
-
-
-	if (is_spectator) {
-		DrawText("SPECTATOR", SCREEN_W - 90, 8, 12, (Color){ 80, 200, 255, 255 });
-	} else if (my_id > 0) {
-		char txt[24];
-		snprintf(txt, sizeof(txt), "Player %d", my_id);
-		DrawText(txt, SCREEN_W - 80, 8, 12, YELLOW);
-	} else if (no_id_frames > 60) {
-
-		DrawText("Connecting...", SCREEN_W - 100, 8, 12, (Color){ 220, 140, 40, 255 });
-
-		if (ws_player_count() > 0) {
-			DrawText("Waiting for server...", SCREEN_W / 2 - 80, SCREEN_H / 2, 16,
-					(Color){ 200, 200, 200, 180 });
-		}
-	} else {
-		DrawText("Connecting...", SCREEN_W - 100, 8, 12, (Color){ 220, 140, 40, 255 });
-	}
-
-
-	if (match_over && winner_message[0] != '\0') {
-		const bool iWon = (!is_spectator && my_id == winner_id);
-
-
-		DrawRectangle(0, 0, SCREEN_W, SCREEN_H, (Color){ 0, 0, 0, 180 });
-
-
-		const int BOX_W = 420;
-		const int BOX_H = iWon ? 160 : 130;
-		const int BOX_X = (SCREEN_W - BOX_W) / 2;
-		const int BOX_Y = (SCREEN_H - BOX_H) / 2;
-
-		Color borderCol = iWon
-			? (Color){ 255, 215,   0, 255 }
-			: (Color){  80, 200, 255, 255 };
-		Color bgCol     = iWon
-			? (Color){  40,  30,   0, 240 }
-			: (Color){  20,  20,  40, 240 };
-
-		DrawRectangle    (BOX_X, BOX_Y, BOX_W, BOX_H, bgCol);
-		DrawRectangleLines(BOX_X, BOX_Y, BOX_W, BOX_H, borderCol);
-
-		DrawRectangleLines(BOX_X+2, BOX_Y+2, BOX_W-4, BOX_H-4,
-		                   (Color){ borderCol.r, borderCol.g, borderCol.b, 120 });
-
-		if (iWon) {
-
-			const char *line1 = "*** VICTORY ***";
-			int l1w = MeasureText(line1, 36);
-			DrawText(line1, BOX_X + (BOX_W - l1w) / 2, BOX_Y + 16, 36,
-			         (Color){ 255, 215, 0, 255 });
-
-			const char *line2 = "¡Eres el último en pie!";
-			int l2w = MeasureText(line2, 18);
-			DrawText(line2, BOX_X + (BOX_W - l2w) / 2, BOX_Y + 64, 18, WHITE);
-
-
-			static float blinkV = 0.0f;
-			blinkV += GetFrameTime() * 3.0f;
-			unsigned char alpha = (unsigned char)(180 + 75 * sinf(blinkV));
-			const char *line3 = "Recarga la página para volver a jugar";
-			int l3w = MeasureText(line3, 14);
-			DrawText(line3, BOX_X + (BOX_W - l3w) / 2, BOX_Y + 100, 14,
-			         (Color){ 255, 215, 0, alpha });
-
-			const char *line4 = "(F5 / Ctrl+R)";
-			int l4w = MeasureText(line4, 12);
-			DrawText(line4, BOX_X + (BOX_W - l4w) / 2, BOX_Y + 120, 12,
-			         (Color){ 200, 180, 80, 180 });
-
-		} else {
-			bool isDefeated = (strcmp(winner_message, "DERROTA") == 0);
-			const char *line1 = isDefeated ? "DERROTA" : "FIN DE LA PARTIDA";
-			int fsize1        = isDefeated ? 34 : 26;
-			int l1w = MeasureText(line1, fsize1);
-			DrawText(line1, BOX_X + (BOX_W - l1w) / 2, BOX_Y + 16, fsize1,
-			         (Color){ 80, 200, 255, 255 });
-
-
-			char wline[48];
-			snprintf(wline, sizeof(wline), "Ganador: Player %d", winner_id);
-			int wlw = MeasureText(wline, 18);
-			DrawText(wline, BOX_X + (BOX_W - wlw) / 2, BOX_Y + 62, 18, YELLOW);
-
-			const char *line3 = "Recarga para jugar la próxima partida";
-			int l3w = MeasureText(line3, 13);
-			DrawText(line3, BOX_X + (BOX_W - l3w) / 2, BOX_Y + 96, 13,
-			         (Color){ 160, 160, 160, 200 });
-		}
-	}
-
-
-	if (!match_over) {
-		int   cd_phase   = ws_get_countdown();
-		float cd_elapsed = ws_get_countdown_elapsed();
-
-		if (cd_phase == 1 || cd_phase == 2) {
-			float phase_t = (cd_phase == 1)
-				? (cd_elapsed / 1.2f)
-				: ((cd_elapsed - 1.2f) / 1.0f);
-			if (phase_t > 1.0f) phase_t = 1.0f;
-
-			const char *word = (cd_phase == 1) ? "READY?" : "FIGHT!";
-
-
-			float scale = 1.0f + 0.6f * (1.0f - phase_t);
-
-
-			float fade = (phase_t > 0.7f) ? (1.0f - (phase_t - 0.7f) / 0.3f) : 1.0f;
-			if (fade < 0.0f) fade = 0.0f;
-			unsigned char alpha = (unsigned char)(255.0f * fade);
-
-			int size = (int)(64.0f * scale);
-			int tw   = MeasureText(word, size);
-			int tx   = (SCREEN_W - tw) / 2;
-			int ty   = SCREEN_H / 2 - size / 2 - 30;
-
-
-			DrawText(word, tx + 4, ty + 4, size,
-			         (Color){ 0, 0, 0, (unsigned char)(alpha / 2) });
-
-			Color wordCol = (cd_phase == 1)
-				? (Color){ 255, 240, 80,  alpha }
-				: (Color){ 255,  60, 30,  alpha };
-			DrawText(word, tx, ty, size, wordCol);
-		}
-	}
-
-	EndDrawing();
+    static float camX   = 0.0f;
+    static float camY   = CAM_Y_DEFAULT;
+    static float camFov = CAM_FOV_SPEC;
+
+    static float blinkTimer = 0.0f;
+    static bool  blinkOn    = true;
+
+    const float dt = GetFrameTime();
+
+    if (g_sky.loadedStage != g_sss.selected)
+        Skybox_Load(g_sss.selected);
+
+    int   hitstopFrames = ws_get_hitstop_frames_left();
+    float shakeAmt      = ws_get_hitstop_shake();
+    int   targetId      = ws_get_hitstop_target_id();
+
+    float animDt = (hitstopFrames > 0) ? 0.0f : dt;
+
+    if (shakeAmt > 0.0f && shakeAmt > g_camShakeAmt) {
+        g_camShakeAmt   = shakeAmt;
+        g_camShakeTimer = 0.18f;
+    }
+
+    if (shakeAmt > 0.0f && targetId >= 0) {
+        for (int s = 0; s < MAX_PLAYERS; s++) {
+            if (!players[s].active || players[s].id != targetId) continue;
+            if (shakeAmt > players[s].hitShakeAmt) {
+                players[s].hitShakeAmt   = shakeAmt * 1.6f;
+                players[s].hitShakeTimer = 0.22f;
+            }
+            break;
+        }
+    }
+
+    float camShakeOffX = 0.0f, camShakeOffY = 0.0f;
+    if (g_camShakeTimer > 0.0f) {
+        g_camShakeTimer -= dt;
+        if (g_camShakeTimer < 0.0f) {
+            g_camShakeTimer = 0.0f;
+            g_camShakeAmt   = 0.0f;
+        } else {
+            float decay = g_camShakeTimer / 0.18f;
+            float amp   = g_camShakeAmt * decay * decay;
+            float t     = (float)GetTime();
+            camShakeOffX = amp * sinf(t * 97.3f);
+            camShakeOffY = amp * sinf(t * 113.7f + 1.4f) * 0.5f;
+        }
+    }
+
+    if (is_spectator) {
+        float sumX = 0.0f; int n = 0;
+        for (int s = 0; s < MAX_PLAYERS; s++) {
+            if (players[s].active == 1 && !players[s].respawning) { sumX += players[s].wx; n++; }
+        }
+        float targetX = (n > 0) ? (sumX / (float)n) : 0.0f;
+        camX += (targetX - camX) * 0.05f;
+        const float CAM_HALF_W = 5.0f;
+        if (camX - CAM_HALF_W < STAGE_LEFT)  camX = STAGE_LEFT  + CAM_HALF_W;
+        if (camX + CAM_HALF_W > STAGE_RIGHT) camX = STAGE_RIGHT - CAM_HALF_W;
+        camY   = CAM_Y_DEFAULT;
+        camFov = CAM_FOV_SPEC;
+    } else {
+        float minX =  1e9f, maxX = -1e9f;
+        float minY =  1e9f, maxY = -1e9f;
+        int   n    = 0;
+        for (int s = 0; s < MAX_PLAYERS; s++) {
+            Player *p = &players[s];
+            if (p->active != 1 || p->respawning) continue;
+            if (p->wx < minX) minX = p->wx;
+            if (p->wx > maxX) maxX = p->wx;
+            if (p->wy < minY) minY = p->wy;
+            if (p->wy > maxY) maxY = p->wy;
+            n++;
+        }
+        if (n > 0) {
+            float cx = (minX + maxX) * 0.5f;
+            float cy = (minY + maxY) * 0.5f;
+
+            float spreadX = (maxX - minX) + 4.0f;
+            float spreadY = ((maxY - minY) + 3.0f) * ((float)SCREEN_W / (float)SCREEN_H);
+            float spread  = spreadX > spreadY ? spreadX : spreadY;
+
+            float t = (spread - 4.0f) / 13.0f;
+            if (t < 0.0f) t = 0.0f;
+            if (t > 1.0f) t = 1.0f;
+
+            float targetFov = CAM_FOV_MIN + (CAM_FOV_MAX - CAM_FOV_MIN) * t;
+
+            float halfVis = 4.5f + t * 3.0f;
+            if (cx - halfVis < STAGE_LEFT)  cx = STAGE_LEFT  + halfVis;
+            if (cx + halfVis > STAGE_RIGHT) cx = STAGE_RIGHT - halfVis;
+
+            float targetY = cy * 0.35f + CAM_Y_DEFAULT * 0.65f;
+            if (targetY < 0.4f) targetY = 0.4f;
+            if (targetY > 3.5f) targetY = 3.5f;
+
+            camX   += (cx        - camX)   * 0.06f;
+            camY   += (targetY   - camY)   * 0.06f;
+            camFov += (targetFov - camFov) * 0.05f;
+        }
+    }
+
+    scene_cam.position = (Vector3){ camX + camShakeOffX, camY + camShakeOffY, 9.0f };
+    scene_cam.target   = (Vector3){ camX + camShakeOffX, camY + camShakeOffY, 0.0f };
+    scene_cam.up       = (Vector3){ 0.0f, 1.0f, 0.0f };
+    scene_cam.fovy     = camFov;
+
+    BeginDrawing();
+    ClearBackground((Color){ 10, 10, 28, 255 });
+
+    BeginMode3D(scene_cam);
+    {
+        Skybox_Draw(scene_cam);
+
+        const float stageW    = STAGE_RIGHT - STAGE_LEFT;
+        const float stageVisW = stageW - 1.4f;
+        const float stageVisY = STAGE_Y - 0.08f;
+        DrawCube     ((Vector3){ 0.0f, stageVisY, 0.0f }, stageVisW, PLATFORM_H, 0.6f, (Color){ 60,  60,  90, 255 });
+        DrawCubeWires((Vector3){ 0.0f, stageVisY, 0.0f }, stageVisW, PLATFORM_H, 0.6f, (Color){100, 100, 160, 200 });
+
+        const float platW = 2.4f, platH = 0.1f;
+        DrawCube((Vector3){-4.0f, 1.6f, 0.0f}, platW, platH, 0.5f, (Color){ 50, 70, 110, 255 });
+        DrawCube((Vector3){ 4.0f, 1.6f, 0.0f}, platW, platH, 0.5f, (Color){ 50, 70, 110, 255 });
+        DrawCube((Vector3){ 0.0f, 2.8f, 0.0f}, platW, platH, 0.5f, (Color){ 50, 70, 110, 255 });
+    }
+    EndMode3D();
+
+    const float TURN_SPEED = 12.0f;
+
+    for (int s = 0; s < MAX_PLAYERS; s++) {
+        Player *p = &players[s];
+        if (p->active != 1 || !p->character || p->respawning) continue;
+        if (is_spectator && my_id > 0 && p->id == my_id) continue;
+
+        if (p->character->currentFrame < 0 ||
+                p->character->currentFrame >= p->character->animation.frameCount) {
+            p->character->currentFrame = 0;
+            p->character->forceUpdate  = true;
+        }
+
+        UpdateAnimatedCharacter(p->character, animDt);
+
+        if (p->character->animController && !p->character->animController->playing) {
+            if (victory_pending && p->id == winner_id) {
+                match_over      = true;
+                victory_pending = false;
+                ws_consume_victory();
+                int last = p->character->animation.frameCount - 1;
+                if (last < 0) last = 0;
+                p->character->currentFrame = last;
+                p->character->forceUpdate  = true;
+                SetCharacterAutoPlay(p->character, false);
+            } else if (match_over && p->id == winner_id) {
+                int last = p->character->animation.frameCount - 1;
+                if (last < 0) last = 0;
+                p->character->currentFrame = last;
+                p->character->forceUpdate  = true;
+                SetCharacterAutoPlay(p->character, false);
+            } else if (p->animIndex == AnimIndex("crouch") || p->animIndex == AnimIndex("jump")) {
+                int last = p->character->animation.frameCount - 1;
+                if (last < 0) last = 0;
+                p->character->currentFrame = last;
+                p->character->forceUpdate  = true;
+                SetCharacterAutoPlay(p->character, false);
+            } else if (p->animIndex != AnimIndex("idle")) {
+                strcpy_safe(p->animation, "idle", sizeof(p->animation));
+                p->animIndex = AnimIndex("idle");
+                LoadPlayerAnim(p, 0);
+                SetCharacterAutoPlay(p->character, true);
+            }
+        }
+
+        if (p->character->autoCenterCalculated) {
+            p->character->autoCenter.x = 0.0f;
+            p->character->autoCenter.z = 0.0f;
+        }
+
+        {
+            float target = p->rotation;
+            float cur    = p->visualRotation;
+            float diff   = target - cur;
+            while (diff >  (float)M_PI) diff -= 2.0f * (float)M_PI;
+            while (diff < -(float)M_PI) diff += 2.0f * (float)M_PI;
+            float step = TURN_SPEED * dt;
+            p->visualRotation = (fabsf(diff) <= step) ? target : cur + (diff > 0 ? step : -step);
+        }
+
+        float visualY = p->wy - (p->hasAnchorY ? p->anchorYOffset : 0.0f);
+
+        float playerShakeX = 0.0f, playerShakeY = 0.0f;
+        if (p->hitShakeTimer > 0.0f) {
+            p->hitShakeTimer -= dt;
+            if (p->hitShakeTimer < 0.0f) {
+                p->hitShakeTimer = 0.0f;
+                p->hitShakeAmt   = 0.0f;
+            } else {
+                float decay = p->hitShakeTimer / 0.22f;
+                float amp   = p->hitShakeAmt * decay * decay;
+                float t     = (float)GetTime();
+                playerShakeX = amp * sinf(t * 141.2f + (float)p->id * 2.3f);
+                playerShakeY = amp * sinf(t * 127.8f + (float)p->id * 3.7f) * 0.4f;
+            }
+        }
+
+        Vector3 worldPos = { p->wx + playerShakeX, visualY + playerShakeY, 0.0f };
+        float   drawRot  = p->visualRotation + (float)M_PI_2;
+        DrawAnimatedCharacterTransformed(p->character, scene_cam, worldPos, drawRot);
+    }
+
+    if (IsKeyPressed(KEY_U)) debug_mode = !debug_mode;
+    if (debug_mode) {
+        BeginMode3D(scene_cam);
+        DrawCubeWires((Vector3){ 0.0f,  0.0f, 0.0f }, 16.0f, 0.05f, 0.1f, (Color){  0, 200, 255, 160 });
+        DrawCubeWires((Vector3){-4.0f,  1.6f, 0.0f },  2.4f, 0.05f, 0.1f, (Color){  0, 200, 255, 160 });
+        DrawCubeWires((Vector3){ 4.0f,  1.6f, 0.0f },  2.4f, 0.05f, 0.1f, (Color){  0, 200, 255, 160 });
+        DrawCubeWires((Vector3){ 0.0f,  2.8f, 0.0f },  2.4f, 0.05f, 0.1f, (Color){  0, 200, 255, 160 });
+        DrawLine3D((Vector3){-8.0f, -6.0f, 0}, (Vector3){-8.0f, 4.0f, 0}, (Color){255,  60,  60, 180 });
+        DrawLine3D((Vector3){ 8.0f, -6.0f, 0}, (Vector3){ 8.0f, 4.0f, 0}, (Color){255,  60,  60, 180 });
+        DrawLine3D((Vector3){-10.f, -6.0f, 0}, (Vector3){10.0f,-6.0f, 0}, (Color){255,  60,  60, 180 });
+
+        for (int s = 0; s < MAX_PLAYERS; s++) {
+            Player *p = &players[s];
+            if (p->active != 1 || p->respawning) continue;
+            if (is_spectator && my_id > 0 && p->id == my_id) continue;
+            Vector3 wp = { p->wx, p->wy, 0.0f };
+            Color   cc = (p->id == my_id) ? (Color){0,255,100,220} : (Color){255,80,80,220};
+            DrawCubeWires((Vector3){ wp.x, wp.y + 0.36f, 0.0f }, 0.48f, 0.72f, 0.05f, cc);
+            DrawSphere(wp, 0.06f, cc);
+            if (p->attackFlashTimer > 0.0f) {
+                p->attackFlashTimer -= dt;
+                if (p->attackFlashTimer > 0.0f) {
+                    DrawCubeWires(
+                        (Vector3){ wp.x + p->attackFlashFacing * (ATTACK_RANGE * 0.5f), wp.y + 0.5f, 0.0f },
+                        ATTACK_RANGE, ATTACK_RANGE_Y, 0.05f, (Color){255,255,0,220});
+                }
+            }
+        }
+        EndMode3D();
+    }
+
+    blinkTimer += dt;
+    if (blinkTimer > 0.18f) { blinkTimer = 0.0f; blinkOn = !blinkOn; }
+
+    const int BAR_W = 120;
+    const int BAR_H = 8;
+    int       hudY  = 8;
+
+    for (int s = 0; s < MAX_PLAYERS; s++) {
+        Player *p = &players[s];
+        if (!p->active) continue;
+
+        const bool  isMe    = (!is_spectator && p->id == my_id);
+        const Color nameCol = isMe ? YELLOW : WHITE;
+
+        char hud[48];
+        snprintf(hud, sizeof(hud), "P%d: %d stocks", p->id, p->stocks);
+        DrawText(hud, 8, hudY, 12, nameCol);
+        hudY += 14;
+
+        DrawRectangle(8, hudY, BAR_W, BAR_H, (Color){30,30,50,200});
+
+        float t = p->voltage / 200.0f;
+        Color fillCol;
+        if (p->voltageMaxed) {
+            fillCol = blinkOn ? (Color){255,30,30,255} : (Color){255,160,0,255};
+        } else {
+            fillCol = VoltageBarColor(t);
+        }
+        int fillW = (int)(BAR_W * t);
+        if (fillW > 0) DrawRectangle(8, hudY, fillW, BAR_H, fillCol);
+
+        if (p->voltageMaxed && blinkOn)
+            DrawRectangleLines(8, hudY, BAR_W, BAR_H, (Color){255,80,80,255});
+
+        char vLabel[12];
+        snprintf(vLabel, sizeof(vLabel), "%.0f%%", p->voltage);
+        Color vLabelCol = (p->voltageMaxed && blinkOn) ? (Color){255,80,80,255} : nameCol;
+        DrawText(vLabel, 8 + BAR_W + 4, hudY, 10, vLabelCol);
+
+        if (p->blocking)
+            DrawText("[BLK]", 8 + BAR_W + 38, hudY, 10, (Color){80,200,255,255});
+
+        hudY += BAR_H + 6;
+    }
+
+    if (is_spectator) {
+        DrawText("SPECTATOR", SCREEN_W - 90, 8, 12, (Color){80,200,255,255});
+    } else if (my_id > 0) {
+        char txt[24];
+        snprintf(txt, sizeof(txt), "Player %d", my_id);
+        DrawText(txt, SCREEN_W - 80, 8, 12, YELLOW);
+    } else if (no_id_frames > 60) {
+        DrawText("Connecting...", SCREEN_W - 100, 8, 12, (Color){220,140,40,255});
+        if (ws_player_count() > 0)
+            DrawText("Waiting for server...", SCREEN_W / 2 - 80, SCREEN_H / 2, 16,
+                     (Color){200,200,200,180});
+    } else {
+        DrawText("Connecting...", SCREEN_W - 100, 8, 12, (Color){220,140,40,255});
+    }
+
+    if (match_over && winner_message[0] != '\0') {
+        const bool iWon = (!is_spectator && my_id == winner_id);
+
+        DrawRectangle(0, 0, SCREEN_W, SCREEN_H, (Color){0,0,0,180});
+
+        const int BOX_W = 420;
+        const int BOX_H = iWon ? 160 : 130;
+        const int BOX_X = (SCREEN_W - BOX_W) / 2;
+        const int BOX_Y = (SCREEN_H - BOX_H) / 2;
+
+        Color borderCol = iWon ? (Color){255,215,0,255}  : (Color){80,200,255,255};
+        Color bgCol     = iWon ? (Color){40,30,0,240}    : (Color){20,20,40,240};
+
+        DrawRectangle    (BOX_X, BOX_Y, BOX_W, BOX_H, bgCol);
+        DrawRectangleLines(BOX_X, BOX_Y, BOX_W, BOX_H, borderCol);
+        DrawRectangleLines(BOX_X+2, BOX_Y+2, BOX_W-4, BOX_H-4,
+                           (Color){borderCol.r, borderCol.g, borderCol.b, 120});
+
+        if (iWon) {
+            const char *line1 = "*** VICTORY ***";
+            int l1w = MeasureText(line1, 36);
+            DrawText(line1, BOX_X + (BOX_W - l1w) / 2, BOX_Y + 16, 36, (Color){255,215,0,255});
+
+            const char *line2 = "¡Eres el último en pie!";
+            int l2w = MeasureText(line2, 18);
+            DrawText(line2, BOX_X + (BOX_W - l2w) / 2, BOX_Y + 64, 18, WHITE);
+
+            static float blinkV = 0.0f;
+            blinkV += GetFrameTime() * 3.0f;
+            unsigned char alpha = (unsigned char)(180 + 75 * sinf(blinkV));
+            const char *line3 = "Recarga la página para volver a jugar";
+            int l3w = MeasureText(line3, 14);
+            DrawText(line3, BOX_X + (BOX_W - l3w) / 2, BOX_Y + 100, 14, (Color){255,215,0,alpha});
+
+            const char *line4 = "(F5 / Ctrl+R)";
+            int l4w = MeasureText(line4, 12);
+            DrawText(line4, BOX_X + (BOX_W - l4w) / 2, BOX_Y + 120, 12, (Color){200,180,80,180});
+        } else {
+            bool isDefeated = (strcmp(winner_message, "DERROTA") == 0);
+            const char *line1 = isDefeated ? "DERROTA" : "FIN DE LA PARTIDA";
+            int fsize1        = isDefeated ? 34 : 26;
+            int l1w = MeasureText(line1, fsize1);
+            DrawText(line1, BOX_X + (BOX_W - l1w) / 2, BOX_Y + 16, fsize1, (Color){80,200,255,255});
+
+            char wline[48];
+            snprintf(wline, sizeof(wline), "Ganador: Player %d", winner_id);
+            int wlw = MeasureText(wline, 18);
+            DrawText(wline, BOX_X + (BOX_W - wlw) / 2, BOX_Y + 62, 18, YELLOW);
+
+            const char *line3 = "Recarga para jugar la próxima partida";
+            int l3w = MeasureText(line3, 13);
+            DrawText(line3, BOX_X + (BOX_W - l3w) / 2, BOX_Y + 96, 13, (Color){160,160,160,200});
+        }
+    }
+
+    if (!match_over) {
+        int   cd_phase   = ws_get_countdown();
+        float cd_elapsed = ws_get_countdown_elapsed();
+
+        if (cd_phase == 1 || cd_phase == 2) {
+            float phase_t = (cd_phase == 1)
+                ? (cd_elapsed / 1.2f)
+                : ((cd_elapsed - 1.2f) / 1.0f);
+            if (phase_t > 1.0f) phase_t = 1.0f;
+
+            const char *word = (cd_phase == 1) ? "READY?" : "FIGHT!";
+
+            float scale = 1.0f + 0.6f * (1.0f - phase_t);
+            float fade  = (phase_t > 0.7f) ? (1.0f - (phase_t - 0.7f) / 0.3f) : 1.0f;
+            if (fade < 0.0f) fade = 0.0f;
+            unsigned char alpha = (unsigned char)(255.0f * fade);
+
+            int size = (int)(64.0f * scale);
+            int tw   = MeasureText(word, size);
+            int tx   = (SCREEN_W - tw) / 2;
+            int ty   = SCREEN_H / 2 - size / 2 - 30;
+
+            DrawText(word, tx + 4, ty + 4, size, (Color){0,0,0,(unsigned char)(alpha/2)});
+            Color wordCol = (cd_phase == 1) ? (Color){255,240,80,alpha} : (Color){255,60,30,alpha};
+            DrawText(word, tx, ty, size, wordCol);
+        }
+    }
+
+    EndDrawing();
 }
 
 static void CSS_LoadPortraits(void) {
@@ -1633,27 +1450,20 @@ static void CSS_UnloadPortraits(void) {
     g_css.portraitsLoaded = false;
 }
 
-
 static bool CSS_UpdateAndDraw(void) {
-
-
     if (g_css.phase == CSS_SELECTING && !g_css.savedCharId[0]) {
         char saved[32] = {0};
         if (ws_get_saved_char_id(saved, sizeof(saved)) && saved[0]) {
             strncpy(g_css.savedCharId, saved, sizeof(g_css.savedCharId)-1);
-
             for (int i = 0; i < CHARS_COUNT; i++) {
                 if (strcmp(CHARS[i].charId, saved) == 0) { g_css.selected = i; break; }
             }
-
             ws_send_char_select(saved, g_css.selected >= 0 ? g_css.selected : 0, 0);
             g_css.phase = CSS_WAITING_ACK;
         }
     }
 
-
     if (g_css.phase == CSS_WAITING_ACK && ws_char_select_ready()) {
-
         for (int s = 0; s < MAX_PLAYERS; s++) {
             if (players[s].active && players[s].id == my_id) {
                 if (g_css.selected >= 0)
@@ -1667,7 +1477,6 @@ static bool CSS_UpdateAndDraw(void) {
         CSS_UnloadPortraits();
         return true;
     }
-
 
     if (g_css.phase == CSS_WAITING_GAME) {
         if (ws_match_started()) {
@@ -1686,7 +1495,7 @@ static bool CSS_UpdateAndDraw(void) {
         }
 
         {
-            ClearBackground((Color){10, 10, 20, 255});
+            ClearBackground((Color){10,10,20,255});
             const char *sel = (g_css.selected >= 0) ? CHARS[g_css.selected].name
                                                      : (g_css.savedCharId[0] ? g_css.savedCharId : "?");
             char line[64];
@@ -1697,15 +1506,16 @@ static bool CSS_UpdateAndDraw(void) {
         return false;
     }
 
-
     CSS_LoadPortraits();
 
     int sw = GetScreenWidth(), sh = GetScreenHeight();
-    ClearBackground((Color){10, 10, 20, 255});
+    ClearBackground((Color){10,10,20,255});
+
     const char *title = (g_css.phase == CSS_WAITING_ACK)
                       ? "Confirmando seleccion..."
                       : "Elige tu personaje";
-    int cardW = (int)(sw * 0.88f / 4.15f);
+
+    int cardW  = (int)(sw * 0.88f / 4.15f);
     if (cardW < 120) cardW = 120;
     if (cardW > 380) cardW = 380;
     int labelH = (int)(cardW * 0.20f); if (labelH < 26) labelH = 26;
@@ -1719,8 +1529,8 @@ static bool CSS_UpdateAndDraw(void) {
     int titleY = (int)(sh * 0.04f);
     DrawText(title, (sw - MeasureText(title, titleSz)) / 2, titleY, titleSz, WHITE);
 
-    int totalW = CHARS_COUNT * cardW + (CHARS_COUNT - 1) * gap;
-    int startX = (sw - totalW) / 2;
+    int totalW    = CHARS_COUNT * cardW + (CHARS_COUNT - 1) * gap;
+    int startX    = (sw - totalW) / 2;
     int hintAreaH = hintSz + (int)(sh * 0.05f);
     int availH    = sh - (titleY + titleSz + (int)(sh * 0.02f)) - hintAreaH;
     int startY    = (titleY + titleSz + (int)(sh * 0.02f)) + (availH - cardH) / 2;
@@ -1739,7 +1549,7 @@ static bool CSS_UpdateAndDraw(void) {
     }
 
     for (int i = 0; i < CHARS_COUNT; i++) {
-        Rectangle card = { startX + i*(cardW+gap), startY, cardW, cardH };
+        Rectangle card  = { startX + i*(cardW+gap), startY, cardW, cardH };
         bool hover  = (g_css.phase == CSS_SELECTING && i == g_css.hovered);
         bool chosen = (i == g_css.selected);
         Color border = chosen ? GOLD : (hover ? WHITE : (Color){80,80,80,255});
@@ -1747,7 +1557,6 @@ static bool CSS_UpdateAndDraw(void) {
         DrawRectangleRec(card, bg);
         DrawRectangleLinesEx(card, chosen ? 3.0f : 2.0f, border);
 
-        // Portrait: contain scaling so the full 720x1280 image is visible.
         Texture2D tex = g_css.portraits[i];
         int portraitAreaH = cardH - labelH;
         if (tex.id > 0) {
@@ -1756,13 +1565,12 @@ static bool CSS_UpdateAndDraw(void) {
             float scale  = (scaleW < scaleH) ? scaleW : scaleH;
             int   pw     = (int)(tex.width  * scale);
             int   ph     = (int)(tex.height * scale);
-            int   px     = card.x + (cardW - pw) / 2;          // centred horizontally
-            int   py     = card.y + (portraitAreaH - ph) / 2;  // centred vertically
-            Rectangle src = { 0, 0, tex.width, tex.height };
-            Rectangle dst = { px, py, pw, ph };
-            DrawTexturePro(tex, src, dst, (Vector2){0,0}, 0.0f, WHITE);
+            int   px     = card.x + (cardW - pw) / 2;
+            int   py     = card.y + (portraitAreaH - ph) / 2;
+            DrawTexturePro(tex, (Rectangle){0,0,tex.width,tex.height},
+                           (Rectangle){px,py,pw,ph}, (Vector2){0,0}, 0.0f, WHITE);
         }
-        // Name label centred in the bottom label row
+
         const char *nm = CHARS[i].name;
         int nmY = card.y + cardH - labelH + (labelH - nameSz) / 2;
         DrawText(nm, card.x + (cardW - MeasureText(nm, nameSz)) / 2, nmY, nameSz, border);
@@ -1793,168 +1601,145 @@ static bool CSS_UpdateAndDraw(void) {
 }
 
 static void MainLoop(void) {
-	if (!game_ready) return;
+    if (!game_ready) return;
 
-	// Resize every frame (including char select) so canvas matches App.jsx.
-	{
-		int newW = js_canvas_width();
-		int newH = js_canvas_height();
-		if (newW > 0 && newH > 0 && (newW != SCREEN_W || newH != SCREEN_H)) {
-			SCREEN_W = newW;
-			SCREEN_H = newH;
-			SetWindowSize(SCREEN_W, SCREEN_H);
-		}
-	}
+    {
+        int newW = js_canvas_width();
+        int newH = js_canvas_height();
+        if (newW > 0 && newH > 0 && (newW != SCREEN_W || newH != SCREEN_H)) {
+            SCREEN_W = newW;
+            SCREEN_H = newH;
+            SetWindowSize(SCREEN_W, SCREEN_H);
+        }
+    }
 
-	// FIX: los espectadores no seleccionan personaje — saltar el CSS directamente.
-	// is_spectator se evalúa aquí en lugar de más abajo, donde era demasiado tarde
-	// porque el bloque CSS devolvía return antes de llegar a esa comprobación.
-	if (g_css.phase != CSS_DONE && ws_is_spectator()) {
-		CSS_UnloadPortraits();
-		g_css.phase = CSS_DONE;
-	}
+    if (g_css.phase != CSS_DONE && ws_is_spectator()) {
+        CSS_UnloadPortraits();
+        g_css.phase = CSS_DONE;
+    }
 
-	// Stage Select Screen: se muestra antes del CSS.
-	// Solo el host puede elegir; los demás esperan la confirmación del servidor.
-	// Los espectadores lo saltan también.
-	if (g_sss.phase != SSS_DONE) {
-		if (ws_is_spectator()) {
-			g_sss.phase = SSS_DONE;  // espectadores no votan escenario
-		} else {
-			FetchState();
-			BeginDrawing();
-			bool sss_done = SSS_UpdateAndDraw();
-			EndDrawing();
-			if (!sss_done) return;
-			// SSS_UpdateAndDraw devolvio true: ya tenemos stage, continuar al CSS.
-		}
-	}
+    if (g_sss.phase != SSS_DONE) {
+        if (ws_is_spectator()) {
+            g_sss.phase = SSS_DONE;
+        } else {
+            FetchState();
+            BeginDrawing();
+            bool sss_done = SSS_UpdateAndDraw();
+            EndDrawing();
+            if (!sss_done) return;
+        }
+    }
 
-	if (g_css.phase != CSS_DONE) {
-		// Track connected players but do NOT load any textures — charIds are not
-		// final until every player has confirmed their selection.
-		FetchState();
-		BeginDrawing();
-		CSS_UpdateAndDraw();
-		EndDrawing();
-		return;
-	}
+    if (g_css.phase != CSS_DONE) {
+        FetchState();
+        BeginDrawing();
+        CSS_UpdateAndDraw();
+        EndDrawing();
+        return;
+    }
 
-	// First frame after char select: free any stale players and re-init with
-	// the correct charIds now confirmed in the server snapshot.
-	static bool post_css_reinit_done = false;
-	if (!post_css_reinit_done) {
-		post_css_reinit_done = true;
-		for (int s = 0; s < MAX_PLAYERS; s++) {
-			if (players[s].active) {
-				char cid[32] = {0};
-				if (ws_get_player_char_id_by_client(players[s].id, cid, sizeof(cid)) && cid[0])
-					strncpy(players[s].charId, cid, sizeof(players[s].charId)-1);
-				if (players[s].character) {
-					DestroyAnimatedCharacter(players[s].character);
-					players[s].character = NULL;
-				}
-				players[s].active             = 2;
-				players[s].hasReferenceCenter = false;
-				players[s].hasAnchorY         = false;
-				QueuePlayerInit(players[s].id);
-			}
-		}
-		while (pending_count > 0) FlushOnePlayerInit();
-	}
+    static bool post_css_reinit_done = false;
+    if (!post_css_reinit_done) {
+        post_css_reinit_done = true;
+        for (int s = 0; s < MAX_PLAYERS; s++) {
+            if (players[s].active) {
+                char cid[32] = {0};
+                if (ws_get_player_char_id_by_client(players[s].id, cid, sizeof(cid)) && cid[0])
+                    strncpy(players[s].charId, cid, sizeof(players[s].charId)-1);
+                if (players[s].character) {
+                    DestroyAnimatedCharacter(players[s].character);
+                    players[s].character = NULL;
+                }
+                players[s].active             = 2;
+                players[s].hasReferenceCenter = false;
+                players[s].hasAnchorY         = false;
+                QueuePlayerInit(players[s].id);
+            }
+        }
+        while (pending_count > 0) FlushOnePlayerInit();
+    }
 
+    is_spectator = (bool)ws_is_spectator();
 
-	is_spectator = (bool)ws_is_spectator();
+    if (is_spectator) {
+        my_id        = -1;
+        no_id_frames = 0;
+    } else if (my_id > 0) {
+        no_id_frames = 0;
+    } else {
+        my_id = ws_get_my_id();
+        if (my_id > 0) {
+            ATTACK_RANGE   = ws_get_attack_range();
+            ATTACK_RANGE_Y = ws_get_attack_range_y();
+            no_id_frames   = 0;
+        } else {
+            no_id_frames++;
+            if (no_id_frames >= NO_ID_SPECTATOR_FRAMES && ws_player_count() > 0) {
+                is_spectator = true;
+                my_id        = -1;
+            }
+        }
+    }
 
-	if (is_spectator) {
+    FetchState();
+    FlushOnePlayerInit();
 
-		my_id      = -1;
-		no_id_frames = 0;
-	} else if (my_id > 0) {
+    if (!match_over && !victory_pending) {
+        int vstate = ws_get_victory_state();
+        if (vstate != 0) {
+            int wid         = ws_get_victory_winner();
+            victory_pending = true;
+            winner_id       = wid;
 
-		no_id_frames = 0;
-	} else {
+            snprintf(winner_message, sizeof(winner_message),
+                     (vstate == 1) ? "VICTORY" : "DERROTA");
 
-		my_id = ws_get_my_id();
-		if (my_id > 0) {
-			ATTACK_RANGE   = ws_get_attack_range();
-			ATTACK_RANGE_Y = ws_get_attack_range_y();
-			no_id_frames   = 0;
-		} else {
+            int vi = AnimIndex("victory");
+            for (int s = 0; s < MAX_PLAYERS; s++) {
+                if (!players[s].active || players[s].id != winner_id) continue;
+                if (players[s].character) {
+                    LoadPlayerAnim(&players[s], vi);
+                    SetCharacterAutoPlay(players[s].character, true);
+                    players[s].character->currentFrame = 0;
+                    players[s].character->forceUpdate  = true;
+                }
+                players[s].animIndex = vi;
+                strcpy_safe(players[s].animation, ANIM_NAME[vi], sizeof(players[s].animation));
+                break;
+            }
+        }
+    }
 
-			no_id_frames++;
-			if (no_id_frames >= NO_ID_SPECTATOR_FRAMES && ws_player_count() > 0) {
-				is_spectator = true;
-				my_id        = -1;
-			}
-		}
-	}
+    if (!match_over && victory_pending && ws_overlay_ready()) {
+        match_over      = true;
+        victory_pending = false;
+        ws_consume_victory();
+    }
 
-
-	FetchState();
-	FlushOnePlayerInit();
-
-
-	if (!match_over && !victory_pending) {
-		int vstate = ws_get_victory_state();
-		if (vstate != 0) {
-			int wid = ws_get_victory_winner();
-			victory_pending = true;
-			winner_id  = wid;
-
-			if (vstate == 1)
-				snprintf(winner_message, sizeof(winner_message), "VICTORY");
-			else
-				snprintf(winner_message, sizeof(winner_message), "DERROTA");
-
-			int vi = AnimIndex("victory");
-			for (int s = 0; s < MAX_PLAYERS; s++) {
-				if (!players[s].active || players[s].id != winner_id) continue;
-				if (players[s].character) {
-					LoadPlayerAnim(&players[s], vi);
-					SetCharacterAutoPlay(players[s].character, true);
-					players[s].character->currentFrame = 0;
-					players[s].character->forceUpdate  = true;
-				}
-				players[s].animIndex = vi;
-				strcpy_safe(players[s].animation, ANIM_NAME[vi],
-				            sizeof(players[s].animation));
-				break;
-			}
-		}
-	}
-
-	if (!match_over && victory_pending && ws_overlay_ready()) {
-		match_over      = true;
-		victory_pending = false;
-		ws_consume_victory();
-	}
-
-	DrawGame();
+    DrawGame();
 }
 
 int main(void) {
-	memset(players, 0, sizeof(players));
+    memset(players, 0, sizeof(players));
 
-	SetTraceLogLevel(LOG_NONE);
-	InitWindow(SCREEN_W, SCREEN_H, "Enuma Fighter");
-	SetTargetFPS(60);
+    SetTraceLogLevel(LOG_NONE);
+    InitWindow(SCREEN_W, SCREEN_H, "Enuma Fighter");
+    SetTargetFPS(60);
 
-	scene_cam = (Camera){
-		.position   = { 0.0f, 1.2f,  9.0f },
-			.target     = { 0.0f, 1.2f,  0.0f },
-			.up         = { 0.0f, 1.0f,  0.0f },
-			.fovy       = 50.0f,
-			.projection = CAMERA_PERSPECTIVE,
-	};
+    scene_cam = (Camera){
+        .position   = { 0.0f, CAM_Y_DEFAULT, 9.0f },
+        .target     = { 0.0f, CAM_Y_DEFAULT, 0.0f },
+        .up         = { 0.0f, 1.0f, 0.0f },
+        .fovy       = CAM_FOV_SPEC,
+        .projection = CAMERA_PERSPECTIVE,
+    };
 
-	game_ready = true;
-	emscripten_set_main_loop(MainLoop, 0, 1);
+    game_ready = true;
+    emscripten_set_main_loop(MainLoop, 0, 1);
 
-
-	for (int i = 0; i < MAX_PLAYERS; i++)
-		if (players[i].active) FreePlayer(&players[i]);
-	Skybox_Unload();
-	CloseWindow();
-	return 0;
+    for (int i = 0; i < MAX_PLAYERS; i++)
+        if (players[i].active) FreePlayer(&players[i]);
+    Skybox_Unload();
+    CloseWindow();
+    return 0;
 }
