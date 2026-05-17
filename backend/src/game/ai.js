@@ -1,3 +1,14 @@
+/*
+  const { players } = await (await fetch('/api/players')).json();
+  const free = players.filter(p => !p.inSession);
+  const res = await fetch('/api/dev/training', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ clientId: free[0].clientId, cpuCharId: 'eld' })
+    //  personajes: eld, hil, qui, gab
+  });
+  console.log(await res.json());
+*/
 'use strict';
 
 const { TICK_DT } = require('./constants');
